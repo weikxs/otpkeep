@@ -146,3 +146,56 @@ fn a_peer_clock_far_ahead_stops_the_session_without_changes() {
 
     assert!(matches!(stop, Some(SyncStop::PeerClock(_))), "{stop:?}");
 }
+
+#[test]
+fn when_a_session_stops_over_a_removal_both_sides_keep_the_membership_events() {
+    let (a, b) = pair();
+    let removal = sign_event(
+        &identity(2),
+        &GROUP,
+        MemberKind::Remove {
+            device: identity(3).device_id(),
+        },
+        keep_vault::Hlc {
+            wall_ms: 10,
+            logical: 0,
+            device: b.device_tag,
+        },
+    );
+    let self_removal = sign_event(
+        &identity(2),
+        &GROUP,
+        MemberKind::Remove {
+            device: identity(2).device_id(),
+        },
+        keep_vault::Hlc {
+            wall_ms: 11,
+            logical: 0,
+            device: b.device_tag,
+        },
+    );
+    let mut b = b;
+    b.group
+        .as_mut()
+        .unwrap()
+        .events
+        .extend([removal, self_removal]);
+    let (a, _) = add(&a, "Untouched", 1, MINUTE_MS);
+    let (a_id, b_id) = ids();
+
+    assert_eq!(
+        sync_data(&a, &b, a_id, b_id, MINUTE_MS, MINUTE_MS).err(),
+        Some(SyncStop::Removed(b_id))
+    );
+    let (a_after, b_after) = super::share_membership(&a, &b);
+
+    for doc in [&a_after, &b_after] {
+        let members = crate::membership::membership(doc.group.as_ref().unwrap());
+        assert!(members.is_removed(b_id) && members.is_removed(identity(3).device_id()));
+    }
+    assert_eq!(
+        a_after.entries, a.entries,
+        "only membership events are kept"
+    );
+    assert!(b_after.entries.is_empty());
+}

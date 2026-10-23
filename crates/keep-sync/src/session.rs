@@ -90,6 +90,24 @@ pub fn sync_data(
     })
 }
 
+/// When a session stops with [`SyncStop::Removed`], what each side keeps: its own state with the membership
+/// events of both. The events that decide a removal may sit on one side only, and the identity check refuses
+/// before anything else is exchanged; keeping them lets every device learn of the removal. Nothing else
+/// changes. The events are signed, and the other side's new ones are checked.
+#[must_use]
+pub fn share_membership(opener: &VaultDoc, joiner: &VaultDoc) -> (VaultDoc, VaultDoc) {
+    let with_events = |ours: &VaultDoc, theirs: &VaultDoc| {
+        let mut doc = ours.clone();
+        if let (Some(group), Some(other)) = (doc.group.as_mut(), theirs.group.as_ref())
+            && group.group_id == other.group_id
+        {
+            group.events = merge_events(&group.group_id, &group.events, &other.events);
+        }
+        doc
+    };
+    (with_events(opener, joiner), with_events(joiner, opener))
+}
+
 /// Both must be current members of the same group, by the union of what both know.
 fn check_members(
     opener: &VaultDoc,
