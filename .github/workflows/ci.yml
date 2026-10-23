@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  UI_DIR: apps/desktop-mobile
+
+jobs:
+  policy:
+    name: privacy, format and dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Privacy
+        run: scripts/check-privacy.sh
+      - name: Format
+        run: cargo fmt --all --check
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny,cargo-audit
+      - name: Dependency policy
+        run: cargo deny check
+      - name: Security advisories
+        run: cargo audit --ignore RUSTSEC-2024-0370
+
+  rust:
+    name: rust (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test
+        shell: bash
+        run: |
+          # Tests write only under /tmp on Unix (docs/development/standards.md, section 2).
+          if [ "$RUNNER_OS" != "Windows" ]; then
+            export TMPDIR=/tmp/otpkeep-test/
+            mkdir -p "$TMPDIR"
+          fi
+          cargo test --workspace
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: Coverage (at least 80%)
+        run: make cover
+
+  ui:
+    name: ui (typecheck, components, browser)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with:
+          rust: "false"
+      - name: Type check and component tests
+        working-directory: ${{ env.UI_DIR }}
+        run: pnpm typecheck && pnpm test
+      - name: Browser tests (Chrome)
+        working-directory: ${{ env.UI_DIR }}
+        run: pnpm e2e
+
+  ios:
+    name: ios (simulator build)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: rustup target add aarch64-apple-ios-sim
+      - name: Build
+        working-directory: ${{ env.UI_DIR }}
+        run: pnpm tauri ios build --debug --target aarch64-sim --ci
+
+  android:
+    name: android (debug build)
+    runs-on: ubuntu-latest
+    env:
+      NDK_VERSION: 28.2.13676358
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install the NDK
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+      - run: rustup target add aarch64-linux-android
+      - name: Build
+        working-directory: ${{ env.UI_DIR }}
+        run: pnpm tauri android build --debug --apk --target aarch64 --ci
+
+  size:
+    name: installer size (at most 20 MB)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - name: Build release bundles
+        working-directory: ${{ env.UI_DIR }}
+        run: pnpm tauri build --bundles deb --ci
+      - name: Check size
+        run: |
+          limit=$((20 * 1024 * 1024))
+          for file in target/release/bundle/deb/*.deb; do
+            size=$(stat -c %s "$file")
+            echo "$file: $size bytes"
+            if [ "$size" -gt "$limit" ]; then
+              echo "::error::$file is larger than 20 MB"
+              exit 1
+            fi
+          done

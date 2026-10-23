@@ -1,0 +1,38 @@
+name: Set up OTPKeep build
+description: Rust toolchain from rust-toolchain.toml, Linux build libraries, Node, pnpm and the built UI.
+inputs:
+  rust:
+    description: Whether to set up Rust and build the UI it embeds.
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - name: Linux libraries for Tauri
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+    - uses: pnpm/action-setup@v4
+      with:
+        package_json_file: apps/desktop-mobile/package.json
+    - uses: actions/setup-node@v5
+      with:
+        node-version: "22"
+        cache: pnpm
+        cache-dependency-path: apps/desktop-mobile/pnpm-lock.yaml
+    - name: Install UI dependencies
+      shell: bash
+      working-directory: apps/desktop-mobile
+      run: pnpm install --frozen-lockfile
+    - name: Rust toolchain
+      if: inputs.rust == 'true'
+      shell: bash
+      run: rustup show active-toolchain || rustup toolchain install
+    - uses: Swatinem/rust-cache@v2
+      if: inputs.rust == 'true'
+    - name: Build the UI embedded by the app
+      if: inputs.rust == 'true'
+      shell: bash
+      working-directory: apps/desktop-mobile
+      run: pnpm build

@@ -1,0 +1,37 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: fuzz (10 minutes per target)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Find fuzz targets
+        id: targets
+        run: |
+          if [ -d fuzz ]; then
+            echo "list=$(find fuzz/fuzz_targets -name '*.rs' -exec basename {} .rs \; | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: dtolnay/rust-toolchain@nightly
+        if: steps.targets.outputs.list != ''
+      - uses: taiki-e/install-action@v2
+        if: steps.targets.outputs.list != ''
+        with:
+          tool: cargo-fuzz
+      - name: Fuzz
+        if: steps.targets.outputs.list != ''
+        run: |
+          for target in ${{ steps.targets.outputs.list }}; do
+            cargo +nightly fuzz run "$target" -- -max_total_time=600
+          done
+      - name: No targets yet
+        if: steps.targets.outputs.list == ''
+        run: echo "No fuzz targets yet; parsers add them in M1."
