@@ -1,0 +1,82 @@
+[package]
+name = "otpkeep-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+keep-find = { path = "../crates/keep-find" }
+keep-keyuri = { path = "../crates/keep-keyuri" }
+keep-passcode = { path = "../crates/keep-passcode" }
+keep-transfer = { path = "../crates/keep-transfer" }
+keep-vault = { path = "../crates/keep-vault" }
+
+# Not part of the main workspace: fuzzing needs a nightly toolchain.
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "keyuri"
+path = "fuzz_targets/keyuri.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "base32"
+path = "fuzz_targets/base32.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "migration"
+path = "fuzz_targets/migration.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "vault_doc"
+path = "fuzz_targets/vault_doc.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sealed"
+path = "fuzz_targets/sealed.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "goldenpassport"
+path = "fuzz_targets/goldenpassport.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "qr_image"
+path = "fuzz_targets/qr_image.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "find"
+path = "fuzz_targets/find.rs"
+test = false
+doc = false
+bench = false
+
+[patch.crates-io]
+rqrr = { path = "../vendor/rqrr" }

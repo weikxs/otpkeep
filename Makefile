@@ -11,7 +11,7 @@ COVER_MIN := 80
 COVER_EXCLUDE := --exclude otpkeep-app
 
 .PHONY: all build ui ui-install test test-rust test-ui cover fmt fmt-check clippy deny audit privacy \
-        check perf e2e hooks app clean
+        check perf fuzz e2e hooks app clean
 
 all: check
 
@@ -62,6 +62,14 @@ check: privacy fmt-check clippy test cover deny audit perf
 # Performance gates, measured on release builds (PRD FR-3.10: search within 16 ms for 1000 entries).
 perf: $(TEST_TMP)
 	cargo test --release --workspace --test performance -- --nocapture
+
+# Fuzz every parser of outside data (needs nightly Rust and cargo-fuzz). FUZZ_SECONDS per target.
+FUZZ_SECONDS ?= 60
+FUZZ_TARGETS := keyuri base32 migration vault_doc sealed goldenpassport qr_image find
+fuzz:
+	cd fuzz && for target in $(FUZZ_TARGETS); do \
+		cargo +nightly fuzz run $$target -- -max_total_time=$(FUZZ_SECONDS) -rss_limit_mb=2048 || exit 1; \
+	done
 
 # Browser tests of the shared UI against a production build (uses the local Chrome).
 e2e: ui-install

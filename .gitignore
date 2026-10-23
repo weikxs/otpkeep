@@ -14,3 +14,9 @@ docs/prd/
 # Test output
 /apps/desktop-mobile/test-results/
 /apps/desktop-mobile/playwright-report/
+
+# Fuzzing: build output, generated corpus and crash artifacts
+/fuzz/target/
+/fuzz/corpus/
+/fuzz/artifacts/
+/fuzz/coverage/
