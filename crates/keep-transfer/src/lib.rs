@@ -4,3 +4,4 @@ pub mod backup;
 pub mod goldenpassport;
 pub mod import;
 pub mod migration;
+pub mod qr;
