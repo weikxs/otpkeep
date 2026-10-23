@@ -255,9 +255,9 @@ fn trash_restore_and_purge() {
     assert_eq!(trashed(&doc).iter().map(|e| e.id).collect::<Vec<_>>(), [a]);
     let doc = restore(&doc, a, 4).unwrap();
     assert_eq!(titles(&doc), ["a", "b"]);
-    let doc = purge(&doc, b).unwrap();
+    let doc = purge(&doc, b, DAY_MS).unwrap();
     assert_eq!(doc.entries.len(), 1);
-    assert_eq!(purge(&doc, b).err(), Some(EditError::NotFound));
+    assert_eq!(purge(&doc, b, DAY_MS).err(), Some(EditError::NotFound));
 }
 
 #[test]
@@ -435,4 +435,59 @@ proptest! {
         stamps.sort();
         prop_assert!(stamps.iter().all(|s| *s <= doc.clock), "the clock is behind an entry");
     }
+}
+
+fn grouped(doc: VaultDoc) -> VaultDoc {
+    VaultDoc {
+        group: Some(crate::SyncGroup {
+            group_id: [1; 16],
+            tag_key: [2; 32],
+            events: vec![],
+            presence: std::collections::BTreeMap::new(),
+            extra: Extra::new(),
+        }),
+        ..doc
+    }
+}
+
+#[test]
+fn in_a_sync_group_deleting_for_good_leaves_a_tombstone() {
+    let (doc, a) = add(&grouped(empty()), "A", 1, DAY_MS);
+    let doc = move_to_trash(&doc, a, DAY_MS).unwrap();
+
+    let purged = purge(&doc, a, 2 * DAY_MS).unwrap();
+
+    assert!(purged.entries.is_empty());
+    let [tomb] = purged.tombstones.as_slice() else {
+        panic!("expected one tombstone: {:?}", purged.tombstones);
+    };
+    assert_eq!(tomb.entry, a);
+    assert!(tomb.stamp > doc.clock && tomb.stamp.wall_ms == 2 * DAY_MS);
+    assert!(tomb.acked_by.is_empty());
+    assert_eq!(purged.clock, tomb.stamp);
+}
+
+#[test]
+fn in_a_sync_group_expired_trash_leaves_tombstones() {
+    let (doc, a) = add(&grouped(empty()), "A", 1, DAY_MS);
+    let (doc, b) = add(&doc, "B", 2, DAY_MS);
+    let doc = move_to_trash(&doc, a, DAY_MS).unwrap();
+    let doc = move_to_trash(&doc, b, DAY_MS).unwrap();
+
+    let doc = purge_expired_trash(&doc, DAY_MS + TRASH_RETENTION_MS + 1);
+
+    let mut gone: Vec<EntryId> = doc.tombstones.iter().map(|t| t.entry).collect();
+    gone.sort();
+    let mut expected = vec![a, b];
+    expected.sort();
+    assert_eq!(gone, expected);
+    assert!(doc.tombstones.iter().all(|t| t.stamp <= doc.clock));
+    assert_ne!(doc.tombstones[0].stamp, doc.tombstones[1].stamp);
+}
+
+#[test]
+fn outside_a_sync_group_deleting_leaves_no_tombstone() {
+    let (doc, a) = add(&empty(), "A", 1, DAY_MS);
+
+    assert!(purge(&doc, a, DAY_MS).unwrap().tombstones.is_empty());
 }

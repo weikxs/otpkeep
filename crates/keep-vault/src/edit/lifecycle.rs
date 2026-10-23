@@ -3,7 +3,7 @@
 use keep_passcode::{CodeKind, CodeSpec, SecretKey};
 
 use super::{EditError, next_stamp, update_entry};
-use crate::model::{Entry, EntryId, Extra, Field, Hlc, KeyMaterial, VaultDoc};
+use crate::model::{Entry, EntryId, Extra, Field, Hlc, KeyMaterial, Tombstone, VaultDoc};
 
 /// Entries stay in the trash for 30 days (PRD FR-4.3).
 pub const TRASH_RETENTION_MS: u64 = 30 * 24 * 60 * 60 * 1000;
@@ -42,38 +42,69 @@ pub fn restore(doc: &VaultDoc, id: EntryId, now_ms: u64) -> Result<VaultDoc, Edi
     })
 }
 
-/// Deletes an entry permanently. (Sync groups also record a tombstone; that arrives with sync, design/06 §6.5.)
+/// Deletes an entry permanently. In a sync group a tombstone records the deletion, so sync does not bring
+/// the entry back (design/06-sync.md §6.5).
 ///
 /// # Errors
 ///
 /// Returns [`EditError::NotFound`] for an unknown entry.
-pub fn purge(doc: &VaultDoc, id: EntryId) -> Result<VaultDoc, EditError> {
+pub fn purge(doc: &VaultDoc, id: EntryId, now_ms: u64) -> Result<VaultDoc, EditError> {
     if !doc.entries.iter().any(|e| e.id == id) {
         return Err(EditError::NotFound);
     }
-    let entries = doc.entries.iter().filter(|e| e.id != id).cloned().collect();
-    Ok(VaultDoc {
-        entries,
-        ..doc.clone()
-    })
+    Ok(delete_for_good(doc, &[id], now_ms))
 }
 
 /// Deletes entries that have been in the trash for longer than [`TRASH_RETENTION_MS`].
 #[must_use]
 pub fn purge_expired_trash(doc: &VaultDoc, now_ms: u64) -> VaultDoc {
-    let expired = |e: &Entry| {
-        e.trashed_at
-            .value
-            .is_some_and(|at| now_ms.saturating_sub(at.wall_ms) > TRASH_RETENTION_MS)
-    };
+    let expired: Vec<EntryId> = doc
+        .entries
+        .iter()
+        .filter(|e| {
+            e.trashed_at
+                .value
+                .is_some_and(|at| now_ms.saturating_sub(at.wall_ms) > TRASH_RETENTION_MS)
+        })
+        .map(|e| e.id)
+        .collect();
+    if expired.is_empty() {
+        return doc.clone();
+    }
+    delete_for_good(doc, &expired, now_ms)
+}
+
+/// Removes `ids`, with a tombstone for each when the vault is in a sync group. The devices that hold a
+/// tombstone are added when it is synced.
+fn delete_for_good(doc: &VaultDoc, ids: &[EntryId], now_ms: u64) -> VaultDoc {
     let entries = doc
         .entries
         .iter()
-        .filter(|e| !expired(e))
+        .filter(|e| !ids.contains(&e.id))
         .cloned()
         .collect();
+    if doc.group.is_none() {
+        return VaultDoc {
+            entries,
+            ..doc.clone()
+        };
+    }
+    let mut clock_doc = doc.clone();
+    let mut tombstones = doc.tombstones.clone();
+    for id in ids {
+        let stamp = next_stamp(&clock_doc, now_ms);
+        clock_doc.clock = stamp;
+        tombstones.retain(|t| t.entry != *id);
+        tombstones.push(Tombstone {
+            entry: *id,
+            stamp,
+            acked_by: Vec::new(),
+        });
+    }
     VaultDoc {
         entries,
+        tombstones,
+        clock: clock_doc.clock,
         ..doc.clone()
     }
 }
@@ -161,9 +192,11 @@ pub fn replace_key(
     })
 }
 
-/// A trashed copy of `entry` holding its current key. Its id depends only on the entry and the key, so every
-/// device that makes this copy makes the same one.
-fn old_key_copy(entry: &Entry, stamp: Hlc) -> Entry {
+/// A trashed copy of `entry` holding its current key, stamped `stamp`. Its id depends only on the entry and
+/// the key, so every device that makes this copy makes the same one; sync uses it for the key that loses a
+/// merge (design/06-sync.md §6.3).
+#[must_use]
+pub fn old_key_copy(entry: &Entry, stamp: Hlc) -> Entry {
     let field = |value| Field { value, stamp };
     Entry {
         id: old_key_copy_id(entry.id, entry.key.value.key_id),

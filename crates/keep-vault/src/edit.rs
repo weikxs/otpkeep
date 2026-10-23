@@ -13,7 +13,8 @@ mod lifecycle;
 mod order;
 
 pub use lifecycle::{
-    TRASH_RETENTION_MS, move_to_trash, next_hotp, purge, purge_expired_trash, replace_key, restore,
+    TRASH_RETENTION_MS, move_to_trash, next_hotp, old_key_copy, purge, purge_expired_trash,
+    replace_key, restore,
 };
 pub use order::{Placement, move_entry, ordered, trashed};
 

@@ -2213,6 +2213,7 @@ dependencies = [
  "ciborium",
  "ed25519-dalek",
  "getrandom 0.4.3",
+ "keep-passcode",
  "keep-vault",
  "thiserror 2.0.21",
  "tracing",

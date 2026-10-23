@@ -89,6 +89,32 @@ pub fn encode_member_kind(kind: &crate::model::MemberKind) -> Vec<u8> {
     bytes
 }
 
+/// The CBOR of the synced state, in the order given: entries, tombstones and membership events. Sync hashes it
+/// to check that two devices ended up with the same data (design/06-sync.md §6.6). It contains secrets and is
+/// wiped from memory when dropped.
+#[must_use]
+pub fn encode_sync_state(
+    entries: &[&crate::model::Entry],
+    tombstones: &[&crate::model::Tombstone],
+    events: &[&crate::model::MemberEvent],
+) -> Zeroizing<Vec<u8>> {
+    let mut value = Value::Array(vec![
+        Value::Array(entries.iter().map(|e| entry::entry_to_value(e)).collect()),
+        Value::Array(
+            tombstones
+                .iter()
+                .map(|t| entry::tombstone_to_value(t))
+                .collect(),
+        ),
+        Value::Array(events.iter().map(|e| group::event_to_value(e)).collect()),
+    ]);
+    let mut bytes = Zeroizing::new(Vec::new());
+    // Serializing an in-memory value into a Vec cannot fail.
+    let _ = ciborium::ser::into_writer(&value, &mut *bytes);
+    wipe(&mut value);
+    bytes
+}
+
 /// Decodes a vault written by [`encode_vault`].
 ///
 /// # Errors

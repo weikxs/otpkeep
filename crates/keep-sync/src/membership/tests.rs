@@ -235,7 +235,9 @@ fn kinds_from_newer_versions_are_kept_but_ignored() {
 
     assert!(verify_event(&GROUP, &other));
     assert_eq!(members(vec![join(&a, &a, 1), other.clone()]), ids(&[&a]));
-    assert!(merge_events(&GROUP, &[join(&a, &a, 1)], std::slice::from_ref(&other)).contains(&other));
+    assert!(
+        merge_events(&GROUP, &[join(&a, &a, 1)], std::slice::from_ref(&other)).contains(&other)
+    );
 }
 
 #[test]

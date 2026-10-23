@@ -172,7 +172,7 @@ impl VaultService {
     ///
     /// Returns [`ServiceError`]; nothing changes on failure.
     pub fn purge(&mut self, id: EntryId) -> Result<(), ServiceError> {
-        let doc = edit::purge(self.doc(), id)?;
+        let doc = edit::purge(self.doc(), id, self.now())?;
         self.commit(doc)?;
         self.hotp_codes.remove(&id);
         self.save_local(self.local.forget(id))
