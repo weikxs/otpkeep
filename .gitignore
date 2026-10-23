@@ -7,3 +7,10 @@ dist/
 
 # PRD and design documents are internal; never publish.
 docs/prd/
+
+# Local privacy denylist (real identifiers checked by scripts/check-privacy.sh); never publish.
+.privacy-denylist
+
+# Test output
+/apps/desktop-mobile/test-results/
+/apps/desktop-mobile/playwright-report/

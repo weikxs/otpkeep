@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Blocks commits that would publish local paths, secrets or real identifiers.
+set -euo pipefail
+exec "$(git rev-parse --show-toplevel)/scripts/check-privacy.sh"

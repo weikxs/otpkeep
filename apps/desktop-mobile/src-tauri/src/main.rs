@@ -5,7 +5,10 @@
 
 use std::process::ExitCode;
 
-#[allow(clippy::print_stderr, reason = "the app failed to start, so stderr is the only place left to report it")]
+#[allow(
+    clippy::print_stderr,
+    reason = "the app failed to start, so stderr is the only place left to report it"
+)]
 fn main() -> ExitCode {
     match otpkeep_app_lib::run() {
         Ok(()) => ExitCode::SUCCESS,

@@ -4,7 +4,7 @@
 ///
 /// # Errors
 ///
-/// Returns the error Tauri reports when the app cannot start.
+/// Returns the [`tauri::Error`] reported when the app cannot start.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() -> Result<(), tauri::Error> {
     tauri::Builder::default().run(tauri::generate_context!())

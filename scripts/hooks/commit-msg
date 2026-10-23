@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Enforces Conventional Commits and rejects tool or bot attribution trailers.
+set -euo pipefail
+
+readonly MESSAGE_FILE=$1
+subject=$(head -n 1 "$MESSAGE_FILE")
+
+if ! grep -Eq '^(feat|fix|docs|refactor|test|chore|perf|ci|build|style|revert)(\([a-z0-9-]+\))?!?: .+' <<<"$subject"; then
+  echo "commit-msg: the subject must follow Conventional Commits, for example 'feat(cli): add list'" >&2
+  exit 1
+fi
+
+if grep -Eiq '^co-authored-by:.*(claude|anthropic|copilot|chatgpt|openai|gemini|cursor|bot)|generated with|🤖' "$MESSAGE_FILE"; then
+  echo "commit-msg: remove tool or bot attribution; commits are authored by the contributor only" >&2
+  exit 1
+fi
