@@ -1,0 +1,9 @@
+/target/
+node_modules/
+dist/
+.DS_Store
+*.okv
+*.otpkeep
+
+# PRD and design documents are internal; never publish.
+docs/prd/
