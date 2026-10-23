@@ -367,3 +367,73 @@ fn bad_command_lines_are_usage_errors() {
         );
     }
 }
+
+#[test]
+fn every_kind_of_stopped_vault_says_what_to_do() {
+    let dir = temp_dir();
+    let keystore = MemoryKeystore::new();
+    seed(dir.path(), &keystore);
+    let paths = VaultPaths::new(dir.path());
+
+    let key_missing = cli(Some(dir.path()), &MemoryKeystore::new(), &["list"], "");
+    let unavailable = cli(
+        Some(dir.path()),
+        &MemoryKeystore::unavailable(),
+        &["list"],
+        "",
+    );
+    std::fs::write(paths.vault(), b"damaged").unwrap();
+    let damaged = cli(Some(dir.path()), &keystore, &["list"], "");
+    std::fs::remove_file(paths.vault()).unwrap();
+    std::fs::remove_file(paths.prev()).unwrap();
+    let data_missing = cli(Some(dir.path()), &keystore, &["list"], "");
+    let no_dir = cli(None, &keystore, &["list"], "");
+
+    for (result, words) in [
+        (&key_missing, "key"),
+        (&unavailable, "keystore"),
+        (&damaged, "damaged"),
+        (&data_missing, "missing"),
+        (&no_dir, "data directory"),
+    ] {
+        assert_eq!(result.code, EXIT_VAULT_ERROR, "{}", result.err);
+        assert!(result.err.contains(words), "{words}: {}", result.err);
+    }
+}
+
+#[test]
+fn a_terminal_prompts_for_the_master_password() {
+    let dir = temp_dir();
+    let keystore = MemoryKeystore::new();
+    let kdf = KdfParams {
+        salt: [3; 16],
+        m_cost_kib: 64,
+        t_cost: 1,
+        p_cost: 1,
+    };
+    let open =
+        create_with_master_password(&VaultPaths::new(dir.path()), "typed", kdf, WAIT).unwrap();
+    VaultService::new(open, || NOW_MS)
+        .add(entry("Example Cloud", "", 1, CodeSpec::default(), &[]))
+        .unwrap();
+    let args: Vec<String> = ["code", "example"]
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    let mut input: &[u8] = b"";
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let mut context = Context {
+        data_dir: Some(dir.path().to_path_buf()),
+        keystore: &keystore,
+        stdin: &mut input,
+        stdin_is_tty: true,
+        now_ms: || NOW_MS,
+        prompt_password: &|| Some("typed".to_owned()),
+        lock_wait: WAIT,
+    };
+
+    let code = run(&args, &mut context, &mut out, &mut err);
+
+    assert_eq!(code, EXIT_OK, "{}", String::from_utf8_lossy(&err));
+    assert_eq!(String::from_utf8(out).unwrap().trim(), expected_code(1));
+}
