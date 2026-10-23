@@ -99,6 +99,30 @@ pub struct OpenVault {
 }
 
 impl OpenVault {
+    /// The data directory.
+    pub(crate) fn paths(&self) -> &VaultPaths {
+        &self.paths
+    }
+
+    /// Seals `local.okv` contents with this vault's key.
+    pub(crate) fn seal_local(&self, plaintext: &[u8]) -> Result<Vec<u8>, crate::sealed::SealError> {
+        let header = SealedHeader {
+            kind: crate::sealed::FileKind::Local,
+            ..self.header.clone()
+        };
+        seal(&header, &self.key, plaintext)
+    }
+
+    /// Opens `local.okv` with this vault's key.
+    pub(crate) fn open_local(&self, bytes: &[u8]) -> Option<Zeroizing<Vec<u8>>> {
+        match open(bytes, &self.key) {
+            Ok((header, plaintext)) if header.kind == crate::sealed::FileKind::Local => {
+                Some(plaintext)
+            }
+            _ => None,
+        }
+    }
+
     /// The current contents.
     #[must_use]
     pub fn doc(&self) -> &VaultDoc {
