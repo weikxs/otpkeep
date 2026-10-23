@@ -1,0 +1,11 @@
+[package]
+name = "keep-find"
+description = "Search over names, issuers, accounts, tags and notes, including pinyin."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

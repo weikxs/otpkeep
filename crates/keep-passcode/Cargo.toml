@@ -1,0 +1,11 @@
+[package]
+name = "keep-passcode"
+description = "HOTP and TOTP passcodes, Base32 and code specifications."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

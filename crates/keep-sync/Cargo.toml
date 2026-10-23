@@ -1,0 +1,11 @@
+[package]
+name = "keep-sync"
+description = "LAN pairing and sync: windows, handshakes, membership and merging."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
