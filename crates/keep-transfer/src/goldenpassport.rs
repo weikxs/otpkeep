@@ -9,8 +9,9 @@
 //!
 //! Both live in `~/Library/Application Support/GoldenPassport/`. They are opened only after the user agrees.
 
-use keep_keyuri::{KeyUriFault, parse_key_uri};
-use plist::{Dictionary, Value};
+use keep_keyuri::{KeyUri, KeyUriFault, parse_key_uri, write_key_uri};
+use keep_passcode::{CodeKind, Digest};
+use plist::{Dictionary, Uid, Value};
 use zeroize::Zeroizing;
 
 use crate::import::{Candidate, Origin};
@@ -154,6 +155,137 @@ fn string(objects: &[Value], reference: &Value) -> Option<String> {
 
 fn mutable_string(dictionary: &Dictionary) -> Option<String> {
     dictionary.get("NS.string")?.as_string().map(str::to_owned)
+}
+
+/// One account to export for GoldenPassport.
+#[derive(Debug, Clone, Copy)]
+pub struct GpExportItem<'a> {
+    /// The name GoldenPassport shows; made unique and never empty.
+    pub name: &'a str,
+    /// The account.
+    pub uri: &'a KeyUri,
+}
+
+/// Why an account is left out of a GoldenPassport file: GoldenPassport 0.1.x reads only the secret and always
+/// computes 6-digit SHA-1 codes every 30 seconds, so it would show wrong codes for these.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GpIncompatible {
+    /// HOTP.
+    CounterBased,
+    /// Not SHA-1.
+    Algorithm,
+    /// Not 6 digits.
+    Digits,
+    /// Not 30 seconds.
+    Period,
+}
+
+/// A GoldenPassport `.secrets` file. It holds every secret unencrypted and is wiped when dropped.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GpExport {
+    /// The file contents.
+    pub bytes: Zeroizing<Vec<u8>>,
+    /// Accounts left out, by input position.
+    pub skipped: Vec<(usize, GpIncompatible)>,
+}
+
+/// Writes a `.secrets` file that GoldenPassport 0.1.x (and later) can import: a binary keyed archive of an
+/// `NSDictionary` from name to link, laid out as `NSKeyedArchiver` lays it out.
+#[must_use]
+pub fn write_secrets(items: &[GpExportItem<'_>]) -> GpExport {
+    let mut skipped = Vec::new();
+    let mut pairs: Vec<(String, Zeroizing<String>)> = Vec::new();
+    for (index, item) in items.iter().enumerate() {
+        if let Some(reason) = gp_incompatibility(item.uri) {
+            skipped.push((index, reason));
+            continue;
+        }
+        let name = unique_name(&display_name(item), &pairs);
+        pairs.push((name, write_key_uri(item.uri)));
+    }
+    let mut bytes = Zeroizing::new(Vec::new());
+    // Serializing an in-memory value into a Vec cannot fail.
+    let _ = keyed_archive(&pairs).to_writer_binary(&mut *bytes);
+    GpExport { bytes, skipped }
+}
+
+fn gp_incompatibility(uri: &KeyUri) -> Option<GpIncompatible> {
+    match uri.spec.kind() {
+        CodeKind::CounterBased => Some(GpIncompatible::CounterBased),
+        _ if uri.spec.digest() != Digest::Sha1 => Some(GpIncompatible::Algorithm),
+        _ if uri.spec.digits() != 6 => Some(GpIncompatible::Digits),
+        CodeKind::TimeBased { period_s } if period_s != 30 => Some(GpIncompatible::Period),
+        CodeKind::TimeBased { .. } => None,
+    }
+}
+
+fn display_name(item: &GpExportItem<'_>) -> String {
+    [
+        item.name,
+        item.uri.issuer.as_str(),
+        item.uri.account.as_str(),
+    ]
+    .into_iter()
+    .map(str::trim)
+    .find(|n| !n.is_empty())
+    .unwrap_or("OTP")
+    .to_owned()
+}
+
+/// `name`, or `name (2)`, `name (3)`, … when the dictionary already has it. With `n` names taken, one of
+/// `name (2)` … `name (n + 2)` is always free.
+fn unique_name(name: &str, taken: &[(String, Zeroizing<String>)]) -> String {
+    let free = |candidate: &str| !taken.iter().any(|(n, _)| n == candidate);
+    if free(name) {
+        return name.to_owned();
+    }
+    (2..=taken.len() + 2)
+        .map(|n| format!("{name} ({n})"))
+        .find(|c| free(c))
+        .unwrap_or_else(|| name.to_owned())
+}
+
+/// The keyed-archive layout: `$null`, the dictionary, its keys, its values, then the class description.
+fn keyed_archive(pairs: &[(String, Zeroizing<String>)]) -> Value {
+    let uid = |index: usize| Value::Uid(Uid::new(index as u64));
+    let first_key = 2;
+    let first_value = first_key + pairs.len();
+    let class = first_value + pairs.len();
+    let mut root = Dictionary::new();
+    root.insert(
+        "NS.keys".into(),
+        Value::Array((first_key..first_value).map(uid).collect()),
+    );
+    root.insert(
+        "NS.objects".into(),
+        Value::Array((first_value..class).map(uid).collect()),
+    );
+    root.insert("$class".into(), uid(class));
+    let mut class_info = Dictionary::new();
+    class_info.insert("$classname".into(), Value::String("NSDictionary".into()));
+    class_info.insert(
+        "$classes".into(),
+        Value::Array(vec![
+            Value::String("NSDictionary".into()),
+            Value::String("NSObject".into()),
+        ]),
+    );
+    let mut objects = vec![Value::String("$null".into()), Value::Dictionary(root)];
+    objects.extend(pairs.iter().map(|(name, _)| Value::String(name.clone())));
+    objects.extend(
+        pairs
+            .iter()
+            .map(|(_, link)| Value::String(link.to_string())),
+    );
+    objects.push(Value::Dictionary(class_info));
+    let mut top = Dictionary::new();
+    top.insert("root".into(), uid(1));
+    let mut archive = Dictionary::new();
+    archive.insert("$archiver".into(), Value::String("NSKeyedArchiver".into()));
+    archive.insert("$version".into(), Value::Integer(100_000.into()));
+    archive.insert("$top".into(), Value::Dictionary(top));
+    archive.insert("$objects".into(), Value::Array(objects));
+    Value::Dictionary(archive)
 }
 
 #[cfg(test)]
