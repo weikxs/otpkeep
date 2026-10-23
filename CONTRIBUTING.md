@@ -9,7 +9,8 @@ Thanks for helping! This page is the short version; the full rules are in
 ## Set up
 
 Requirements: Rust (the version in `rust-toolchain.toml` is installed automatically by rustup), Node.js 22,
-pnpm 11, Make, and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your platform.
+pnpm 11, Make, and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your platform. On Linux, also
+install the D-Bus development files (`libdbus-1-dev` and `pkg-config` on Debian and Ubuntu) for the system keystore.
 Optional tools: `cargo install --locked cargo-deny cargo-audit cargo-llvm-cov`.
 
 ```sh

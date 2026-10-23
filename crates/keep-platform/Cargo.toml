@@ -7,5 +7,23 @@ rust-version.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[dependencies]
+thiserror = "2"
+zeroize = "1.9"
+
+# Each desktop platform's own credential store behind keyring-core. On Linux the libdbus-based Secret Service
+# store is used rather than the zbus one, whose dependencies are unmaintained (RUSTSEC-2026-0370, -0371).
+[target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
+keyring-core = "1.0"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "1.0", features = ["keychain"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-native-keyring-store = "1.1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+dbus-secret-service-keyring-store = { version = "1.0", features = ["crypto-rust"] }
+
 [lints]
 workspace = true
