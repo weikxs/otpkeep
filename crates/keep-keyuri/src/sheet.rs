@@ -26,6 +26,8 @@ pub struct SheetEntry<'a> {
 /// One entry read back.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SheetItem {
+    /// Line number of the link, starting at 1.
+    pub line: usize,
     /// The `# title` line before the link, if any.
     pub title: Option<String>,
     /// The `# note:` line before the link, if any.
@@ -109,6 +111,7 @@ pub fn read_sheet(text: &str) -> SheetRead {
             match parse_key_uri(line) {
                 Ok(parsed) => {
                     read.items.push(SheetItem {
+                        line: index + 1,
                         title,
                         note,
                         uri: parsed.uri,

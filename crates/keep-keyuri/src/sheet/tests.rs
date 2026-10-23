@@ -112,6 +112,7 @@ fn reports_bad_lines_with_their_numbers_and_keeps_going() {
 
     assert_eq!(read.items.len(), 2);
     assert_eq!(read.items[1].title.as_deref(), Some("C"));
+    assert_eq!((read.items[0].line, read.items[1].line), (2, 7));
     assert_eq!(read.problems.len(), 2);
     assert_eq!(read.problems[0].line, 4);
     assert_eq!(read.problems[0].kind, SheetProblemKind::NotALink);
