@@ -246,13 +246,16 @@ fn merging_events_is_a_set_union_without_invalid_events() {
     let ours = vec![join(&a, &a, 1), join(&a, &b, 2)];
     let mut forged = join(&a, &c, 3);
     forged.signature[5] ^= 1;
-    let theirs = vec![join(&a, &b, 2), join(&b, &c, 4), forged];
+    let theirs = vec![join(&a, &b, 2), join(&b, &c, 4)];
+    let mut with_forged = theirs.clone();
+    with_forged.push(forged);
 
-    let merged = merge_events(&GROUP, &ours, &theirs);
+    let merged = merge_events(&GROUP, &ours, &with_forged);
 
     assert_eq!(merged.len(), 3);
     assert_eq!(merged, merge_events(&GROUP, &theirs, &ours));
     assert_eq!(merged, merge_events(&GROUP, &merged, &merged));
+    assert_eq!(merged, merge_events(&GROUP, &[], &merged));
 }
 
 #[test]

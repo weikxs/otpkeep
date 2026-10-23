@@ -491,3 +491,16 @@ fn outside_a_sync_group_deleting_leaves_no_tombstone() {
 
     assert!(purge(&doc, a, DAY_MS).unwrap().tombstones.is_empty());
 }
+
+#[test]
+fn an_entry_can_be_added_with_a_given_id_once() {
+    let id = EntryId([5; 16]);
+
+    let (doc, added) = super::add_entry_with_id(&empty(), new_entry("A", 1), id, DAY_MS).unwrap();
+
+    assert_eq!(added, id);
+    assert!(matches!(
+        super::add_entry_with_id(&doc, new_entry("B", 2), id, DAY_MS),
+        Err(EditError::Duplicate { existing }) if existing == id
+    ));
+}

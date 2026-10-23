@@ -117,6 +117,23 @@ pub fn add_entry(
     new: NewEntry,
     now_ms: u64,
 ) -> Result<(VaultDoc, EntryId), EditError> {
+    add_entry_with_id(doc, new, EntryId::random(), now_ms)
+}
+
+/// [`add_entry`] with a given id, for reproducible simulations and tests.
+///
+/// # Errors
+///
+/// Returns [`EditError`] like [`add_entry`], and [`EditError::Duplicate`] when the id is taken.
+pub fn add_entry_with_id(
+    doc: &VaultDoc,
+    new: NewEntry,
+    id: EntryId,
+    now_ms: u64,
+) -> Result<(VaultDoc, EntryId), EditError> {
+    if doc.entries.iter().any(|e| e.id == id) {
+        return Err(EditError::Duplicate { existing: id });
+    }
     let title = title(&new.title)?;
     let issuer = name(&new.issuer, EditError::IssuerTooLong)?;
     let account = name(&new.account, EditError::AccountTooLong)?;
@@ -131,7 +148,7 @@ pub fn add_entry(
     let rank = order::last_rank(doc).map_or_else(rank::first, |last| rank::after(&last));
     let field = |value| Field { value, stamp };
     let entry = Entry {
-        id: EntryId::random(),
+        id,
         created_at: stamp,
         title: field(title),
         issuer: field(issuer),

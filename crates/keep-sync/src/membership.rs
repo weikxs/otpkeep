@@ -126,26 +126,28 @@ fn event_message(group_id: &[u8; 16], author: DeviceId, kind: &MemberKind, stamp
     .concat()
 }
 
-/// The union of two event sets, without invalid or repeated events, in canonical order.
+/// The union of our events and theirs, in canonical order. Ours were checked when they were stored; each of
+/// theirs that is new here is checked now, and dropped when its signature or certificate is invalid.
 #[must_use]
 pub fn merge_events(
     group_id: &[u8; 16],
     ours: &[MemberEvent],
     theirs: &[MemberEvent],
 ) -> Vec<MemberEvent> {
-    let mut merged: Vec<(SortKey, MemberEvent)> = Vec::with_capacity(ours.len() + theirs.len());
-    for event in ours.iter().chain(theirs) {
+    let mut merged: BTreeMap<SortKey, MemberEvent> =
+        ours.iter().map(|e| (sort_key(e), e.clone())).collect();
+    for event in theirs {
+        let key = sort_key(event);
+        if merged.contains_key(&key) {
+            continue;
+        }
         if !verify_event(group_id, event) {
             tracing::warn!("dropped a membership event with an invalid signature");
             continue;
         }
-        let key = sort_key(event);
-        if !merged.iter().any(|(k, _)| *k == key) {
-            merged.push((key, event.clone()));
-        }
+        merged.insert(key, event.clone());
     }
-    merged.sort_by(|a, b| a.0.cmp(&b.0));
-    merged.into_iter().map(|(_, event)| event).collect()
+    merged.into_values().collect()
 }
 
 /// Each device's later last-sync time.

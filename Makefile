@@ -10,7 +10,7 @@ COVER_MIN := 80
 # The app crate is the Tauri shell; its logic lives in the core crates.
 COVER_EXCLUDE := --exclude otpkeep-app
 
-.PHONY: all build ui ui-install test test-rust test-ui cover fmt fmt-check clippy deny audit privacy \
+.PHONY: all build ui ui-install test test-rust test-ui cover fmt fmt-check clippy deny audit privacy sim \
         check perf fuzz e2e hooks app clean
 
 all: check
@@ -58,10 +58,17 @@ privacy:
 	scripts/check-privacy.sh
 
 check: privacy fmt-check clippy test cover deny audit perf
+	$(MAKE) sim SIM_SEEDS=300
 
 # Performance gates, measured on release builds (PRD FR-3.10: search within 16 ms for 1000 entries).
 perf: $(TEST_TMP)
 	cargo test --release --workspace --test performance -- --nocapture
+
+# Sync simulation (design/09-testing.md §2.6) on a release build; the nightly run uses 10 000 seeds.
+# Replay one seed with: OTPKEEP_SIM_SEED=<seed> cargo test --release -p keep-sync --test simulation
+SIM_SEEDS ?= 10000
+sim: $(TEST_TMP)
+	OTPKEEP_SIM_SEEDS=$(SIM_SEEDS) cargo test --release -p keep-sync --test simulation
 
 # Fuzz every parser of outside data (needs nightly Rust and cargo-fuzz). FUZZ_SECONDS per target.
 FUZZ_SECONDS ?= 60
