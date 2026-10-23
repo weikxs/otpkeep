@@ -2210,6 +2210,7 @@ name = "keep-sync"
 version = "0.0.1"
 dependencies = [
  "blake3",
+ "ciborium",
  "ed25519-dalek",
  "getrandom 0.4.3",
  "keep-vault",

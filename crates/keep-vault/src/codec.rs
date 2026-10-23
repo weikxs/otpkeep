@@ -79,6 +79,16 @@ pub fn encode_vault(doc: &VaultDoc) -> Zeroizing<Vec<u8>> {
     bytes
 }
 
+/// The canonical CBOR of a membership event's kind, which its signature covers. Kinds from newer versions are
+/// written back exactly as they were received, so any version can check any signature.
+#[must_use]
+pub fn encode_member_kind(kind: &crate::model::MemberKind) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    // Serializing an in-memory value into a Vec cannot fail.
+    let _ = ciborium::ser::into_writer(&group::kind_to_value(kind), &mut bytes);
+    bytes
+}
+
 /// Decodes a vault written by [`encode_vault`].
 ///
 /// # Errors

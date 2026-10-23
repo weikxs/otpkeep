@@ -127,7 +127,7 @@ fn event_from_value(mut value: Value) -> Result<MemberEvent, DecodeError> {
 }
 
 /// The CBOR of an event's kind: the part of the event, besides author and time, that is signed.
-pub(crate) fn kind_to_value(kind: &MemberKind) -> Value {
+pub(super) fn kind_to_value(kind: &MemberKind) -> Value {
     let device = |d: &DeviceId| (int(KIND_DEVICE), Value::Bytes(d.0.to_vec()));
     match kind {
         MemberKind::Join {

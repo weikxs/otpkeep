@@ -11,7 +11,7 @@ pub mod sealed;
 pub mod service;
 pub mod store;
 
-pub use codec::{DecodeError, decode_vault, encode_vault};
+pub use codec::{DecodeError, decode_vault, encode_member_kind, encode_vault};
 pub use model::{
     DeviceId, DeviceSecrets, DeviceTag, Entry, EntryId, Extra, Field, Hlc, KeyMaterial,
     MemberEvent, MemberKind, Platform, SyncGroup, Tombstone, VaultDoc,

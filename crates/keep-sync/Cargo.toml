@@ -19,3 +19,6 @@ zeroize = "1.9"
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+ciborium = "0.2"
