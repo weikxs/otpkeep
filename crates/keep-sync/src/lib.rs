@@ -5,6 +5,7 @@ pub mod housekeeping;
 pub mod identity;
 pub mod membership;
 pub mod merge;
+pub mod session;
 
 #[cfg(test)]
 mod testing;

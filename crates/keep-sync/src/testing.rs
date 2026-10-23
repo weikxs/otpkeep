@@ -76,3 +76,44 @@ pub(crate) fn add(doc: &VaultDoc, title: &str, byte: u8, now_ms: u64) -> (VaultD
 pub(crate) fn entry(doc: &VaultDoc, id: EntryId) -> &keep_vault::Entry {
     doc.entries.iter().find(|e| e.id == id).unwrap()
 }
+
+/// Device `n`'s identity in the test group.
+pub(crate) fn identity(n: u8) -> crate::identity::DeviceIdentity {
+    crate::identity::DeviceIdentity::from_seeds(&[n; 32], &[n.wrapping_add(100); 32], &GROUP)
+}
+
+/// Events in which device `founder` founds the group and adds `others`.
+pub(crate) fn founded(founder: u8, others: &[u8]) -> Vec<keep_vault::MemberEvent> {
+    let author = identity(founder);
+    let join = |n: u8, wall_ms: u64| {
+        let joined = identity(n);
+        crate::membership::sign_event(
+            &author,
+            &GROUP,
+            keep_vault::MemberKind::Join {
+                device: joined.device_id(),
+                dx_public: joined.dx_public(),
+                dx_cert: joined.dx_cert(),
+                platform: keep_vault::Platform::Linux,
+            },
+            Hlc {
+                wall_ms,
+                logical: 0,
+                device: DeviceTag([founder; 8]),
+            },
+        )
+    };
+    std::iter::once(join(founder, 1))
+        .chain(others.iter().zip(2..).map(|(n, t)| join(*n, t)))
+        .collect()
+}
+
+/// Device `n` of a group of devices 1, 2 and 3, holding `events`.
+pub(crate) fn member_doc(n: u8, events: &[keep_vault::MemberEvent]) -> VaultDoc {
+    let mut doc = device_doc(n);
+    doc.device_tag = crate::identity::device_tag(identity(n).device_id());
+    if let Some(group) = doc.group.as_mut() {
+        group.events = events.to_vec();
+    }
+    doc
+}
