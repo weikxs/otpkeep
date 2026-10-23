@@ -39,6 +39,9 @@ pub enum ServiceError {
     /// The change was saved, but its history could not be.
     #[error("the change was saved, but its history could not be")]
     HistoryNotSaved,
+    /// The document was not computed from the current one; compute it again.
+    #[error("the vault changed meanwhile; please try again")]
+    NotDerived,
 }
 
 /// Milliseconds since the Unix epoch, from the system clock.
@@ -230,6 +233,25 @@ impl VaultService {
         Ok(())
     }
 
+    /// Saves a document another module computed from the current one by adding entries, such as a committed
+    /// import. It must be the same vault and keep every current entry with each field unchanged or newer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ServiceError::NotDerived`] for a document computed from something else; nothing changes.
+    pub fn commit_derived(&mut self, doc: VaultDoc) -> Result<(), ServiceError> {
+        let current = self.doc();
+        let keeps_everything = current.entries.iter().all(|old| {
+            doc.entries
+                .iter()
+                .any(|new| new.id == old.id && not_older(old, new))
+        });
+        if doc.vault_id != current.vault_id || doc.clock < current.clock || !keeps_everything {
+            return Err(ServiceError::NotDerived);
+        }
+        self.commit(doc)
+    }
+
     /// The current passcode. TOTP codes follow the clock; an HOTP entry returns the code last generated with
     /// [`VaultService::next_hotp`] in this session, without changing the counter.
     ///
@@ -312,6 +334,24 @@ impl VaultService {
         self.local = local;
         Ok(())
     }
+}
+
+/// Whether every field of `new` is the same change as in `old` or a later one.
+fn not_older(old: &Entry, new: &Entry) -> bool {
+    let pairs = [
+        (old.title.stamp, new.title.stamp),
+        (old.issuer.stamp, new.issuer.stamp),
+        (old.account.stamp, new.account.stamp),
+        (old.key.stamp, new.key.stamp),
+        (old.note.stamp, new.note.stamp),
+        (old.tags.stamp, new.tags.stamp),
+        (old.rank.stamp, new.rank.stamp),
+        (old.pinned.stamp, new.pinned.stamp),
+        (old.keep_duplicate.stamp, new.keep_duplicate.stamp),
+        (old.trashed_at.stamp, new.trashed_at.stamp),
+        (old.old_key_of.stamp, new.old_key_of.stamp),
+    ];
+    pairs.iter().all(|(o, n)| n >= o)
 }
 
 fn load_local(open: &OpenVault) -> LocalDoc {

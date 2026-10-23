@@ -400,3 +400,48 @@ fn nothing_expired_means_nothing_is_written() {
         before
     );
 }
+
+#[test]
+fn accepts_a_document_derived_from_the_current_one() {
+    let clock = TestClock::at(1_000);
+    let (dir, keystore, mut service) = service(&clock);
+    let (derived, id) = crate::edit::add_entry(
+        service.doc(),
+        new_entry("from an import", 9, CodeSpec::default()),
+        2_000,
+    )
+    .unwrap();
+
+    service.commit_derived(derived).unwrap();
+    let service = reopen(&dir, &keystore, service, &clock);
+
+    assert_eq!(service.entry(id).unwrap().title.value, "from an import");
+}
+
+#[test]
+fn refuses_documents_not_derived_from_the_current_one() {
+    let clock = TestClock::at(1_000);
+    let (_dir, _keystore, mut service) = service(&clock);
+    let (stale, _) = crate::edit::add_entry(
+        service.doc(),
+        new_entry("stale", 8, CodeSpec::default()),
+        2_000,
+    )
+    .unwrap();
+    service
+        .add(new_entry("newer", 7, CodeSpec::default()))
+        .unwrap();
+    let other_vault = crate::VaultDoc {
+        vault_id: [0xEE; 16],
+        ..service.doc().clone()
+    };
+
+    assert_eq!(
+        service.commit_derived(stale).err(),
+        Some(ServiceError::NotDerived)
+    );
+    assert_eq!(
+        service.commit_derived(other_vault).err(),
+        Some(ServiceError::NotDerived)
+    );
+}
