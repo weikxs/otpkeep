@@ -7,5 +7,14 @@ rust-version.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[dependencies]
+keep-vault = { path = "../keep-vault" }
+pinyin = { version = "0.11", default-features = false, features = ["plain", "heteronym"] }
+unicode-normalization = "0.1"
+
+[dev-dependencies]
+keep-passcode = { path = "../keep-passcode" }
+proptest = "1.12"
+
 [lints]
 workspace = true
