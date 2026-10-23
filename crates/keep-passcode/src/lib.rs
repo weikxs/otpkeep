@@ -1,5 +1,6 @@
 //! HOTP and TOTP passcodes, Base32 and code specifications.
 
+pub mod base32;
 mod passcode;
 mod secret;
 mod spec;
