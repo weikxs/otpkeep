@@ -101,6 +101,8 @@ pub struct Entry {
     pub keep_duplicate: Field<bool>,
     /// When it was moved to the trash; `None` when it is not in the trash.
     pub trashed_at: Field<Option<Hlc>>,
+    /// Set on the copy that keeps a replaced secret: the entry whose old key this is.
+    pub old_key_of: Field<Option<EntryId>>,
     /// Fields from newer versions.
     pub extra: Extra,
 }

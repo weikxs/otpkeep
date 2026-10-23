@@ -43,6 +43,7 @@ fn sample_entry() -> Entry {
         pinned: field(true, 1_008),
         keep_duplicate: field(false, 1_009),
         trashed_at: field(Some(hlc(2_000, 3)), 1_010),
+        old_key_of: field(Some(EntryId([3; 16])), 1_011),
         extra: Extra::default(),
     }
 }

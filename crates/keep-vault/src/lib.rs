@@ -1,6 +1,7 @@
 //! The encrypted vault: entries, key material, storage, locking and migration.
 
 mod codec;
+pub mod edit;
 pub mod master;
 mod model;
 pub mod open;

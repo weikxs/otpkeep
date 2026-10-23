@@ -18,6 +18,7 @@ const ENTRY_RANK: u64 = 9;
 const ENTRY_PINNED: u64 = 10;
 const ENTRY_KEEP_DUPLICATE: u64 = 11;
 const ENTRY_TRASHED_AT: u64 = 12;
+const ENTRY_OLD_KEY_OF: u64 = 13;
 
 const KEY_SECRET: u64 = 1;
 const KEY_SPEC: u64 = 2;
@@ -60,6 +61,12 @@ pub(super) fn entry_to_value(entry: &Entry) -> Value {
             int(ENTRY_TRASHED_AT),
             field(&entry.trashed_at, |at| at.map_or(Value::Null, hlc_to_value)),
         ),
+        (
+            int(ENTRY_OLD_KEY_OF),
+            field(&entry.old_key_of, |of| {
+                of.map_or(Value::Null, |id| Value::Bytes(id.0.to_vec()))
+            }),
+        ),
     ];
     pairs.extend(extra_pairs(&entry.extra));
     Value::Map(pairs)
@@ -98,6 +105,17 @@ pub(super) fn entry_from_value(value: &mut Value) -> Result<Entry, DecodeError> 
             }
         },
     )?;
+    let old_key_of = read_field(
+        get(ENTRY_OLD_KEY_OF, "entry.old_key_of")?,
+        "entry.old_key_of",
+        |v, name| {
+            if v == Value::Null {
+                Ok(None)
+            } else {
+                as_fixed(v, name).map(|id| Some(EntryId(id)))
+            }
+        },
+    )?;
     Ok(Entry {
         id,
         created_at,
@@ -111,6 +129,7 @@ pub(super) fn entry_from_value(value: &mut Value) -> Result<Entry, DecodeError> 
         pinned,
         keep_duplicate,
         trashed_at,
+        old_key_of,
         extra: map.into_extra(),
     })
 }
