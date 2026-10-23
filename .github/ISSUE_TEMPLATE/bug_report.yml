@@ -1,0 +1,44 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste two-factor secrets, otpauth:// links, QR codes, backup files or vault files.**
+        Replace account names, emails and paths with placeholders (for example `alex@example.com`).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Add an entry for "Example Cloud"
+        2. Press the shortcut for the first entry
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: OTPKeep version
+      description: Output of `otpkeep --version`, or Settings → About.
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [macOS, Windows, Linux, iOS, Android]
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system version (and desktop environment on Linux)

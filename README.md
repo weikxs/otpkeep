@@ -1,19 +1,23 @@
 # OTPKeep
 
-免费、跨五端（Windows、macOS、Linux、iOS、Android）的两步验证（TOTP / HOTP）验证器。
+A free two-factor authenticator (TOTP / HOTP) for Windows, macOS, Linux, iOS and Android.
 
-> 状态：设计阶段，尚无可用的程序。
+[简体中文](README.zh-CN.md)
 
-- 随手取码：托盘 / 菜单栏、全局快捷键、搜索面板、命令行
-- 备注与标签，按名称、服务商、账号、备注搜索，支持中文拼音与首字母
-- 与 Google Authenticator 双向迁移（转移二维码）
-- 同一局域网内的设备配对与端到端加密同步：限时窗口、一对一、每次同步需同步码与人工"允许"，不使用任何服务器
-- 本地数据整体加密，密钥存放在系统密钥库；无遥测
+> **Status:** early development. There is no usable release yet.
 
-## 许可证
+- **Codes at hand:** menu bar / tray, global shortcuts, a search panel and a command line
+- **Notes and tags:** search by name, issuer, account, tag or note, including Chinese pinyin and initials
+- **Google Authenticator:** move accounts in both directions with transfer QR codes
+- **Local-network sync:** pair devices and sync them end to end encrypted, only on the same local network,
+  inside a short window you open, one device at a time; every sync needs a one-time code and your approval.
+  No servers.
+- **Private by design:** the vault is encrypted with a key kept in the system keystore; no telemetry
 
-待定。在确定之前，保留所有权利。
+## Development
 
----
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the [development standards](docs/development/standards.md).
 
-OTPKeep is a free two-factor authenticator for Windows, macOS, Linux, iOS and Android, with note search, Google Authenticator migration and LAN-only end-to-end encrypted sync. The project is in the design phase. License: to be decided; all rights reserved until then.
+## License
+
+Not chosen yet. Until a license file is added, all rights are reserved.
