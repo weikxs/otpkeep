@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use keep_sync::identity::{DeviceIdentity, device_tag};
 use keep_sync::membership::{Membership, membership, merge_events, sign_event};
-use keep_sync::session::{SyncStop, sync_data};
+use keep_sync::session::{SyncStop, share_membership, sync_data};
 use keep_vault::{
     DeviceId, DeviceTag, EntryId, Extra, Hlc, MemberEvent, MemberKind, Platform, SyncGroup,
     VaultDoc,
@@ -90,9 +90,8 @@ pub struct World {
     pub prune_log: BTreeMap<EntryId, (usize, Hlc)>,
     /// Counter for new keys and entry ids.
     pub serial: u32,
-    /// Every membership event any device holds, and the members they give.
-    pub all_events: Vec<MemberEvent>,
-    pub known: Membership,
+    /// Pairs that could still sync at the end.
+    pub synced_pairs: Vec<(usize, usize)>,
 }
 
 impl World {
@@ -144,15 +143,8 @@ impl World {
             pruned: BTreeSet::new(),
             prune_log: BTreeMap::new(),
             serial: 0,
-            known: membership(&group_with(&events)),
-            all_events: events,
+            synced_pairs: Vec::new(),
         }
-    }
-
-    /// Records an event a device just signed.
-    pub fn note_event(&mut self, event: MemberEvent) {
-        self.all_events = merge_events(&GROUP, &self.all_events, &[event]);
-        self.known = membership(&group_with(&self.all_events));
     }
 
     /// One random action.
@@ -185,9 +177,26 @@ impl World {
             .saturating_add_signed(self.devices[index].skew_ms)
     }
 
-    /// Membership as every event any device holds says.
-    pub fn known_membership(&self) -> &Membership {
-        &self.known
+    /// The members the group converges on: membership from the events of members, repeated until it stops
+    /// changing. An event only a removed device holds never reaches the members, so it does not count.
+    pub fn known_membership(&self) -> Membership {
+        let mut holders: Vec<usize> = (0..self.devices.len()).collect();
+        loop {
+            let events: Vec<MemberEvent> = holders
+                .iter()
+                .flat_map(|i| group(&self.devices[*i].doc).events.iter().cloned())
+                .collect();
+            let view = membership(&group_with(&events));
+            let next: Vec<usize> = holders
+                .iter()
+                .copied()
+                .filter(|i| view.is_member(self.devices[*i].id()))
+                .collect();
+            if next == holders {
+                return view;
+            }
+            holders = next;
+        }
     }
 
     fn sync_random_pair(&mut self, rng: &mut Rng, seed: u64) {
@@ -197,11 +206,12 @@ impl World {
             return;
         }
         let disconnect = rng.percent(DISCONNECT_PERCENT);
-        self.sync_pair(opener, joiner, disconnect, seed);
+        let _ = self.sync_pair(opener, joiner, disconnect, seed);
     }
 
     /// Syncs two devices; a disconnect drops the result, as the real session does.
-    pub fn sync_pair(&mut self, opener: usize, joiner: usize, disconnect: bool, seed: u64) {
+    /// Returns whether the two devices synced.
+    pub fn sync_pair(&mut self, opener: usize, joiner: usize, disconnect: bool, seed: u64) -> bool {
         let (a, b) = (&self.devices[opener], &self.devices[joiner]);
         let pair_events = merge_events(&GROUP, &group(&a.doc).events, &group(&b.doc).events);
         let pair_view = membership(&SyncGroup {
@@ -227,8 +237,17 @@ impl World {
                     self.devices[opener].doc = done.opener;
                     self.devices[joiner].doc = done.joiner;
                 }
+                !disconnect
             }
-            Err(SyncStop::Removed(_)) => assert!(either_removed, "seed {seed}: wrongly refused"),
+            Err(SyncStop::Removed(_)) => {
+                assert!(either_removed, "seed {seed}: wrongly refused");
+                if !disconnect {
+                    let (on_opener, on_joiner) = share_membership(&a.doc, &b.doc);
+                    self.devices[opener].doc = on_opener;
+                    self.devices[joiner].doc = on_joiner;
+                }
+                false
+            }
             Err(other) => panic!("seed {seed}: sync stopped: {other:?}"),
         }
     }
@@ -237,7 +256,7 @@ impl World {
         let index = rng.index(self.devices.len());
         let device = &self.devices[index];
         let view = membership(group(&device.doc));
-        let members: BTreeSet<DeviceId> = view.members.keys().copied().collect();
+        let members = view.required_for_cleanup();
         let now = self.local_now(index);
         let before: BTreeSet<EntryId> = device.doc.tombstones.iter().map(|t| t.entry).collect();
         let after = keep_sync::housekeeping::prune_tombstones(&device.doc, &members, now);
@@ -302,20 +321,52 @@ impl World {
         }
     }
 
-    /// Stops activity and passes changes along a chain of the members and back, several times.
+    /// Stops activity and passes changes along a chain of the members and back, several times, skipping
+    /// devices the others refuse; then every pair tries once more, and the pairs that sync are recorded.
     pub fn settle(&mut self, seed: u64) {
         self.now_ms += MINUTE_MS;
         for _ in 0..SETTLE_ROUNDS {
             let members = self.member_indexes();
-            let forward = members.windows(2).map(|w| (w[0], w[1]));
-            let backward = members.windows(2).rev().map(|w| (w[1], w[0]));
-            let pairs: Vec<(usize, usize)> = forward.chain(backward).collect();
-            for (opener, joiner) in pairs {
-                self.now_ms += 1_000;
-                self.sync_pair(opener, joiner, false, seed);
+            for order in [members.clone(), members.iter().rev().copied().collect()] {
+                let mut previous: Option<usize> = None;
+                for device in order {
+                    self.now_ms += 1_000;
+                    match previous {
+                        Some(p) if !self.sync_pair(p, device, false, seed) => {}
+                        _ => previous = Some(device),
+                    }
+                }
+            }
+        }
+        let members = self.member_indexes();
+        self.synced_pairs.clear();
+        for &a in &members {
+            for &b in &members {
+                if a < b {
+                    self.now_ms += 1_000;
+                    if self.sync_pair(a, b, false, seed) {
+                        self.synced_pairs.push((a, b));
+                    }
+                }
             }
         }
         self.record_keys();
+    }
+
+    /// The largest set of devices connected by the final syncs.
+    fn largest_syncing_group(&self, candidates: &[usize]) -> BTreeSet<usize> {
+        let mut groups: Vec<BTreeSet<usize>> =
+            candidates.iter().map(|i| BTreeSet::from([*i])).collect();
+        for (a, b) in &self.synced_pairs {
+            let ia = groups.iter().position(|g| g.contains(a)).unwrap();
+            let ib = groups.iter().position(|g| g.contains(b)).unwrap();
+            if ia != ib {
+                let merged = groups[ib].clone();
+                groups[ia].extend(merged);
+                groups.remove(ib);
+            }
+        }
+        groups.into_iter().max_by_key(BTreeSet::len).unwrap()
     }
 
     pub fn member_indexes(&self) -> Vec<usize> {
@@ -325,8 +376,23 @@ impl World {
             .collect()
     }
 
+    /// The devices that can still sync with each other must agree (property 1), and every device left out
+    /// must be one the group knows it removed.
     pub fn check_final(&self, seed: u64) {
-        let members = self.member_indexes();
+        let candidates = self.member_indexes();
+        let group_of = self.largest_syncing_group(&candidates);
+        let members: Vec<usize> = candidates
+            .iter()
+            .copied()
+            .filter(|i| group_of.contains(i))
+            .collect();
+        let view = membership(group(&self.devices[members[0]].doc));
+        for left_out in candidates.iter().filter(|i| !group_of.contains(i)) {
+            assert!(
+                view.is_removed(self.devices[*left_out].id()),
+                "seed {seed}: device {left_out} is cut off without the group knowing it was removed (property 1)"
+            );
+        }
         let digests: BTreeSet<[u8; 32]> = members
             .iter()
             .map(|i| keep_sync::digest::state_digest(&self.devices[*i].doc))

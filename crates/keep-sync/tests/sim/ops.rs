@@ -67,11 +67,7 @@ pub fn edit(world: &mut World, index: usize, rng: &mut Rng) {
             Some(expired)
         }
         (14, Some(id)) => move_entry(&doc, id, placement(&doc, rng), now).ok(),
-        (_, Some(_)) => {
-            let (doc, event) = membership_change(world, index, rng, now);
-            world.note_event(event);
-            Some(doc)
-        }
+        (_, Some(_)) => Some(membership_change(world, index, rng, now)),
     };
     if let Some(next) = next {
         world.devices[index].doc = next;
@@ -129,12 +125,7 @@ fn placement(doc: &VaultDoc, rng: &mut Rng) -> Placement {
 }
 
 /// Renames this device, or removes another member while at least two remain.
-fn membership_change(
-    world: &World,
-    index: usize,
-    rng: &mut Rng,
-    now: u64,
-) -> (VaultDoc, keep_vault::MemberEvent) {
+fn membership_change(world: &World, index: usize, rng: &mut Rng, now: u64) -> VaultDoc {
     let device = &world.devices[index];
     let members = world.member_indexes();
     let kind = if rng.percent(70) || members.len() <= 2 {
@@ -156,8 +147,8 @@ fn membership_change(
     let event = sign_event(&device.identity, &GROUP, kind, stamp);
     let mut doc = device.doc.clone();
     let mut grouped = group(&doc).clone();
-    grouped.events.push(event.clone());
+    grouped.events.push(event);
     doc.group = Some(grouped);
     doc.clock = doc.clock.max(stamp);
-    (doc, event)
+    doc
 }
