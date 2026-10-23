@@ -109,13 +109,13 @@ fn decode_doc(value: &mut Value) -> Result<VaultDoc, DecodeError> {
 }
 
 /// Reads a CBOR map with integer keys, taking fields out as they are used.
-struct MapReader {
+pub(crate) struct MapReader {
     pairs: Vec<(u64, Value)>,
 }
 
 impl MapReader {
     /// Takes the map out of `value`, leaving `Null` behind.
-    fn take(value: &mut Value, name: &'static str) -> Result<Self, DecodeError> {
+    pub(crate) fn take(value: &mut Value, name: &'static str) -> Result<Self, DecodeError> {
         let Value::Map(raw) = std::mem::replace(value, Value::Null) else {
             return Err(DecodeError::Invalid(name));
         };
@@ -130,22 +130,22 @@ impl MapReader {
         Ok(Self { pairs })
     }
 
-    fn optional(&mut self, key: u64) -> Option<Value> {
+    pub(crate) fn optional(&mut self, key: u64) -> Option<Value> {
         let index = self.pairs.iter().position(|(k, _)| *k == key)?;
         Some(self.pairs.swap_remove(index).1)
     }
 
-    fn required(&mut self, key: u64, name: &'static str) -> Result<Value, DecodeError> {
+    pub(crate) fn required(&mut self, key: u64, name: &'static str) -> Result<Value, DecodeError> {
         self.optional(key).ok_or(DecodeError::Missing(name))
     }
 
     /// What is left: kept as unknown fields.
-    fn into_extra(self) -> Extra {
+    pub(crate) fn into_extra(self) -> Extra {
         self.pairs.into_iter().collect()
     }
 
     /// What is left must be nothing.
-    fn finish(mut self, name: &'static str) -> Result<(), DecodeError> {
+    pub(crate) fn finish(mut self, name: &'static str) -> Result<(), DecodeError> {
         if self.pairs.is_empty() {
             Ok(())
         } else {
@@ -155,11 +155,11 @@ impl MapReader {
     }
 }
 
-fn int(n: u64) -> Value {
+pub(crate) fn int(n: u64) -> Value {
     Value::Integer(n.into())
 }
 
-fn extra_pairs(extra: &Extra) -> impl Iterator<Item = (Value, Value)> + '_ {
+pub(crate) fn extra_pairs(extra: &Extra) -> impl Iterator<Item = (Value, Value)> + '_ {
     extra.iter().map(|(key, value)| (int(*key), value.clone()))
 }
 
@@ -167,7 +167,7 @@ fn extra_pairs(extra: &Extra) -> impl Iterator<Item = (Value, Value)> + '_ {
     clippy::needless_pass_by_value,
     reason = "callers hand over fields they have taken out of a map"
 )]
-fn as_u64(value: Value, name: &'static str) -> Result<u64, DecodeError> {
+pub(crate) fn as_u64(value: Value, name: &'static str) -> Result<u64, DecodeError> {
     match value {
         Value::Integer(n) => u64::try_from(n).map_err(|_| DecodeError::Invalid(name)),
         _ => Err(DecodeError::Invalid(name)),
@@ -185,7 +185,10 @@ fn as_array16(value: Value, name: &'static str) -> Result<[u8; 16], DecodeError>
     as_fixed(value, name)
 }
 
-fn as_fixed<const N: usize>(value: Value, name: &'static str) -> Result<[u8; N], DecodeError> {
+pub(crate) fn as_fixed<const N: usize>(
+    value: Value,
+    name: &'static str,
+) -> Result<[u8; N], DecodeError> {
     match value {
         Value::Bytes(bytes) => bytes.try_into().map_err(|_| DecodeError::Invalid(name)),
         _ => Err(DecodeError::Invalid(name)),
@@ -193,7 +196,7 @@ fn as_fixed<const N: usize>(value: Value, name: &'static str) -> Result<[u8; N],
 }
 
 /// Overwrites every byte string and text in `value`, so secrets do not linger after (de)serialization.
-fn wipe(value: &mut Value) {
+pub(crate) fn wipe(value: &mut Value) {
     match value {
         Value::Bytes(bytes) => bytes.zeroize(),
         Value::Text(text) => text.zeroize(),
