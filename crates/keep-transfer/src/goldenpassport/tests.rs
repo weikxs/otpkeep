@@ -334,7 +334,7 @@ mod export {
     }
 }
 
-/// What OTPKeep writes must be importable by GoldenPassport itself: macOS's NSKeyedUnarchiver reads it as
+/// What OTPKeep writes must be importable by GoldenPassport itself: macOS's `NSKeyedUnarchiver` reads it as
 /// `[String: String]` and every link passes GoldenPassport's parser (`scripts/goldenpassport-check.swift`).
 #[cfg(target_os = "macos")]
 #[test]
@@ -344,9 +344,16 @@ fn macos_reads_the_file_the_way_goldenpassport_imports_it() {
 
     use super::{GpExportItem, write_secrets};
 
-    let script = concat!(env!("CARGO_MANIFEST_DIR"), "/../../scripts/goldenpassport-check.swift");
-    if std::process::Command::new("swift").arg("--version").output().is_err() {
-        eprintln!("skipped: no Swift toolchain");
+    let script = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../scripts/goldenpassport-check.swift"
+    );
+    if std::process::Command::new("swift")
+        .arg("--version")
+        .output()
+        .is_err()
+    {
+        // No Swift toolchain on this Mac: nothing to compare against.
         return;
     }
     let uris: Vec<KeyUri> = ["Example Cloud", "示例银行", "Demo Git"]
@@ -360,14 +367,31 @@ fn macos_reads_the_file_the_way_goldenpassport_imports_it() {
             account: "alex @example.com".to_owned(),
         })
         .collect();
-    let items: Vec<GpExportItem<'_>> = uris.iter().map(|u| GpExportItem { name: &u.issuer, uri: u }).collect();
-    let dir = tempfile::Builder::new().prefix("gp-export-").tempdir().unwrap();
+    let items: Vec<GpExportItem<'_>> = uris
+        .iter()
+        .map(|u| GpExportItem {
+            name: &u.issuer,
+            uri: u,
+        })
+        .collect();
+    let dir = tempfile::Builder::new()
+        .prefix("gp-export-")
+        .tempdir()
+        .unwrap();
     let file = dir.path().join("OTPKeep.secrets");
     std::fs::write(&file, &*write_secrets(&items).bytes).unwrap();
 
-    let output = std::process::Command::new("swift").arg(script).arg(&file).output().unwrap();
+    let output = std::process::Command::new("swift")
+        .arg(script)
+        .arg(&file)
+        .output()
+        .unwrap();
 
     let printed = String::from_utf8_lossy(&output.stdout);
-    assert!(output.status.success(), "{printed}{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{printed}{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(printed.trim(), "ok 3");
 }

@@ -15,6 +15,19 @@ use super::{
 };
 
 const NOW_MS: u64 = 59_000;
+
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "the signature of Context::new_kdf"
+)]
+fn quick_kdf() -> Option<KdfParams> {
+    Some(KdfParams {
+        salt: [6; 16],
+        m_cost_kib: 64,
+        t_cost: 1,
+        p_cost: 1,
+    })
+}
 const WAIT: Duration = Duration::from_millis(200);
 
 struct Outcome {
@@ -92,7 +105,8 @@ fn cli(dir: Option<&Path>, keystore: &MemoryKeystore, args: &[&str], stdin: &str
         stdin: &mut input,
         stdin_is_tty: false,
         now_ms: || NOW_MS,
-        prompt_password: &|| None,
+        prompt: &|_| None,
+        new_kdf: quick_kdf,
         lock_wait: WAIT,
     };
     let code = run(&args, &mut context, &mut out, &mut err);
@@ -428,7 +442,8 @@ fn a_terminal_prompts_for_the_master_password() {
         stdin: &mut input,
         stdin_is_tty: true,
         now_ms: || NOW_MS,
-        prompt_password: &|| Some("typed".to_owned()),
+        prompt: &|_| Some("typed".to_owned()),
+        new_kdf: quick_kdf,
         lock_wait: WAIT,
     };
 
@@ -437,3 +452,5 @@ fn a_terminal_prompts_for_the_master_password() {
     assert_eq!(code, EXIT_OK, "{}", String::from_utf8_lossy(&err));
     assert_eq!(String::from_utf8(out).unwrap().trim(), expected_code(1));
 }
+
+mod transfer;

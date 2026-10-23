@@ -18,6 +18,8 @@ use crate::{
 pub(crate) struct Printed {
     pub(crate) text: String,
     pub(crate) json: Value,
+    /// Warnings for standard error, such as accounts that were skipped.
+    pub(crate) notes: Vec<String>,
 }
 
 /// The passcode of the one entry `query` names (PRD FR-11.1, FR-11.4).
@@ -43,6 +45,7 @@ pub(crate) fn code(
     Ok(Printed {
         text: format!("{}\n", passcode.code()),
         json: passcode_json(&passcode, &title),
+        notes: Vec::new(),
     })
 }
 
@@ -81,7 +84,11 @@ pub(crate) fn list(service: &VaultService, tag: Option<&str>) -> Printed {
             })
             .collect(),
     );
-    Printed { text, json }
+    Printed {
+        text,
+        json,
+        notes: Vec::new(),
+    }
 }
 
 /// The one entry a search names: the only hit, or among several the only one whose name is the search.
@@ -137,7 +144,7 @@ fn missing(query: &str) -> CliError {
     )
 }
 
-fn service_error(error: ServiceError) -> CliError {
+pub(crate) fn service_error(error: ServiceError) -> CliError {
     match error {
         ServiceError::Save(SaveError::ReadOnly) => CliError::new(
             EXIT_READ_ONLY,

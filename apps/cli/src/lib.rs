@@ -7,11 +7,18 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use keep_platform::Keystore;
+use keep_vault::sealed::KdfParams;
 use serde_json::{Value, json};
 
 mod args;
+mod ask;
 mod commands;
+mod export;
+mod files;
+mod import;
+mod init;
 mod open;
+mod sources;
 
 use args::{Command, Options, UsageError, parse};
 
@@ -52,13 +59,44 @@ Commands:
                    --next            for counter-based (HOTP) entries: generate the next code
   list           List entries (names only, never codes)
                    --tag <tag>       only entries with this tag
+  init           Create an empty vault whose key is kept in the system keychain
+                   --master-password protect it with a master password instead
+  import <file>  Add the accounts of <file>: an OTPKeep backup, a GoldenPassport export (.secrets or
+                 accounts.json), a list of otpauth:// or otpauth-migration:// links, or a QR code image.
+                 Accounts already in the vault are left out; nothing is changed or removed.
+                   --yes                       do not ask before adding
+                   --backup-password-file <f>  read the backup password from the first line of <f>
+  export         Write every entry (not the trash) to a new file
+                   --format backup             an encrypted OTPKeep backup (asks for a backup password)
+                   --format uris               a list of otpauth:// links
+                   --format goldenpassport     a .secrets file GoldenPassport can import
+                   --format google             Google Authenticator transfer codes (a folder of SVG images)
+                   --out <path>                the file (or folder, for google) to create; never overwritten
+                   --plaintext                 required for every format except backup: the file is unencrypted
+                   --yes                       do not ask before writing an unencrypted file
+                   --backup-password-file <f>  read the backup password from the first line of <f>
   version        Print the version
   help           Print this help
 
-Options for code and list:
+Options for every vault command:
   --json             Print {\"ok\": …, \"data\" | \"error\": …}
   --password-stdin   Read the master password from the first line of standard input
 ";
+
+/// What the command line may ask the person at the terminal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Prompt {
+    /// The master password of an existing vault.
+    MasterPassword,
+    /// A master password for a new vault; asked twice.
+    NewMasterPassword,
+    /// The password of a backup being read.
+    BackupPassword,
+    /// A password for a new backup; asked twice.
+    NewBackupPassword,
+    /// A yes-or-no question; "y" or "yes" is yes.
+    Confirm(String),
+}
 
 /// What the command line needs from its surroundings; tests pass their own.
 pub struct Context<'a> {
@@ -72,8 +110,10 @@ pub struct Context<'a> {
     pub stdin_is_tty: bool,
     /// The clock, in Unix milliseconds.
     pub now_ms: fn() -> u64,
-    /// Asks for the master password without echo.
-    pub prompt_password: &'a dyn Fn() -> Option<String>,
+    /// Asks the person at the terminal; passwords without echo. `None` when nothing was answered.
+    pub prompt: &'a dyn Fn(Prompt) -> Option<String>,
+    /// New key-derivation parameters with a fresh salt (normally `keep_vault::master::new_kdf_params`).
+    pub new_kdf: fn() -> Option<KdfParams>,
     /// How long to wait for the lock.
     pub lock_wait: Duration,
 }
@@ -152,6 +192,24 @@ pub fn run(
             open::open_service(context, options)
                 .map(|service| commands::list(&service, tag.as_deref())),
         ),
+        Command::Init {
+            master_password,
+            options,
+        } => (options, init::init(context, master_password, options)),
+        Command::Import {
+            path,
+            transfer,
+            options,
+        } => (options, import::import(context, &path, &transfer, options)),
+        Command::Export {
+            format,
+            out,
+            transfer,
+            options,
+        } => (
+            options,
+            export::export(context, format, &out, &transfer, options),
+        ),
     };
     report(options, result, out, err)
 }
@@ -162,6 +220,11 @@ fn report(
     out: &mut impl Write,
     err: &mut impl Write,
 ) -> u8 {
+    if let Ok(printed) = &result {
+        for note in &printed.notes {
+            let _ = writeln!(err, "{NAME}: {note}");
+        }
+    }
     match (result, options.json) {
         (Ok(printed), false) => {
             let _ = out.write_all(printed.text.as_bytes());
