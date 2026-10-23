@@ -73,8 +73,13 @@ fn group(events: Vec<MemberEvent>) -> SyncGroup {
     }
 }
 
-fn members(events: Vec<MemberEvent>) -> Vec<DeviceId> {
-    membership(&group(events)).members.keys().copied().collect()
+/// Members after receiving `events` from another device, which drops invalid ones.
+fn members(events: &[MemberEvent]) -> Vec<DeviceId> {
+    membership(&group(merge_events(&GROUP, &[], events)))
+        .members
+        .keys()
+        .copied()
+        .collect()
 }
 
 fn ids(devices: &[&DeviceIdentity]) -> Vec<DeviceId> {
@@ -131,7 +136,7 @@ fn events_with_bad_signatures_or_certificates_or_outside_authors_count_for_nothi
     let wrong_cert = sign_event(&a, &GROUP, wrong_cert.kind, at(3));
 
     assert_eq!(
-        members(vec![
+        members(&[
             join(&a, &a, 1),
             forged,
             wrong_cert,
@@ -141,7 +146,7 @@ fn events_with_bad_signatures_or_certificates_or_outside_authors_count_for_nothi
         "the earliest self-join founds the group; nothing else is valid"
     );
     assert_eq!(
-        members(vec![join(&a, &a, 1), join(&outsider, &c, 2)]),
+        members(&[join(&a, &a, 1), join(&outsider, &c, 2)]),
         ids(&[&a])
     );
     assert!(!verify_event(
@@ -154,7 +159,7 @@ fn events_with_bad_signatures_or_certificates_or_outside_authors_count_for_nothi
 fn only_the_first_self_join_founds_the_group() {
     let (a, b) = (device(1), device(2));
 
-    assert_eq!(members(vec![join(&a, &a, 1), join(&b, &b, 5)]), ids(&[&a]));
+    assert_eq!(members(&[join(&a, &a, 1), join(&b, &b, 5)]), ids(&[&a]));
 }
 
 #[test]
@@ -188,11 +193,11 @@ fn any_member_may_remove_any_member_including_itself() {
     let (a, b) = (device(1), device(2));
 
     assert_eq!(
-        members(vec![join(&a, &a, 1), join(&a, &b, 2), remove(&b, &b, 3)]),
+        members(&[join(&a, &a, 1), join(&a, &b, 2), remove(&b, &b, 3)]),
         ids(&[&a])
     );
     assert_eq!(
-        members(vec![join(&a, &a, 1), join(&a, &b, 2), remove(&b, &a, 3)]),
+        members(&[join(&a, &a, 1), join(&a, &b, 2), remove(&b, &a, 3)]),
         ids(&[&b])
     );
 }
@@ -234,7 +239,7 @@ fn kinds_from_newer_versions_are_kept_but_ignored() {
     );
 
     assert!(verify_event(&GROUP, &other));
-    assert_eq!(members(vec![join(&a, &a, 1), other.clone()]), ids(&[&a]));
+    assert_eq!(members(&[join(&a, &a, 1), other.clone()]), ids(&[&a]));
     assert!(
         merge_events(&GROUP, &[join(&a, &a, 1)], std::slice::from_ref(&other)).contains(&other)
     );
@@ -309,4 +314,25 @@ impl GroupMismatch for MemberEvent {
         let a = device(1);
         sign_event(&a, &other, self.kind, self.stamp)
     }
+}
+
+#[test]
+fn every_device_that_ever_joined_must_hold_a_tombstone_before_it_is_cleared() {
+    let (a, b, c, never) = (device(1), device(2), device(3), device(9));
+    let result = membership(&group(vec![
+        join(&a, &a, 1),
+        join(&a, &b, 2),
+        join(&a, &c, 3),
+        remove(&a, &c, 4),
+        remove(&a, &never, 5),
+    ]));
+
+    // A removed device may hold the one event that undoes its removal, so nobody can know it is out for good.
+    assert_eq!(
+        result
+            .required_for_cleanup()
+            .into_iter()
+            .collect::<Vec<_>>(),
+        ids(&[&a, &b, &c])
+    );
 }

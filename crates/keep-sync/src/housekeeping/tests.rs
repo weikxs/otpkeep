@@ -79,7 +79,7 @@ fn members(ns: &[u8]) -> BTreeSet<keep_vault::DeviceId> {
 }
 
 #[test]
-fn a_tombstone_is_cleared_once_every_member_holds_it_and_the_grace_period_passed() {
+fn a_tombstone_is_cleared_once_every_required_device_holds_it_and_the_grace_period_passed() {
     let doc = merge(
         &deleted(DAY_MS),
         &device_doc(2),

@@ -48,16 +48,17 @@ pub fn dedupe(doc: &VaultDoc, now_ms: u64) -> (VaultDoc, Vec<EntryId>) {
     (result, extra)
 }
 
-/// Clears the tombstones that every current member holds and that are older than [`TOMBSTONE_GRACE_MS`]:
-/// no member can bring their entries back any more.
+/// Clears the tombstones that every device in `required` holds and that are older than
+/// [`TOMBSTONE_GRACE_MS`]: none of them can bring their entries back any more. Pass
+/// [`Membership::required_for_cleanup`](crate::membership::Membership::required_for_cleanup).
 #[must_use]
-pub fn prune_tombstones(doc: &VaultDoc, members: &BTreeSet<DeviceId>, now_ms: u64) -> VaultDoc {
+pub fn prune_tombstones(doc: &VaultDoc, required: &BTreeSet<DeviceId>, now_ms: u64) -> VaultDoc {
     let tombstones = doc
         .tombstones
         .iter()
         .filter(|t| {
             let old = now_ms.saturating_sub(t.stamp.wall_ms) > TOMBSTONE_GRACE_MS;
-            let everyone = members.iter().all(|m| t.acked_by.contains(&m.0));
+            let everyone = required.iter().all(|m| t.acked_by.contains(&m.0));
             !(old && everyone)
         })
         .cloned()

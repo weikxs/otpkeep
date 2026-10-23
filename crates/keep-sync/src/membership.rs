@@ -55,6 +55,8 @@ pub struct Membership {
     pub members: BTreeMap<DeviceId, Member>,
     /// Devices removed for good.
     pub removed: BTreeSet<DeviceId>,
+    /// Members that were later removed.
+    pub former: BTreeSet<DeviceId>,
 }
 
 impl Membership {
@@ -68,6 +70,17 @@ impl Membership {
     #[must_use]
     pub fn is_removed(&self, device: DeviceId) -> bool {
         self.removed.contains(&device)
+    }
+
+    /// The devices that must hold a tombstone before it may be cleared: every device that ever joined.
+    ///
+    /// Removed devices still count. A device that learned of a removal may not know of an earlier removal of
+    /// that removal's author — the removed device itself may hold it — which would make the removed device a
+    /// member again, still holding the deleted entry. No device can rule this out, so a removal never
+    /// releases a tombstone; the cost is a few bytes per deletion.
+    #[must_use]
+    pub fn required_for_cleanup(&self) -> BTreeSet<DeviceId> {
+        self.members.keys().chain(&self.former).copied().collect()
     }
 
     /// Whether no more devices may be paired.
@@ -178,15 +191,14 @@ fn sort_key(event: &MemberEvent) -> SortKey {
     )
 }
 
-/// The members, computed from the group's valid events.
+/// The members, computed from the group's events.
+///
+/// Stored events are trusted: every event enters a group either through [`merge_events`], which checks it,
+/// or through [`sign_event`] on this device, and the vault that holds them is authenticated.
 #[must_use]
 pub fn membership(group: &SyncGroup) -> Membership {
-    let mut events: Vec<(SortKey, &MemberEvent)> = group
-        .events
-        .iter()
-        .filter(|e| verify_event(&group.group_id, e))
-        .map(|e| (sort_key(e), e))
-        .collect();
+    let mut events: Vec<(SortKey, &MemberEvent)> =
+        group.events.iter().map(|e| (sort_key(e), e)).collect();
     events.sort_by(|a, b| a.0.cmp(&b.0));
     let mut state = Membership::default();
     for (_, event) in events {
@@ -232,7 +244,9 @@ fn apply(state: &mut Membership, event: &MemberEvent) {
         }
         MemberKind::Remove { device } => {
             if author_is_member {
-                state.members.remove(device);
+                if state.members.remove(device).is_some() {
+                    state.former.insert(*device);
+                }
                 state.removed.insert(*device);
             }
         }
