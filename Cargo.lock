@@ -2101,7 +2101,9 @@ dependencies = [
  "keep-passcode",
  "keep-vault",
  "percent-encoding",
+ "plist",
  "proptest",
+ "serde_json",
  "thiserror 2.0.21",
  "zeroize",
 ]

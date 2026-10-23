@@ -198,3 +198,39 @@ fn sources_become_candidates_with_their_origins() {
         ("Demo", "alex")
     );
 }
+
+#[test]
+fn transfer_codes_become_candidates_with_code_and_position() {
+    use crate::migration::{
+        BATCH_BUDGET_BYTES, ExportItem, decode_migration_link, encode_migration,
+    };
+    let secrets: Vec<SecretKey> = (1..=2u8)
+        .map(|b| SecretKey::from_bytes(vec![b; 20]).unwrap())
+        .collect();
+    let items: Vec<ExportItem<'_>> = secrets
+        .iter()
+        .map(|secret| ExportItem {
+            secret,
+            spec: CodeSpec::default(),
+            counter: 0,
+            issuer: "Example Cloud",
+            account: "alex",
+        })
+        .collect();
+    let export = encode_migration(&items, BATCH_BUDGET_BYTES).unwrap();
+    let codes: Vec<_> = export
+        .links
+        .iter()
+        .map(|l| decode_migration_link(l).unwrap())
+        .collect();
+
+    let candidates = super::from_migration(&codes);
+
+    assert_eq!(candidates.len(), 2);
+    assert_eq!(candidates[1].origin, Origin::Code { code: 0, index: 1 });
+    assert_eq!(candidates[0].issuer, "Example Cloud");
+    assert_eq!(
+        preview(candidates, &empty()).fresh[0].candidate.title,
+        "Example Cloud"
+    );
+}
