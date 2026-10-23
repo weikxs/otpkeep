@@ -11,7 +11,7 @@ COVER_MIN := 80
 COVER_EXCLUDE := --exclude otpkeep-app
 
 .PHONY: all build ui ui-install test test-rust test-ui cover fmt fmt-check clippy deny audit privacy \
-        check e2e hooks app clean
+        check perf e2e hooks app clean
 
 all: check
 
@@ -57,7 +57,11 @@ audit:
 privacy:
 	scripts/check-privacy.sh
 
-check: privacy fmt-check clippy test cover deny audit
+check: privacy fmt-check clippy test cover deny audit perf
+
+# Performance gates, measured on release builds (PRD FR-3.10: search within 16 ms for 1000 entries).
+perf: $(TEST_TMP)
+	cargo test --release --workspace --test performance -- --nocapture
 
 # Browser tests of the shared UI against a production build (uses the local Chrome).
 e2e: ui-install

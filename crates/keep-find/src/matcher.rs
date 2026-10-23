@@ -24,13 +24,25 @@ const FUZZY_MIN: u32 = 10;
 pub(crate) struct Prepared {
     pub(crate) folded: Folded,
     pub(crate) units: Vec<Unit>,
+    has_han: bool,
+    /// Bit `n` is set when some reading starts with the `n`-th letter `a`–`z`.
+    first_letters: u32,
 }
 
 impl Prepared {
     pub(crate) fn new(text: &str) -> Self {
+        let units = units(text);
+        let has_han = units.iter().any(|u| u.is_han);
+        let first_letters = units
+            .iter()
+            .flat_map(|u| &u.readings)
+            .filter_map(|r| r.first().and_then(|c| letter_bit(*c)))
+            .fold(0, |bits, bit| bits | bit);
         Self {
             folded: fold(text),
-            units: units(text),
+            units,
+            has_han,
+            first_letters,
         }
     }
 }
@@ -53,40 +65,51 @@ pub(crate) fn best_match(field: &Prepared, term: &[char]) -> Option<(u32, Vec<Ra
     {
         return Some((WORD_PREFIX, span(&field.folded, at, at + term.len())));
     }
-    let pinyin = pinyin_match(&field.units, term);
-    if let Some((score, ranges)) = pinyin.clone().filter(|(score, _)| *score > SUBSTRING) {
-        return Some((score, ranges));
+    // Pinyin can only match a field with Chinese characters, only terms made of pinyin letters, and only when
+    // some reading starts with the term's first letter.
+    let pinyin_possible = field.has_han
+        && term.iter().all(char::is_ascii_lowercase)
+        && term
+            .first()
+            .and_then(|c| letter_bit(*c))
+            .is_some_and(|bit| field.first_letters & bit != 0);
+    if pinyin_possible && let Some(found) = pinyin_at(&field.units, 0, term) {
+        return Some(found);
     }
     if let Some(at) = text.windows(term.len()).position(|w| w == term) {
         return Some((SUBSTRING, span(&field.folded, at, at + term.len())));
     }
-    pinyin.or_else(|| fuzzy(&field.folded, term))
+    // Pinyin further into the name scores below a substring, so it is only looked for when there is none.
+    let inside = pinyin_possible
+        .then(|| (1..field.units.len()).find_map(|start| pinyin_at(&field.units, start, term)))
+        .flatten();
+    inside.or_else(|| fuzzy(&field.folded, term))
 }
 
-/// Pinyin initials or full spelling, starting at any unit; the span must contain a Chinese character.
-fn pinyin_match(units: &[Unit], term: &[char]) -> Option<(u32, Vec<Range<usize>>)> {
-    let mut best: Option<(u32, Vec<Range<usize>>)> = None;
-    for start in 0..units.len() {
-        let found = [
-            (initials(units, start, term), PINYIN_INITIALS_PREFIX),
-            (full(units, start, term), PINYIN_FULL_PREFIX),
-        ];
-        for (end, prefix_score) in found {
-            let Some(end) = end else { continue };
-            if !units[start..=end].iter().any(|u| u.is_han) {
-                continue;
-            }
+/// Bit for an ASCII lower-case letter.
+fn letter_bit(c: char) -> Option<u32> {
+    c.is_ascii_lowercase()
+        .then(|| 1 << (u32::from(c) - u32::from('a')))
+}
+
+/// Pinyin initials or full spelling starting at unit `start`; the span must contain a Chinese character.
+/// Initials win over full spelling at the start of a name; anywhere else both score [`PINYIN_INSIDE`].
+fn pinyin_at(units: &[Unit], start: usize, term: &[char]) -> Option<(u32, Vec<Range<usize>>)> {
+    let found = [
+        (initials(units, start, term), PINYIN_INITIALS_PREFIX),
+        (full(units, start, term), PINYIN_FULL_PREFIX),
+    ];
+    found.into_iter().find_map(|(end, prefix_score)| {
+        let end = end?;
+        units[start..=end].iter().any(|u| u.is_han).then(|| {
             let score = if start == 0 {
                 prefix_score
             } else {
                 PINYIN_INSIDE
             };
-            if best.as_ref().is_none_or(|(s, _)| score > *s) {
-                best = Some((score, vec![units[start].origin..units[end].origin + 1]));
-            }
-        }
-    }
-    best
+            (score, vec![units[start].origin..units[end].origin + 1])
+        })
+    })
 }
 
 /// Each term character is the first letter of one reading of consecutive units; returns the last unit used.
