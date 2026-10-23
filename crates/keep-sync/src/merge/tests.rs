@@ -221,14 +221,18 @@ fn tombstones_merge_as_a_set_with_everyone_who_holds_them() {
     let b = purge(&b, id, 3 * MINUTE_MS).unwrap();
     let mut b = b;
     b.tombstones[0].acked_by = vec![device_id(7).0];
+    let mut same_time = a.clone();
+    same_time.tombstones[0].acked_by = vec![device_id(8).0];
 
     let merged = sync(&a, &b);
+    let same = sync(&a, &same_time);
 
     let [tomb] = merged.tombstones.as_slice() else {
         panic!("expected one tombstone");
     };
     assert_eq!(tomb.stamp, b.tombstones[0].stamp, "the later deletion time");
     assert_eq!(tomb.acked_by, vec![[1; 32], [2; 32], [7; 32]]);
+    assert_eq!(same.tombstones[0].acked_by, vec![[1; 32], [2; 32], [8; 32]]);
 }
 
 #[test]
@@ -268,4 +272,25 @@ fn merging_is_idempotent() {
         state_digest(&merged)
     );
     assert_eq!(state_digest(&sync(&merged, &a)), state_digest(&merged));
+}
+
+#[test]
+fn a_later_deletion_counts_only_the_devices_that_hold_it() {
+    let (a, b, id) = shared();
+    let mut a = purge(&a, id, 2 * MINUTE_MS).unwrap();
+    a.tombstones[0].acked_by = vec![[7; 32], [8; 32]];
+    let mut b = purge(&b, id, 3 * MINUTE_MS).unwrap();
+    b.tombstones[0].acked_by = vec![[9; 32]];
+
+    let merged = sync(&a, &b);
+
+    let [tomb] = merged.tombstones.as_slice() else {
+        panic!("expected one tombstone");
+    };
+    assert_eq!(tomb.stamp, b.tombstones[0].stamp);
+    assert_eq!(
+        tomb.acked_by,
+        vec![[1; 32], [2; 32], [9; 32]],
+        "devices that only saw the earlier deletion may still hold a later edit"
+    );
 }

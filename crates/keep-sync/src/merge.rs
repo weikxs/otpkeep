@@ -8,10 +8,12 @@
 //! - Key material moves as a whole. The same key on both sides keeps the higher HOTP counter; different keys
 //!   keep the newer key, and the other becomes a copy in the trash whose id depends only on the entry and that
 //!   key, so every device makes the same copy and no key is ever silently lost.
-//! - Tombstones merge as a set. One with an entry changed after it is dropped, and the entry goes to the trash
-//!   at the deletion time instead; otherwise the entry is deleted.
+//! - Tombstones merge as a set, keeping the later deletion of an entry with the devices known to hold that
+//!   deletion. One with an entry changed after it is dropped, and the entry goes to the trash at the deletion
+//!   time instead; otherwise the entry is deleted.
 //! - Fields from newer versions are kept, taken from the side that changed the entry last.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 use keep_vault::edit::old_key_copy;
@@ -170,9 +172,13 @@ fn merge_tombstones(
     for tomb in ours.iter().chain(theirs) {
         merged
             .entry(tomb.entry)
-            .and_modify(|current| {
-                current.stamp = current.stamp.max(tomb.stamp);
-                current.acked_by.extend(&tomb.acked_by);
+            .and_modify(|current| match tomb.stamp.cmp(&current.stamp) {
+                // The devices that hold the same deletion.
+                Ordering::Equal => current.acked_by.extend(&tomb.acked_by),
+                // A later deletion counts only its own holders: a device that held only the earlier one may
+                // since have taken a later edit of the entry, which would come back if this one were cleared.
+                Ordering::Greater => *current = tomb.clone(),
+                Ordering::Less => {}
             })
             .or_insert_with(|| tomb.clone());
     }
