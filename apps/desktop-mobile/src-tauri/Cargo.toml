@@ -1,0 +1,22 @@
+[package]
+name = "otpkeep-app"
+description = "The OTPKeep app for desktop and mobile."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+# A distinct library name avoids a clash with the binary name on Windows.
+name = "otpkeep_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5", features = [] }
+
+[dependencies]
+tauri = { version = "2.9", features = [] }
+
+[lints]
+workspace = true
