@@ -32,3 +32,7 @@ lto = true
 opt-level = "s"
 panic = "abort"
 strip = true
+
+# rqrr 0.11.0 with a fix for upstream issue #54 (vendor/rqrr/OTPKEEP-PATCH.md).
+[patch.crates-io]
+rqrr = { path = "vendor/rqrr" }

@@ -162,3 +162,15 @@ fn a_google_export_survives_being_drawn_and_scanned() {
     assert_eq!(back.len(), 25);
     assert_eq!(back[24].account, "alex25@example.com");
 }
+
+/// A frame found by fuzzing that made rqrr's perspective mapping assert (upstream issue #54); in a release build
+/// that would abort the app. Fixed by the patched copy in `vendor/rqrr`.
+#[test]
+fn a_degenerate_frame_does_not_crash_the_detector() {
+    let data = include_bytes!("rqrr-issue-54.bin");
+    let width = u32::from(data[0]).max(1);
+    let height = u32::try_from(data.len() - 1).unwrap() / width;
+    let pixels = &data[1..=usize::try_from(width * height).unwrap()];
+
+    let _ = decode_qr_luma(width, height, pixels);
+}
