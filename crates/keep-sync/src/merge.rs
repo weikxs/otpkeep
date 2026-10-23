@@ -28,10 +28,15 @@ use crate::membership::{merge_events, merge_presence};
 /// tombstone.
 #[must_use]
 pub fn merge(ours: &VaultDoc, theirs: &VaultDoc, participants: &[DeviceId]) -> VaultDoc {
-    let mut entries: BTreeMap<EntryId, Entry> = BTreeMap::new();
+    let mut versions: Versions = BTreeMap::new();
     for entry in ours.entries.iter().chain(&theirs.entries) {
-        upsert(&mut entries, entry.clone());
+        add_version(&mut versions, entry.clone());
     }
+    add_old_key_copies(&mut versions);
+    let mut entries: BTreeMap<EntryId, Entry> = versions
+        .into_iter()
+        .filter_map(|(id, all)| fold(all).map(|entry| (id, entry)))
+        .collect();
     let mut tombstones = merge_tombstones(&ours.tombstones, &theirs.tombstones, participants);
     settle_tombstones(&mut entries, &mut tombstones);
     let entries: Vec<Entry> = entries.into_values().collect();
@@ -50,32 +55,77 @@ pub fn merge(ours: &VaultDoc, theirs: &VaultDoc, participants: &[DeviceId]) -> V
     }
 }
 
-/// Adds `entry`, merging it into an entry with the same id; copies of losing keys are added the same way.
-fn upsert(entries: &mut BTreeMap<EntryId, Entry>, entry: Entry) {
-    let mut pending = vec![entry];
-    while let Some(next) = pending.pop() {
-        let merged = match entries.remove(&next.id) {
-            None => next,
-            Some(current) => {
-                let (merged, copy) = merge_entry(&current, &next);
-                pending.extend(copy);
-                merged
-            }
-        };
-        entries.insert(merged.id, merged);
+/// Every version of each entry that the merge sees.
+type Versions = BTreeMap<EntryId, Vec<Entry>>;
+
+/// Adds a version unless the same one is there; returns whether it was new.
+fn add_version(versions: &mut Versions, entry: Entry) -> bool {
+    let slot = versions.entry(entry.id).or_default();
+    if slot.contains(&entry) {
+        return false;
     }
+    slot.push(entry);
+    true
 }
 
-/// One entry from two sides, and the trashed copy of a key that lost.
-fn merge_entry(a: &Entry, b: &Entry) -> (Entry, Option<Entry>) {
-    let (key, copy) = merge_key(a, b);
-    let entry = Entry {
+/// Adds a trashed copy for every key that loses (design/06-sync.md §6.3).
+///
+/// A copy is stamped with its entry's winning key id: the newest key id among all versions of the entry, not
+/// the one it happened to be compared with, so the result does not depend on the order versions are compared
+/// in, and merging a result in again changes nothing. Copies are entries too, and a copy whose key was replaced
+/// has versions of its own, so the winners are found first, by adding copies until nothing new appears.
+fn add_old_key_copies(versions: &mut Versions) {
+    let mut probe = versions.clone();
+    while add_copies(&mut probe, None) {}
+    let winners = winning_keys(&probe);
+    while add_copies(versions, Some(&winners)) {}
+}
+
+/// One round of copies; with `winners` the final winning keys, without them the current ones (to find the
+/// final ones). Returns whether anything was added.
+fn add_copies(versions: &mut Versions, winners: Option<&BTreeMap<EntryId, Hlc>>) -> bool {
+    let current = winning_keys(versions);
+    let winners = winners.unwrap_or(&current);
+    let copies: Vec<Entry> = versions
+        .iter()
+        .flat_map(|(id, all)| {
+            let winner = winners.get(id).copied();
+            all.iter().filter_map(move |v| {
+                let winner = winner?;
+                (v.key.value.key_id != winner).then(|| old_key_copy(v, winner))
+            })
+        })
+        .collect();
+    let mut added = false;
+    for copy in copies {
+        added |= add_version(versions, copy);
+    }
+    added
+}
+
+fn winning_keys(versions: &Versions) -> BTreeMap<EntryId, Hlc> {
+    versions
+        .iter()
+        .filter_map(|(id, all)| Some((*id, all.iter().map(|v| v.key.value.key_id).max()?)))
+        .collect()
+}
+
+/// All versions of one entry, merged field by field.
+fn fold(all: Vec<Entry>) -> Option<Entry> {
+    let mut all = all.into_iter();
+    let first = all.next()?;
+    Some(all.fold(first, |merged, next| merge_entry(&merged, &next)))
+}
+
+/// One entry from two versions.
+fn merge_entry(a: &Entry, b: &Entry) -> Entry {
+    Entry {
         id: a.id,
         created_at: a.created_at.min(b.created_at),
         title: later(&a.title, &b.title),
         issuer: later(&a.issuer, &b.issuer),
         account: later(&a.account, &b.account),
-        key,
+        key: merge_key(&a.key, &b.key),
         note: later(&a.note, &b.note),
         tags: later(&a.tags, &b.tags),
         rank: later(&a.rank, &b.rank),
@@ -84,8 +134,7 @@ fn merge_entry(a: &Entry, b: &Entry) -> (Entry, Option<Entry>) {
         trashed_at: later(&a.trashed_at, &b.trashed_at),
         old_key_of: later(&a.old_key_of, &b.old_key_of),
         extra: merge_extra(a, b),
-    };
-    (entry, copy)
+    }
 }
 
 /// The field with the later timestamp; on equal timestamps the larger value, so both sides agree.
@@ -97,26 +146,27 @@ fn later<T: Ord + Clone>(a: &Field<T>, b: &Field<T>) -> Field<T> {
     }
 }
 
-/// Key material from two sides (design/06-sync.md §6.3).
-fn merge_key(a: &Entry, b: &Entry) -> (Field<KeyMaterial>, Option<Entry>) {
-    let (ka, kb) = (&a.key.value, &b.key.value);
-    if ka.key_id == kb.key_id {
-        let rank =
-            |k: &Field<KeyMaterial>| (k.value.counter, k.stamp, k.value.secret.expose().to_vec());
-        let value = if rank(&b.key) > rank(&a.key) { kb } else { ka };
-        let field = Field {
-            value: value.clone(),
-            stamp: a.key.stamp.max(b.key.stamp),
+/// Key material from two versions (design/06-sync.md §6.3): the newer key wins; the same key keeps the higher
+/// HOTP counter. The losing key's copy is made by [`add_old_key_copies`].
+fn merge_key(a: &Field<KeyMaterial>, b: &Field<KeyMaterial>) -> Field<KeyMaterial> {
+    if a.value.key_id != b.value.key_id {
+        return if b.value.key_id > a.value.key_id {
+            b.clone()
+        } else {
+            a.clone()
         };
-        return (field, None);
     }
-    let (winner, loser) = if kb.key_id > ka.key_id {
-        (b, a)
+    let rank =
+        |k: &Field<KeyMaterial>| (k.value.counter, k.stamp, k.value.secret.expose().to_vec());
+    let value = if rank(b) > rank(a) {
+        &b.value
     } else {
-        (a, b)
+        &a.value
     };
-    let copy = old_key_copy(loser, winner.key.value.key_id);
-    (winner.key.clone(), Some(copy))
+    Field {
+        value: value.clone(),
+        stamp: a.stamp.max(b.stamp),
+    }
 }
 
 /// Unknown fields: all keys from both sides; where both have a key, the side changed last wins.
