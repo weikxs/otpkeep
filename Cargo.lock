@@ -1800,6 +1800,13 @@ version = "0.0.1"
 [[package]]
 name = "keep-keyuri"
 version = "0.0.1"
+dependencies = [
+ "keep-passcode",
+ "percent-encoding",
+ "proptest",
+ "thiserror 2.0.21",
+ "zeroize",
+]
 
 [[package]]
 name = "keep-passcode"
