@@ -2094,6 +2094,17 @@ version = "0.0.1"
 [[package]]
 name = "keep-transfer"
 version = "0.0.1"
+dependencies = [
+ "base64 0.23.1",
+ "getrandom 0.4.3",
+ "keep-keyuri",
+ "keep-passcode",
+ "keep-vault",
+ "percent-encoding",
+ "proptest",
+ "thiserror 2.0.21",
+ "zeroize",
+]
 
 [[package]]
 name = "keep-vault"

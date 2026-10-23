@@ -1,5 +1,5 @@
 # Product and protocol names that are words, not code identifiers, in doc comments.
-doc-valid-idents = ["OTPKeep", "GitHub", "WebView", "..", "TOTP", "HOTP"]
+doc-valid-idents = ["OTPKeep", "GitHub", "WebView", "..", "TOTP", "HOTP", "MigrationPayload", "OtpParameters"]
 
 # Tests may fail loudly: a panic in a test is a failed assertion, not a crash in production.
 allow-panic-in-tests = true
