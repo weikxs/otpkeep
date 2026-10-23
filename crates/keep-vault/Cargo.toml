@@ -13,6 +13,7 @@ chacha20poly1305 = "0.11"
 ciborium = "0.2"
 getrandom = "0.4"
 keep-passcode = { path = "../keep-passcode" }
+keep-platform = { path = "../keep-platform" }
 thiserror = "2"
 uuid = { version = "1.29", features = ["v4"] }
 zeroize = "1.9"

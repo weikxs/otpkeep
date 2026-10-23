@@ -3,6 +3,7 @@
 mod codec;
 pub mod master;
 mod model;
+pub mod open;
 pub mod sealed;
 pub mod store;
 

@@ -127,6 +127,8 @@ pub struct VaultDoc {
     pub tombstones: Vec<Tombstone>,
     /// The latest timestamp seen; new stamps are always later.
     pub clock: Hlc,
+    /// This device's part of new timestamps. Random until the device joins a sync group.
+    pub device_tag: DeviceTag,
     /// Fields from newer versions.
     pub extra: Extra,
 }

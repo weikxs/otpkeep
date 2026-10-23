@@ -8,7 +8,7 @@
 use ciborium::Value;
 use zeroize::{Zeroize, Zeroizing};
 
-use crate::model::{Extra, VaultDoc};
+use crate::model::{DeviceTag, Extra, VaultDoc};
 
 mod entry;
 
@@ -20,6 +20,7 @@ const KEY_VAULT_ID: u64 = 1;
 const KEY_ENTRIES: u64 = 2;
 const KEY_TOMBSTONES: u64 = 3;
 const KEY_CLOCK: u64 = 4;
+const KEY_DEVICE_TAG: u64 = 5;
 
 /// Why stored bytes are not a vault this version can read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -58,6 +59,7 @@ pub fn encode_vault(doc: &VaultDoc) -> Zeroizing<Vec<u8>> {
             ),
         ),
         (int(KEY_CLOCK), entry::hlc_to_value(doc.clock)),
+        (int(KEY_DEVICE_TAG), Value::Bytes(doc.device_tag.0.to_vec())),
     ];
     pairs.extend(extra_pairs(&doc.extra));
     let mut value = Value::Map(pairs);
@@ -99,11 +101,16 @@ fn decode_doc(value: &mut Value) -> Result<VaultDoc, DecodeError> {
     .map(entry::tombstone_from_value)
     .collect::<Result<_, _>>()?;
     let clock = entry::hlc_from_value(&map.required(KEY_CLOCK, "vault.clock")?)?;
+    let device_tag = DeviceTag(as_fixed(
+        map.required(KEY_DEVICE_TAG, "vault.device_tag")?,
+        "vault.device_tag",
+    )?);
     Ok(VaultDoc {
         vault_id,
         entries,
         tombstones,
         clock,
+        device_tag,
         extra: map.into_extra(),
     })
 }

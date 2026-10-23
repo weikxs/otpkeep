@@ -2072,6 +2072,7 @@ dependencies = [
  "ciborium",
  "getrandom 0.4.3",
  "keep-passcode",
+ "keep-platform",
  "proptest",
  "tempfile",
  "thiserror 2.0.21",

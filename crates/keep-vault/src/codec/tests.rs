@@ -57,6 +57,7 @@ fn sample_doc() -> VaultDoc {
             acked_by: vec![[5; 32]],
         }],
         clock: hlc(3_000, 1),
+        device_tag: DeviceTag([6; 8]),
         extra: Extra::default(),
     }
 }
@@ -106,6 +107,7 @@ fn an_empty_vault_survives_encoding_and_decoding() {
         entries: vec![],
         tombstones: vec![],
         clock: hlc(0, 0),
+        device_tag: DeviceTag([0; 8]),
         extra: Extra::default(),
     };
 
