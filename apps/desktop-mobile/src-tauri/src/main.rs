@@ -10,7 +10,7 @@ use std::process::ExitCode;
     reason = "the app failed to start, so stderr is the only place left to report it"
 )]
 fn main() -> ExitCode {
-    match otpkeep_app_lib::run() {
+    match otpkeep_app_lib::try_run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("OTPKeep could not start: {error}");
