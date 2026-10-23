@@ -3,7 +3,10 @@ use keep_passcode::{CodeKind, CodeSpec, Digest, SecretKey};
 use proptest::prelude::*;
 
 use super::{DecodeError, decode_vault, encode_vault};
-use crate::{DeviceTag, Entry, EntryId, Extra, Field, Hlc, KeyMaterial, Tombstone, VaultDoc};
+use crate::{
+    DeviceId, DeviceSecrets, DeviceTag, Entry, EntryId, Extra, Field, Hlc, KeyMaterial,
+    MemberEvent, MemberKind, Platform, SyncGroup, Tombstone, VaultDoc,
+};
 
 fn hlc(wall_ms: u64, logical: u32) -> Hlc {
     Hlc {
@@ -57,6 +60,8 @@ fn sample_doc() -> VaultDoc {
             stamp: hlc(3_000, 1),
             acked_by: vec![[5; 32]],
         }],
+        group: None,
+        device: None,
         clock: hlc(3_000, 1),
         device_tag: DeviceTag([6; 8]),
         extra: Extra::default(),
@@ -107,6 +112,8 @@ fn an_empty_vault_survives_encoding_and_decoding() {
         vault_id: [0; 16],
         entries: vec![],
         tombstones: vec![],
+        group: None,
+        device: None,
         clock: hlc(0, 0),
         device_tag: DeviceTag([0; 8]),
         extra: Extra::default(),
@@ -357,5 +364,193 @@ fn refuses_malformed_timestamps_and_fields() {
     assert_eq!(
         decode_vault(&to_bytes(&bad_secret)),
         Err(DecodeError::Invalid("key.secret"))
+    );
+}
+
+fn event(kind: MemberKind, author: u8, wall_ms: u64) -> MemberEvent {
+    MemberEvent {
+        kind,
+        author: DeviceId([author; 32]),
+        stamp: hlc(wall_ms, 0),
+        signature: [author.wrapping_add(1); 64],
+    }
+}
+
+fn sample_group() -> SyncGroup {
+    SyncGroup {
+        group_id: [0x61; 16],
+        tag_key: [0x62; 32],
+        events: vec![
+            event(
+                MemberKind::Join {
+                    device: DeviceId([1; 32]),
+                    dx_public: [0x11; 32],
+                    dx_cert: [0x12; 64],
+                    platform: Platform::MacOs,
+                },
+                1,
+                10,
+            ),
+            event(
+                MemberKind::Join {
+                    device: DeviceId([2; 32]),
+                    dx_public: [0x21; 32],
+                    dx_cert: [0x22; 64],
+                    platform: Platform::Other(99),
+                },
+                1,
+                20,
+            ),
+            event(
+                MemberKind::Rename {
+                    device: DeviceId([2; 32]),
+                    lan_name: "书房的电脑".to_owned(),
+                },
+                2,
+                30,
+            ),
+            event(
+                MemberKind::Remove {
+                    device: DeviceId([2; 32]),
+                },
+                1,
+                40,
+            ),
+        ],
+        presence: [
+            (DeviceId([1; 32]), hlc(50, 0)),
+            (DeviceId([2; 32]), hlc(35, 2)),
+        ]
+        .into_iter()
+        .collect(),
+        extra: Extra::default(),
+    }
+}
+
+fn grouped_doc() -> VaultDoc {
+    VaultDoc {
+        group: Some(sample_group()),
+        device: Some(DeviceSecrets {
+            signing_seed: [0x71; 32].into(),
+            exchange_secret: [0x72; 32].into(),
+        }),
+        ..sample_doc()
+    }
+}
+
+#[test]
+fn a_sync_group_and_device_keys_survive_encoding_and_decoding() {
+    let doc = grouped_doc();
+
+    assert_eq!(decode_vault(&encode_vault(&doc)).unwrap(), doc);
+}
+
+#[test]
+fn every_platform_survives() {
+    for platform in [
+        Platform::MacOs,
+        Platform::Windows,
+        Platform::Linux,
+        Platform::Ios,
+        Platform::Android,
+        Platform::Other(1_000),
+    ] {
+        let mut group = sample_group();
+        group.events[0].kind = MemberKind::Join {
+            device: DeviceId([1; 32]),
+            dx_public: [0x11; 32],
+            dx_cert: [0x12; 64],
+            platform,
+        };
+        let doc = VaultDoc {
+            group: Some(group),
+            ..sample_doc()
+        };
+        assert_eq!(
+            decode_vault(&encode_vault(&doc)).unwrap(),
+            doc,
+            "{platform:?}"
+        );
+    }
+}
+
+#[test]
+fn unknown_member_kinds_and_group_fields_are_kept() {
+    let mut value = to_value(&grouped_doc());
+    let group = at(&mut value, 6);
+    map_mut(group).push((Value::Integer(90.into()), Value::Text("future".into())));
+    let events = at(group, 3);
+    let first = item(events, 0);
+    let kind = at(first, 1);
+    *kind = Value::Map(vec![
+        (Value::Integer(0.into()), Value::Integer(77.into())),
+        (Value::Integer(1.into()), Value::Bytes(vec![1, 2, 3])),
+    ]);
+
+    let decoded = decode_vault(&to_bytes(&value)).unwrap();
+    let group = decoded.group.as_ref().unwrap();
+
+    assert_eq!(group.extra.get(&90), Some(&Value::Text("future".into())));
+    let MemberKind::Other { kind, body } = &group.events[0].kind else {
+        panic!("expected an unknown kind, got {:?}", group.events[0].kind);
+    };
+    assert_eq!(*kind, 77);
+    assert_eq!(decode_vault(&encode_vault(&decoded)).unwrap(), decoded);
+    assert!(matches!(body, Value::Map(_)));
+}
+
+#[test]
+fn a_known_member_kind_with_extra_fields_is_kept_as_unknown() {
+    let mut value = to_value(&grouped_doc());
+    let kind = at(item(at(at(&mut value, 6), 3), 3), 1);
+    map_mut(kind).push((Value::Integer(9.into()), Value::Bool(true)));
+
+    let decoded = decode_vault(&to_bytes(&value)).unwrap();
+
+    assert!(matches!(
+        decoded.group.unwrap().events[3].kind,
+        MemberKind::Other { kind: 2, .. }
+    ));
+}
+
+#[test]
+fn a_vault_without_a_group_reads_as_not_in_a_group() {
+    let decoded = decode_vault(&encode_vault(&sample_doc())).unwrap();
+
+    assert_eq!(decoded.group, None);
+    assert_eq!(decoded.device, None);
+}
+
+#[test]
+fn rejects_malformed_device_keys_and_events() {
+    let mut short_seed = to_value(&grouped_doc());
+    *at(at(&mut short_seed, 7), 1) = Value::Bytes(vec![1; 31]);
+    let mut extra_secret_field = to_value(&grouped_doc());
+    map_mut(at(&mut extra_secret_field, 7)).push((Value::Integer(9.into()), Value::Null));
+    let mut short_signature = to_value(&grouped_doc());
+    *at(item(at(at(&mut short_signature, 6), 3), 0), 4) = Value::Bytes(vec![0; 63]);
+
+    assert_eq!(
+        decode_vault(&to_bytes(&short_seed)),
+        Err(DecodeError::Invalid("device.signing_seed"))
+    );
+    assert_eq!(
+        decode_vault(&to_bytes(&extra_secret_field)),
+        Err(DecodeError::Invalid("device"))
+    );
+    assert_eq!(
+        decode_vault(&to_bytes(&short_signature)),
+        Err(DecodeError::Invalid("event.signature"))
+    );
+}
+
+#[test]
+fn debug_output_never_shows_device_keys() {
+    let debug = format!("{:?}", grouped_doc());
+
+    assert!(!debug.contains("113"), "{debug}");
+    assert!(
+        !debug.contains("0x71") && !debug.contains("71, 71"),
+        "{debug}"
     );
 }

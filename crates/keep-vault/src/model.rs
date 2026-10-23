@@ -6,6 +6,10 @@ use std::fmt;
 use ciborium::Value;
 use keep_passcode::{CodeSpec, SecretKey};
 
+mod group;
+
+pub use group::{DeviceId, DeviceSecrets, MemberEvent, MemberKind, Platform, SyncGroup};
+
 /// Fields this version does not know, keyed by their integer CBOR key. They are kept and written back so an
 /// older version never loses what a newer one stored.
 pub type Extra = BTreeMap<u64, Value>;
@@ -127,6 +131,10 @@ pub struct VaultDoc {
     pub entries: Vec<Entry>,
     /// Permanently deleted entries (sync groups only).
     pub tombstones: Vec<Tombstone>,
+    /// The sync group, once this device has created or joined one.
+    pub group: Option<SyncGroup>,
+    /// This device's keys in the group; present exactly when `group` is. Never synced.
+    pub device: Option<DeviceSecrets>,
     /// The latest timestamp seen; new stamps are always later.
     pub clock: Hlc,
     /// This device's part of new timestamps. Random until the device joins a sync group.

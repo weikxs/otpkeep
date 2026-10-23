@@ -172,6 +172,8 @@ fn write_new(
         vault_id: random_array()?,
         entries: Vec::new(),
         tombstones: Vec::new(),
+        group: None,
+        device: None,
         clock: Hlc {
             wall_ms: 0,
             logical: 0,

@@ -56,6 +56,8 @@ pub fn write_backup(
         vault_id: id,
         entries: entries.iter().map(|e| (*e).clone()).collect(),
         tombstones: Vec::new(),
+        group: None,
+        device: None,
         clock: Hlc {
             wall_ms: 0,
             logical: 0,

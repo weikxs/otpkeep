@@ -15,6 +15,8 @@ fn empty() -> VaultDoc {
         vault_id: [0; 16],
         entries: vec![],
         tombstones: vec![],
+        group: None,
+        device: None,
         clock: Hlc {
             wall_ms: 0,
             logical: 0,

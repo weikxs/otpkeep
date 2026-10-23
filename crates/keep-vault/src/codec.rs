@@ -11,6 +11,7 @@ use zeroize::{Zeroize, Zeroizing};
 use crate::model::{DeviceTag, Extra, VaultDoc};
 
 mod entry;
+mod group;
 
 /// The document format this version reads and writes.
 pub const DOC_FORMAT: u64 = 1;
@@ -21,6 +22,8 @@ const KEY_ENTRIES: u64 = 2;
 const KEY_TOMBSTONES: u64 = 3;
 const KEY_CLOCK: u64 = 4;
 const KEY_DEVICE_TAG: u64 = 5;
+const KEY_GROUP: u64 = 6;
+const KEY_DEVICE: u64 = 7;
 
 /// Why stored bytes are not a vault this version can read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -61,6 +64,12 @@ pub fn encode_vault(doc: &VaultDoc) -> Zeroizing<Vec<u8>> {
         (int(KEY_CLOCK), entry::hlc_to_value(doc.clock)),
         (int(KEY_DEVICE_TAG), Value::Bytes(doc.device_tag.0.to_vec())),
     ];
+    if let Some(group) = &doc.group {
+        pairs.push((int(KEY_GROUP), group::group_to_value(group)));
+    }
+    if let Some(device) = &doc.device {
+        pairs.push((int(KEY_DEVICE), group::secrets_to_value(device)));
+    }
     pairs.extend(extra_pairs(&doc.extra));
     let mut value = Value::Map(pairs);
     let mut bytes = Zeroizing::new(Vec::new());
@@ -105,10 +114,20 @@ fn decode_doc(value: &mut Value) -> Result<VaultDoc, DecodeError> {
         map.required(KEY_DEVICE_TAG, "vault.device_tag")?,
         "vault.device_tag",
     )?);
+    let group = map
+        .optional(KEY_GROUP)
+        .map(group::group_from_value)
+        .transpose()?;
+    let device = map
+        .optional(KEY_DEVICE)
+        .map(group::secrets_from_value)
+        .transpose()?;
     Ok(VaultDoc {
         vault_id,
         entries,
         tombstones,
+        group,
+        device,
         clock,
         device_tag,
         extra: map.into_extra(),
