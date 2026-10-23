@@ -12,6 +12,7 @@ name = "otpkeep"
 path = "src/main.rs"
 
 [dependencies]
+tracing = "0.1"
 keep-find = { path = "../../crates/keep-find" }
 keep-passcode = { path = "../../crates/keep-passcode" }
 keep-platform = { path = "../../crates/keep-platform" }
@@ -22,6 +23,9 @@ zeroize = "1.9"
 
 [dev-dependencies]
 tempfile = "3.27"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "std"] }
+keep-transfer = { path = "../../crates/keep-transfer" }
+keep-keyuri = { path = "../../crates/keep-keyuri" }
 
 [lints]
 workspace = true

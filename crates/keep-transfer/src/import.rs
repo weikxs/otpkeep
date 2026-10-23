@@ -227,6 +227,7 @@ pub fn commit_import(
         current = next;
         added.push(id);
     }
+    tracing::info!(added = added.len(), "import committed");
     Ok((current, added))
 }
 

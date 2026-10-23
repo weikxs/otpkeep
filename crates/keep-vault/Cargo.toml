@@ -16,6 +16,7 @@ getrandom = "0.4"
 keep-passcode = { path = "../keep-passcode" }
 keep-platform = { path = "../keep-platform" }
 thiserror = "2"
+tracing = "0.1"
 uuid = { version = "1.29", features = ["v4"] }
 zeroize = "1.9"
 

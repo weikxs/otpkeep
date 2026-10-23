@@ -325,6 +325,7 @@ fn load_local(open: &OpenVault) -> LocalDoc {
     {
         return local;
     }
+    tracing::warn!("history file damaged; set aside, history starts empty");
     // Keep the damaged file aside for diagnosis; if even that fails, it is overwritten by the next history save.
     let mut aside = path.into_os_string();
     aside.push(format!(".damaged-{}", system_now_ms()));

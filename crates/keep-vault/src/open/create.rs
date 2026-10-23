@@ -146,7 +146,9 @@ pub fn restore_previous(paths: &VaultPaths) -> std::io::Result<()> {
         kept.push(format!(".damaged-{seconds}"));
         fs::rename(paths.vault(), kept)?;
     }
-    replace_vault(paths, &previous)
+    replace_vault(paths, &previous)?;
+    tracing::info!("previous vault version restored");
+    Ok(())
 }
 
 fn lock_for_creation(paths: &VaultPaths, lock_wait: Duration) -> Result<VaultLock, CreateError> {

@@ -140,7 +140,11 @@ impl OpenVault {
         }
         let plaintext = encode_vault(&doc);
         let sealed = seal(&self.header, &self.key, &plaintext).map_err(|_| SaveError::Seal)?;
-        replace_vault(&self.paths, &sealed).map_err(|_| SaveError::Io)?;
+        replace_vault(&self.paths, &sealed).map_err(|error| {
+            tracing::warn!(kind = ?error.kind(), "vault save failed");
+            SaveError::Io
+        })?;
+        tracing::debug!(entries = doc.entries.len(), "vault saved");
         self.doc = doc;
         Ok(())
     }
@@ -149,6 +153,28 @@ impl OpenVault {
 /// Decides what to do with the data in `paths`, taking the lock (waiting up to `lock_wait`).
 #[must_use]
 pub fn start(paths: &VaultPaths, keystore: &dyn Keystore, lock_wait: Duration) -> Startup {
+    let startup = decide(paths, keystore, lock_wait);
+    // Only the outcome is logged: no paths, names or contents (PRD FR-9.5).
+    match &startup {
+        Startup::Ready(open) => tracing::info!(entries = open.doc.entries.len(), "vault opened"),
+        Startup::ReadOnly {
+            open,
+            newer_version,
+        } => {
+            tracing::warn!(
+                entries = open.doc.entries.len(),
+                newer_version,
+                "vault opened read-only"
+            );
+        }
+        Startup::Fresh { keystore_available } => tracing::info!(keystore_available, "no vault yet"),
+        Startup::NeedsMasterPassword(_) => tracing::info!("vault needs the master password"),
+        Startup::Stopped(reason) => tracing::warn!(?reason, "vault startup stopped"),
+    }
+    startup
+}
+
+fn decide(paths: &VaultPaths, keystore: &dyn Keystore, lock_wait: Duration) -> Startup {
     let lock = match VaultLock::acquire(paths, lock_wait) {
         Ok(lock) => lock,
         Err(LockError::Busy) => return Startup::Stopped(StopReason::Busy),
