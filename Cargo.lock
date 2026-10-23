@@ -2073,6 +2073,7 @@ dependencies = [
  "getrandom 0.4.3",
  "keep-passcode",
  "proptest",
+ "tempfile",
  "thiserror 2.0.21",
  "uuid",
  "zeroize",
