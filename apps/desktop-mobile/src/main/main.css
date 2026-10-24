@@ -1200,3 +1200,11 @@ textarea {
   width: 140px;
   accent-color: var(--accent);
 }
+
+/* The language menu in the top bar matches the buttons beside it. */
+.topbar .language-select {
+  height: 34px;
+  padding: 0 26px 0 10px;
+  border-radius: 9px;
+  font-size: 13px;
+}

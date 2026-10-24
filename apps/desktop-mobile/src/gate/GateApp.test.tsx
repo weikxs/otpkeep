@@ -219,3 +219,14 @@ describe("codes on the management page", () => {
     await waitFor(() => expect(entries.mock.calls.length).toBeGreaterThan(before), { timeout: 2000 });
   });
 });
+
+describe("language on the management page", () => {
+  it("shows the language menu in the header and reports a choice", async () => {
+    const onChange = vi.fn();
+    render(<GateApp connect={() => Promise.resolve(demoGate())} text={zh} isMac language={{ value: "system", onChange }} />);
+
+    fireEvent.change(await screen.findByRole("combobox", { name: "语言" }), { target: { value: "en" } });
+
+    expect(onChange).toHaveBeenCalledWith("en");
+  });
+});

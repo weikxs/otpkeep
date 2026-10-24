@@ -29,3 +29,18 @@ for (const scheme of ["light", "dark"] as const) {
     expect(problems).toEqual([]);
   });
 }
+
+test("rows keep one height while the next code shows", async ({ page }) => {
+  // 3 seconds before a 30-second step ends, so every time-based row shows its next code.
+  await page.clock.install({ time: 1_700_000_037_000 });
+  await page.setViewportSize({ width: 340, height: 560 });
+  await page.goto("/panel.html");
+  await expect(page.locator(".next-code").first()).toBeVisible();
+
+  const rows = await page.getByTestId("entry").evaluateAll((all) => all.map((r) => r.getBoundingClientRect().height));
+  const nextLines = await page.locator(".next-code").evaluateAll((all) => all.map((n) => n.getBoundingClientRect().height));
+
+  expect(new Set(rows).size).toBe(1);
+  expect(Math.max(...nextLines)).toBeLessThanOrEqual(13);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/panel-next-code.png` });
+});

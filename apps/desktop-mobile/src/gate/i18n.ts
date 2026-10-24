@@ -2,6 +2,8 @@
 
 const zh = {
   title: "OTPKeep 管理",
+  language: "语言",
+  followSystem: "跟随系统",
   search: "搜索名称、账号、备注或标签",
   count: (n: number) => `${n} 个账号`,
   connecting: "正在连接 OTPKeep…",
@@ -61,6 +63,8 @@ export type GateStrings = typeof zh;
 
 const en: GateStrings = {
   title: "OTPKeep management",
+  language: "Language",
+  followSystem: "System",
   search: "Search names, accounts, notes or tags",
   count: (n: number) => `${n} account${n === 1 ? "" : "s"}`,
   connecting: "Connecting to OTPKeep…",

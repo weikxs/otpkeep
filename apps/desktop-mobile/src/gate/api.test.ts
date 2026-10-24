@@ -85,6 +85,22 @@ describe("connect", () => {
     expect((fetchFn.mock.calls[0]?.[1] as RequestInit).method).toBe("POST");
   });
 
+  it("reads and changes OTPKeep's language setting", async () => {
+    const { win, storage } = fakeWindow("");
+    storage.set("otpkeep-session", "s1");
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(reply(200, { language: "system" }))
+      .mockResolvedValueOnce(reply(200, { language: "en" }));
+    const api = await connect(win, fetchFn);
+
+    expect(await api.language()).toBe("system");
+    expect(await api.setLanguage("en")).toBe("en");
+    expect(fetchFn.mock.calls[1]?.[0]).toBe("/api/language");
+    expect((fetchFn.mock.calls[1]?.[1] as RequestInit).method).toBe("PUT");
+    expect((fetchFn.mock.calls[1]?.[1] as RequestInit).body).toBe(JSON.stringify({ language: "en" }));
+  });
+
   it("treats an unreadable refusal as unknown", async () => {
     const { win, storage } = fakeWindow("");
     storage.set("otpkeep-session", "s1");

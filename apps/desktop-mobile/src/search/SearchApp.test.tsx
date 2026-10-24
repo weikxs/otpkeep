@@ -201,3 +201,25 @@ describe("search panel", () => {
     expect(screen.queryByRole("searchbox")).toBeNull();
   });
 });
+
+describe("language menu in the search panel", () => {
+  it("sits in the footer and reports a choice", async () => {
+    const { api } = demoSearch();
+    const onChange = vi.fn();
+    render(
+      <SearchApp
+        api={api}
+        text={strings("zh-CN")}
+        words={searchStrings("zh-CN")}
+        isMac
+        clock={() => STEADY}
+        language={{ value: "zh", onChange }}
+      />,
+    );
+    const menu = await screen.findByRole("combobox", { name: "语言" });
+
+    expect((menu as HTMLSelectElement).value).toBe("zh");
+    fireEvent.change(menu, { target: { value: "system" } });
+    expect(onChange).toHaveBeenCalledWith("system");
+  });
+});

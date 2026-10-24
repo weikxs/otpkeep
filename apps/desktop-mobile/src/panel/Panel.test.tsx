@@ -246,3 +246,25 @@ describe("copying in a browser preview", () => {
     write.mockRestore();
   });
 });
+
+describe("language and the master password in the panel", () => {
+  it("offers the language menu in the footer and reports a choice", async () => {
+    const onChange = vi.fn();
+    render(<Panel api={demoApi({ clock: () => STEADY })} text={zh} isMac clock={() => STEADY} language={{ value: "system", onChange }} />);
+
+    fireEvent.change(await screen.findByRole("combobox", { name: "语言" }), { target: { value: "en" } });
+
+    expect(onChange).toHaveBeenCalledWith("en");
+  });
+
+  it("asks for the password instead of calling an empty one wrong", async () => {
+    const api = demoApi({ clock: () => STEADY, status: "needsPassword" });
+    const unlock = vi.spyOn(api, "unlock");
+    show(api);
+
+    fireEvent.click(await screen.findByRole("button", { name: "打开" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe("请输入主口令");
+    expect(unlock).not.toHaveBeenCalled();
+  });
+});

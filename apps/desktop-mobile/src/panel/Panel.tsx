@@ -2,6 +2,7 @@ import { Fragment } from "preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { PanelApi, PanelEntry, PanelState } from "./api";
 import { Ring } from "../shared/Ring";
+import { type LanguageControl, LanguageSelect } from "../shared/LanguageSelect";
 import { formatShortcut } from "../shared/shortcut";
 import { groupCode, monogram, tileColor } from "./format";
 import type { Strings } from "./i18n";
@@ -18,10 +19,12 @@ export interface PanelProps {
   isMac: boolean;
   /** The local clock; tests pass their own. */
   clock?: () => number;
+  /** The language menu in the footer; absent hides it. */
+  language?: LanguageControl;
 }
 
 /** The menu bar quick panel (design/12). */
-export function Panel({ api, text, isMac, clock = Date.now }: PanelProps) {
+export function Panel({ api, text, isMac, clock = Date.now, language }: PanelProps) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -136,6 +139,7 @@ export function Panel({ api, text, isMac, clock = Date.now }: PanelProps) {
       <footer class="panel-footer">
         <span class="status-line">{state.readOnly ? text.readOnly : state.inGroup ? text.inGroup : text.notInGroup}</span>
         <span class="footer-actions">
+          {language && <LanguageSelect control={language} systemLabel={text.followSystem} label={text.language} />}
           <button type="button" class="icon-button" title={text.addShort} aria-label={text.add} onClick={() => void api.openMain("add")}>
             <PlusIcon />
           </button>
@@ -281,12 +285,17 @@ interface PasswordPromptProps {
 /** Asked once per run when the data is protected by a master password. */
 export function PasswordPrompt({ api, text, onOpened }: PasswordPromptProps) {
   const [password, setPassword] = useState("");
-  const [wrong, setWrong] = useState(false);
+  // An empty field is not a wrong password: it is not tried at all.
+  const [problem, setProblem] = useState<"empty" | "wrong" | null>(null);
   const submit = async (event: Event) => {
     event.preventDefault();
+    if (password === "") {
+      setProblem("empty");
+      return;
+    }
     const next = await api.unlock(password);
     setPassword("");
-    if (next.status === "needsPassword") setWrong(true);
+    if (next.status === "needsPassword") setProblem("wrong");
     else onOpened(next);
   };
   return (
@@ -302,13 +311,17 @@ export function PasswordPrompt({ api, text, onOpened }: PasswordPromptProps) {
           autoFocus
           onInput={(e) => {
             setPassword((e.target as HTMLInputElement).value);
-            setWrong(false);
+            setProblem(null);
           }}
         />
         <button type="submit" class="primary">
           {text.unlock}
         </button>
-        {wrong && <p class="error">{text.wrongPassword}</p>}
+        {problem && (
+          <p class="error" role="alert">
+            {problem === "empty" ? text.enterPassword : text.wrongPassword}
+          </p>
+        )}
       </form>
     </section>
   );

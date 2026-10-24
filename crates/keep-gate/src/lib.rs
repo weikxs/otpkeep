@@ -7,5 +7,5 @@ pub mod api;
 pub mod server;
 pub mod session;
 
-pub use api::{Asset, Backend, Copied, EntryEdit, GateEntry, GateError, ShortcutChange};
+pub use api::{Asset, Backend, Copied, EntryEdit, GateEntry, GateError, Language, ShortcutChange};
 pub use server::RunningGate;

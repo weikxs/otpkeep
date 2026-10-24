@@ -8,7 +8,10 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::commands::{AppCore, list_places};
 use crate::core::{CoreError, EntryInfo, EntryKind, PanelEntry};
-use crate::hotkeys::{Hotkeys, SetError, set_entry_shortcut, taken_detail};
+use crate::hotkeys::{
+    Hotkeys, SetError, UpdateError, set_entry_shortcut, taken_detail, update_settings,
+};
+use crate::preferences::{SettingsPatch, view};
 
 /// The page server, while it runs.
 #[derive(Default)]
@@ -126,6 +129,27 @@ impl Backend for AppBackend {
         Ok(Copied {
             clears_in_s: clear_after.map_or(0, |d| d.as_secs()),
         })
+    }
+
+    fn language(&self) -> String {
+        self.app
+            .try_state::<Hotkeys>()
+            .and_then(|h| h.settings().language)
+            .unwrap_or_else(|| "system".to_owned())
+    }
+
+    fn set_language(&self, language: &str) -> Result<String, GateError> {
+        let patch = SettingsPatch {
+            language: Some(language.to_owned()),
+            ..SettingsPatch::default()
+        };
+        let settings = update_settings(&self.app, &patch).map_err(|error| match error {
+            UpdateError::Invalid(rule) => GateError::Invalid(rule),
+            UpdateError::Save => GateError::Save,
+        })?;
+        // OTPKeep's windows follow at once.
+        let _ = self.app.emit("settings-changed", view(&settings));
+        Ok(settings.language.unwrap_or_else(|| "system".to_owned()))
     }
 
     fn asset(&self, path: &str) -> Option<Asset> {

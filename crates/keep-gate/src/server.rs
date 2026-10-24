@@ -17,7 +17,7 @@ use serde_json::json;
 use tokio::net::TcpListener;
 use tokio::sync::watch;
 
-use crate::api::{Backend, EntryEdit, GateError, ShortcutChange};
+use crate::api::{Backend, EntryEdit, GateError, Language, ShortcutChange};
 use crate::session::{SessionError, Sessions};
 
 /// Request bodies larger than this are refused.
@@ -157,6 +157,7 @@ fn router(shared: Arc<Shared>) -> Router {
         .route("/api/entries/{id}", patch(edit_entry))
         .route("/api/entries/{id}/shortcut", put(set_shortcut))
         .route("/api/entries/{id}/copy", post(copy_code))
+        .route("/api/language", get(get_language).put(set_language))
         .layer(middleware::from_fn_with_state(
             Arc::clone(&shared),
             check_origin,
@@ -349,6 +350,36 @@ async fn copy_code(
     }
     let backend = Arc::clone(&shared.backend);
     blocking(move || backend.copy(&id).map(|copied| json!(copied))).await
+}
+
+async fn get_language(State(shared): State<Arc<Shared>>, headers: HeaderMap) -> Response {
+    if let Err(response) = authorize(&shared, &headers, true) {
+        return response;
+    }
+    let backend = Arc::clone(&shared.backend);
+    blocking(move || {
+        Ok(json!(Language {
+            language: backend.language()
+        }))
+    })
+    .await
+}
+
+async fn set_language(
+    State(shared): State<Arc<Shared>>,
+    headers: HeaderMap,
+    axum::Json(change): axum::Json<Language>,
+) -> Response {
+    if let Err(response) = authorize(&shared, &headers, true) {
+        return response;
+    }
+    let backend = Arc::clone(&shared.backend);
+    blocking(move || {
+        backend
+            .set_language(&change.language)
+            .map(|language| json!(Language { language }))
+    })
+    .await
 }
 
 /// Runs a backend call off the async threads: it may wait for the vault and write files.

@@ -224,6 +224,7 @@ const zh = {
   needsPassword: "输入主口令以打开数据",
   password: "主口令",
   wrongPassword: "主口令不正确",
+  enterPassword: "请输入主口令",
   place: (place: Place) => {
     switch (place.kind) {
       case "line":
@@ -579,6 +580,7 @@ const en: MainStrings = {
   needsPassword: "Enter the master password to open your data",
   password: "Master password",
   wrongPassword: "The master password is not correct",
+  enterPassword: "Enter the master password",
   place: (place) => {
     switch (place.kind) {
       case "line":

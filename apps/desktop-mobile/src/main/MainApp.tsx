@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
+import { type LanguageControl, LanguageSelect } from "../shared/LanguageSelect";
 import { type AddTab, AddDialog } from "./AddDialog";
 import { CommandFailure, type Entry, type MainApi, type MainState, type Settings } from "./api";
 import type { EntryChange } from "./EntryEditor";
@@ -22,12 +23,14 @@ export interface MainAppProps {
   clock?: () => number;
   /** The settings were changed here: the page follows the theme and language. */
   onSettingsSaved?: (settings: Settings) => void;
+  /** The language menu in the top bar; absent hides it. */
+  language?: LanguageControl;
 }
 
 type Dialog = { tab: AddTab; dropped?: Uint8Array } | null;
 
 /** The main window: every account, search, and adding (design/07-platform.md §2.4a). */
-export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved }: MainAppProps) {
+export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, language }: MainAppProps) {
   const [state, setState] = useState<MainState | null>(null);
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
@@ -147,10 +150,21 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved }:
   };
 
   if (state === null) return <div class="main" aria-busy="true" />;
-  if (state.status === "needsPassword") return <PasswordScreen api={api} text={text} onOpened={() => void load(query)} />;
+  const languageMenu = language && (
+    <LanguageSelect control={language} systemLabel={text.languages.system} label={text.language} />
+  );
+  if (state.status === "needsPassword") {
+    return (
+      <>
+        {languageMenu && <span class="corner-language">{languageMenu}</span>}
+        <PasswordScreen api={api} text={text} onOpened={() => void load(query)} />
+      </>
+    );
+  }
   if (state.status === "unavailable") {
     return (
       <main class="welcome" role="alert">
+        {languageMenu && <span class="corner-language">{languageMenu}</span>}
         <h1>{text.unavailable}</h1>
         {state.problem && <p class="muted">{text.problems[state.problem]}</p>}
       </main>
@@ -202,6 +216,7 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved }:
               {text.exportButton}
             </button>
           )}
+          {languageMenu}
           <button type="button" class="secondary" onClick={() => setSettingsOpen(true)}>
             {text.settings}
           </button>
@@ -393,7 +408,8 @@ function Welcome({ text, onChoose }: { text: MainStrings; onChoose: (tab: AddTab
 
 function PasswordScreen({ api, text, onOpened }: { api: MainApi; text: MainStrings; onOpened: () => void }) {
   const [password, setPassword] = useState("");
-  const [wrong, setWrong] = useState(false);
+  // An empty field is not a wrong password: it is not tried at all.
+  const [problem, setProblem] = useState<"empty" | "wrong" | null>(null);
   return (
     <main class="welcome">
       <h1>{text.needsPassword}</h1>
@@ -401,9 +417,13 @@ function PasswordScreen({ api, text, onOpened }: { api: MainApi; text: MainStrin
         class="password-step"
         onSubmit={(e) => {
           e.preventDefault();
+          if (password === "") {
+            setProblem("empty");
+            return;
+          }
           void api.unlock(password).then((next) => {
             setPassword("");
-            if (next.status === "needsPassword") setWrong(true);
+            if (next.status === "needsPassword") setProblem("wrong");
             else onOpened();
           });
         }}
@@ -416,13 +436,17 @@ function PasswordScreen({ api, text, onOpened }: { api: MainApi; text: MainStrin
           autoFocus
           onInput={(e) => {
             setPassword((e.target as HTMLInputElement).value);
-            setWrong(false);
+            setProblem(null);
           }}
         />
         <button type="submit" class="primary">
           {text.open}
         </button>
-        {wrong && <p class="field-error">{text.wrongPassword}</p>}
+        {problem && (
+          <p class="field-error" role="alert">
+            {problem === "empty" ? text.enterPassword : text.wrongPassword}
+          </p>
+        )}
       </form>
     </main>
   );

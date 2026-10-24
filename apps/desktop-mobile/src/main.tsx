@@ -7,6 +7,7 @@ import { isMacPlatform } from "./shared/shortcut";
 import "./shared/tokens.css";
 import "./shared/tiles.css";
 import "./shared/ring.css";
+import "./shared/language.css";
 import "./main/main.css";
 
 const root = document.getElementById("app");

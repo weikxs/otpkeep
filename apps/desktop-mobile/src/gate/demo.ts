@@ -1,4 +1,5 @@
 import { fakeCode } from "../panel/demo";
+import type { LanguageSetting } from "../shared/LanguageSelect";
 import { previewCopy } from "../shared/previewClipboard";
 import { type EntryEdit, GateFailure, type GateApi, type GateEntry } from "./api";
 
@@ -31,6 +32,7 @@ function withCode(entry: GateEntry, now: number): GateEntry {
 export function demoGate(clock: () => number = Date.now): GateApi & { ended: boolean } {
   let entries = DEMO.map((e) => ({ ...e }));
   const state = { ended: false };
+  let language: LanguageSetting = "system";
   const find = (id: string) => {
     const entry = entries.find((e) => e.id === id);
     if (!entry) throw new GateFailure("NOT_FOUND");
@@ -82,6 +84,11 @@ export function demoGate(clock: () => number = Date.now): GateApi & { ended: boo
         throw new GateFailure("COPY_FAILED");
       });
       return { clearsInS: 30 };
+    },
+    language: async () => language,
+    setLanguage: async (next) => {
+      language = next;
+      return language;
     },
     heartbeat: async () => {},
     end: () => {

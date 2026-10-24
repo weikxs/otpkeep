@@ -17,6 +17,7 @@ const ORIGIN: &str = "http://127.0.0.1:4321";
 struct Demo {
     entries: Mutex<Vec<GateEntry>>,
     copied: Mutex<Vec<String>>,
+    language: Mutex<String>,
 }
 
 fn demo_entry(id: &str, title: &str) -> GateEntry {
@@ -92,6 +93,18 @@ impl Backend for Demo {
         Ok(Copied { clears_in_s: 30 })
     }
 
+    fn language(&self) -> String {
+        self.language.lock().unwrap().clone()
+    }
+
+    fn set_language(&self, language: &str) -> Result<String, GateError> {
+        if !matches!(language, "system" | "zh" | "en") {
+            return Err(GateError::Invalid("LANGUAGE"));
+        }
+        language.clone_into(&mut self.language.lock().unwrap());
+        Ok(language.to_owned())
+    }
+
     fn asset(&self, path: &str) -> Option<Asset> {
         (path == "gate.html" || path == "assets/app.js").then(|| Asset {
             bytes: path.as_bytes().to_vec(),
@@ -109,6 +122,7 @@ fn page() -> (Page, super::TestHandle) {
     let backend = Arc::new(Demo {
         entries: Mutex::new(vec![demo_entry("e1", "GitHub"), demo_entry("e2", "Mail")]),
         copied: Mutex::new(Vec::new()),
+        language: Mutex::new("system".to_owned()),
     });
     let (router, handle) = test_router(backend, Arc::new(|| 1_000_000), PORT);
     let link = handle.link();
@@ -435,6 +449,50 @@ async fn copies_inside_the_app_without_sending_the_code() {
 }
 
 #[tokio::test]
+async fn reads_and_changes_the_language_shared_with_the_app() {
+    let (page, _) = page();
+    let session = session(&page).await;
+
+    let (status, body) = send(
+        &page.router,
+        api("GET", "/api/language", Some(&session), None),
+    )
+    .await;
+    assert_eq!(
+        (status, body),
+        (StatusCode::OK, json!({ "language": "system" }))
+    );
+
+    let (status, body) = send(
+        &page.router,
+        api(
+            "PUT",
+            "/api/language",
+            Some(&session),
+            Some(json!({ "language": "en" })),
+        ),
+    )
+    .await;
+    assert_eq!(
+        (status, body),
+        (StatusCode::OK, json!({ "language": "en" }))
+    );
+
+    let (status, body) = send(
+        &page.router,
+        api(
+            "PUT",
+            "/api/language",
+            Some(&session),
+            Some(json!({ "language": "fr" })),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(body["error"]["code"], "LANGUAGE");
+}
+
+#[tokio::test]
 async fn refuses_oversized_bodies() {
     let (page, _) = page();
     let session = session(&page).await;
@@ -480,6 +538,7 @@ async fn a_real_server_listens_on_loopback_and_hands_out_links() {
     let backend = Arc::new(Demo {
         entries: Mutex::new(Vec::new()),
         copied: Mutex::new(Vec::new()),
+        language: Mutex::new("system".to_owned()),
     });
     let gate = super::RunningGate::start(backend, Arc::new(|| 1_000_000))
         .await

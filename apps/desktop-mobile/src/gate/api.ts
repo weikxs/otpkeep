@@ -4,6 +4,8 @@
  * secrets; copying happens inside OTPKeep, which writes this computer's clipboard.
  */
 
+import type { LanguageSetting } from "../shared/LanguageSelect";
+
 export interface GateEntry {
   id: string;
   title: string;
@@ -53,6 +55,10 @@ export interface GateApi {
   setShortcut(id: string, shortcut: string | null): Promise<GateEntry>;
   /** OTPKeep copies the entry's current code; returns seconds until the clipboard is cleared (0: never). */
   copy(id: string): Promise<{ clearsInS: number }>;
+  /** OTPKeep's interface language setting, shared with its windows. */
+  language(): Promise<LanguageSetting>;
+  /** Changes it for OTPKeep and this page; returns the setting as saved. */
+  setLanguage(language: LanguageSetting): Promise<LanguageSetting>;
   heartbeat(): Promise<void>;
   end(): void;
 }
@@ -145,6 +151,9 @@ function client(session: string, fetchFn: Fetch): GateApi {
     setShortcut: async (id, shortcut) =>
       ((await call("PUT", `/api/entries/${encodeURIComponent(id)}/shortcut`, { shortcut })) as { entry: GateEntry })
         .entry,
+    language: async () => ((await call("GET", "/api/language")) as { language: LanguageSetting }).language,
+    setLanguage: async (language) =>
+      ((await call("PUT", "/api/language", { language })) as { language: LanguageSetting }).language,
     copy: async (id) =>
       (await call("POST", `/api/entries/${encodeURIComponent(id)}/copy`)) as { clearsInS: number },
     heartbeat: async () => {

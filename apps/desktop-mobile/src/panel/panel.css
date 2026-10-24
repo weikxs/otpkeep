@@ -142,7 +142,7 @@ button {
 .entry {
   display: grid;
   /* Fixed shortcut and code columns keep every row's badges and codes lined up. */
-  grid-template-columns: 24px minmax(0, 1fr) 40px 76px 14px;
+  grid-template-columns: 24px minmax(0, 1fr) 40px 84px 14px;
   align-items: center;
   gap: 7px;
   height: 40px;
@@ -218,6 +218,8 @@ button {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 10px;
   line-height: 12px;
+  /* "Next 123 456" stays on one line: a second line would make the row taller. */
+  white-space: nowrap;
   color: var(--muted);
 }
 
@@ -366,7 +368,14 @@ button {
 
 .footer-actions {
   display: flex;
+  align-items: center;
   gap: 2px;
+}
+
+.footer-actions .language-select {
+  height: 22px;
+  margin-right: 4px;
+  font-size: 11px;
 }
 
 .toast {

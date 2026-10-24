@@ -122,3 +122,8 @@ body {
   font: inherit;
   cursor: pointer;
 }
+
+/* The language menu sits on the left of the footer, the key hints on the right. */
+.search-language {
+  margin-right: auto;
+}

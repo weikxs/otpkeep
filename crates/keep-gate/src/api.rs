@@ -53,6 +53,14 @@ pub struct EntryEdit {
     pub note: Option<String>,
 }
 
+/// The interface language: `system`, `zh` or `en`. One setting for OTPKeep's windows and this page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Language {
+    /// `system` follows the system's language; `zh` or `en` is a choice.
+    pub language: String,
+}
+
 /// A new shortcut for an entry, or `None` to remove it.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -159,6 +167,15 @@ pub trait Backend: Send + Sync + 'static {
     /// Returns [`GateError::NoCodeYet`] for an HOTP entry without a code, [`GateError::Clipboard`] when
     /// writing failed, or [`GateError::NeedsPassword`] / [`GateError::NotFound`].
     fn copy(&self, id: &str) -> Result<Copied, GateError>;
+    /// The interface language setting (`system`, `zh` or `en`).
+    fn language(&self) -> String;
+    /// Changes the interface language for OTPKeep and this page, returning the setting as saved.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GateError::Invalid`] (`LANGUAGE`) for anything but `system`, `zh` or `en`, or
+    /// [`GateError::Save`].
+    fn set_language(&self, language: &str) -> Result<String, GateError>;
     /// A file of the page (`gate.html`, `assets/…`).
     fn asset(&self, path: &str) -> Option<Asset>;
 }

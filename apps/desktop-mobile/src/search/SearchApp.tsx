@@ -3,6 +3,7 @@ import type { PanelEntry } from "../panel/api";
 import type { Strings } from "../panel/i18n";
 import { useLiveState } from "../panel/live";
 import { EntryList, PasswordPrompt, SearchIcon, generateIfNeeded } from "../panel/Panel";
+import { type LanguageControl, LanguageSelect } from "../shared/LanguageSelect";
 import type { SearchApi, TypeResult } from "./api";
 import type { SearchStrings } from "./i18n";
 
@@ -13,6 +14,8 @@ export interface SearchAppProps {
   isMac: boolean;
   /** The local clock; tests pass their own. */
   clock?: () => number;
+  /** The language menu in the footer; absent hides it. */
+  language?: LanguageControl;
 }
 
 /** Longest wait for Shift to be let go before typing (design/07 §2.3). */
@@ -41,7 +44,7 @@ function shiftReleased(): Promise<void> {
  * The search panel (design/04 §6): opened anywhere with a global shortcut, type to find an account, Enter
  * copies its code and closes, ⌘E edits it in the main window, Esc clears and then closes.
  */
-export function SearchApp({ api, text, words, isMac, clock = Date.now }: SearchAppProps) {
+export function SearchApp({ api, text, words, isMac, clock = Date.now, language }: SearchAppProps) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -182,6 +185,11 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now }: SearchA
         />
       )}
       <footer class="search-hints">
+        {language && (
+          <span class="search-language">
+            <LanguageSelect control={language} systemLabel={text.followSystem} label={text.language} />
+          </span>
+        )}
         {failed ? (
           <span class="error" role="alert">
             {text.copyFailed}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { GateFailure, type GateApi, type GateEntry } from "./api";
+import { type LanguageControl, LanguageSelect } from "../shared/LanguageSelect";
 import { EntryCard } from "./EntryCard";
 import { type GateStrings, describeFailure } from "./i18n";
 
@@ -17,10 +18,12 @@ export interface GateAppProps {
   connect: () => Promise<GateApi>;
   text: GateStrings;
   isMac: boolean;
+  /** The language menu in the header; absent hides it. */
+  language?: LanguageControl;
 }
 
 /** The browser management page: search, edit names and notes, set shortcuts. */
-export function GateApp({ connect, text, isMac }: GateAppProps) {
+export function GateApp({ connect, text, isMac, language }: GateAppProps) {
   const [connection, setConnection] = useState<Connection>({ kind: "connecting" });
 
   useEffect(() => {
@@ -37,6 +40,7 @@ export function GateApp({ connect, text, isMac }: GateAppProps) {
     <div class="gate">
       <header class="gate-header">
         <h1>{text.title}</h1>
+        {language && <LanguageSelect control={language} systemLabel={text.followSystem} label={text.language} />}
       </header>
       {connection.kind === "connecting" && <p class="gate-message">{text.connecting}</p>}
       {connection.kind === "failed" && <Ended code={connection.code} text={text} />}
