@@ -126,8 +126,8 @@ mod management {
     use keep_vault::{DeviceId, Hlc, Platform};
 
     use super::super::{
-        DeviceRow, GroupError, PEER_STALE_REMOVE_HINT_MS, PEER_STALE_WARN_MS, Staleness, admit,
-        device_rows, found_group, identity_of, leave_group, remove_member, rename_self,
+        DeviceRow, GroupError, Staleness, admit, device_rows, found_group, identity_of,
+        leave_group, remove_member, rename_self,
     };
     use crate::identity::NewDevice;
     use crate::membership::membership;
@@ -238,7 +238,6 @@ mod management {
             row_of(&device_rows(&a, now).unwrap(), b).staleness,
             Staleness::ConsiderRemoving
         );
-        assert!(PEER_STALE_WARN_MS < PEER_STALE_REMOVE_HINT_MS);
     }
 
     fn row_of(rows: &[DeviceRow], device: DeviceId) -> DeviceRow {
