@@ -8,9 +8,9 @@
 
 点一下或按一个快捷键就能拿到验证码。账号只留在你自己的设备上：不用注册，不上云，没有遥测。
 
-[English](README.md) · [功能](#功能) · [截图](#截图) · [构建](#从源码构建) · [使用](#使用) · [安全](#数据安全与隐私)
+[English](README.md) · [功能](#功能) · [截图](#截图) · [安装](#安装) · [使用](#使用) · [安全](#数据安全与隐私)
 
-![状态](https://img.shields.io/badge/状态-早期开发-orange)
+[![最新版本](https://img.shields.io/github/v/release/weikxs/otpkeep)](https://github.com/weikxs/otpkeep/releases/latest)
 ![平台](https://img.shields.io/badge/平台-macOS%20%7C%20Linux-lightgrey)
 ![Rust](https://img.shields.io/badge/rust-1.95-b7410e)
 ![Tauri](https://img.shields.io/badge/tauri-2-24c8db)
@@ -24,14 +24,15 @@
 </div>
 
 > [!IMPORTANT]
-> OTPKeep 处于**早期开发**阶段，还没有发布版本，可以[从源码构建](#从源码构建)。
-> 请不要把它当作两步验证账号的唯一存放处。
+> OTPKeep 0.1.0 是第一个正式版本。在你完全信任它之前，请另外保留一份两步验证账号：加密备份一键即可导出
+> （**导出 → 加密备份**）。
 
 ## 目录
 
 - [当前状态](#当前状态)
 - [功能](#功能)
 - [截图](#截图)
+- [安装](#安装)
 - [从源码构建](#从源码构建)
 - [使用](#使用)
 - [快捷键](#快捷键)
@@ -46,8 +47,8 @@
 
 | 平台 | 状态 |
 |---|---|
-| macOS | 桌面应用可用：菜单栏面板、主窗口、搜索面板、自动输入、浏览器管理页、导入导出、局域网同步 |
-| Linux | 与 macOS 同一套代码；自动输入支持 X11，不支持 Wayland |
+| macOS 11+ | 已发布：同一个 App 同时支持 Apple 芯片和 Intel——菜单栏面板、主窗口、搜索面板、自动输入、浏览器管理页、导入导出、局域网同步 |
+| Linux（x86_64、arm64） | 已发布：`.deb`、`.rpm` 和 AppImage；自动输入支持 X11，不支持 Wayland |
 | Windows | 后续支持 |
 | Android（APK） | 后续支持 |
 | iOS | 后续支持 |
@@ -92,6 +93,67 @@
 </table>
 
 截图中均为虚构的演示账号，在 `apps/desktop-mobile` 下运行 `README_SHOTS=../../docs/images pnpm e2e readme-shots` 生成。
+
+## 安装
+
+### macOS 和 Linux，全自动
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/weikxs/otpkeep/main/install.sh | sh
+```
+
+脚本会按你的系统和芯片选对安装包，先用发布页的 `checksums.txt` 核对，再安装，不改动其他任何东西：
+
+| 系统 | 安装什么 |
+|---|---|
+| macOS | 把 `OTPKeep.app` 放进 `/Applications`（没有权限时放进 `~/Applications`），打开时不会再弹"来自互联网"的拦截 |
+| Debian、Ubuntu、树莓派系统 | `.deb`，用 `apt` 安装（会要求 `sudo`） |
+| Fedora、RHEL、openSUSE（x86_64） | `.rpm`，用 `dnf`、`zypper` 或 `yum` 安装（会要求 `sudo`） |
+| 其他 Linux | AppImage，装成 `~/.local/bin/otpkeep-app`，并加入应用菜单 |
+
+再运行一次就是升级。选项写在 `sh -s --` 后面，例如
+`curl -fsSL https://raw.githubusercontent.com/weikxs/otpkeep/main/install.sh | sh -s -- --version v0.1.0`：
+
+| 选项 | 作用 |
+|---|---|
+| `--version <标签>` | 安装指定版本，而不是最新版 |
+| `--format deb\|rpm\|appimage` | Linux：指定安装包格式 |
+| `--dir <目录>` | macOS：`OTPKeep.app` 放在哪里；AppImage：`otpkeep-app` 放在哪里 |
+| `--no-modify-path` | AppImage：不把目录加入 shell 的 `PATH` |
+
+### Homebrew（macOS）
+
+```sh
+brew install --cask weikxs/tap/otpkeep
+brew upgrade --cask otpkeep          # 以后升级
+```
+
+### 安装包
+
+从[最新发布页](https://github.com/weikxs/otpkeep/releases/latest)下载，并用 `checksums.txt` 核对
+（`shasum -a 256 -c checksums.txt --ignore-missing`）：
+
+| 文件 | 平台 |
+|---|---|
+| `otpkeep_<版本>_darwin_universal.dmg` | macOS 11+，Apple 芯片和 Intel |
+| `otpkeep_<版本>_linux_amd64.deb` / `_arm64.deb` | Debian、Ubuntu、树莓派系统（x86_64 / arm64） |
+| `otpkeep_<版本>_linux_amd64.rpm` | Fedora、RHEL、openSUSE（x86_64） |
+| `otpkeep_<版本>_linux_amd64.AppImage` / `_arm64.AppImage` | 任何使用 glibc 的 Linux（x86_64 / arm64） |
+
+macOS 版暂时还没有苹果签名：安装脚本和 Homebrew 会替你处理；如果你自己打开磁盘镜像安装，第一次运行时请在
+"系统设置 → 隐私与安全性"里点"仍要打开"（详见 [SECURITY.md](SECURITY.md)）。
+
+### 卸载
+
+| 安装方式 | 卸载方法 |
+|---|---|
+| 安装脚本或磁盘镜像（macOS） | 先退出 OTPKeep（菜单栏图标 → 退出），再把 `OTPKeep.app` 移到废纸篓 |
+| Homebrew | `brew uninstall --cask otpkeep` |
+| `.deb` | `sudo apt remove otp-keep` |
+| `.rpm` | `sudo dnf remove otp-keep`（或 `sudo zypper remove otp-keep`） |
+| AppImage | `rm ~/.local/bin/otpkeep-app ~/.local/share/applications/otpkeep.desktop ~/.local/share/icons/hicolor/256x256/apps/otpkeep.png` |
+
+卸载不会碰你的账号：它们留在 OTPKeep 的[数据目录](#数据安全与隐私)里。如果也要删除，请先导出备份以防万一，再删除那个目录。
 
 ## 从源码构建
 
@@ -266,6 +328,8 @@ fuzz/               解析器的模糊测试
 **能通过 iCloud、Dropbox 或服务器同步吗？** 不能。只在你打开窗口时、在彼此靠近的设备之间直接同步。想在别处留一份，请用加密备份。
 
 **有 Mac App Store 版本吗？** 没有，原因见[数据安全与隐私](#数据安全与隐私)。
+
+**为什么 Linux 安装包叫 `otp-keep`？** 打包工具是从 App 名称自动生成这个名字的；程序本身叫 `otpkeep-app`，命令行工具叫 `otpkeep`。
 
 **自动输入没反应？** macOS 上请授予辅助功能权限；Wayland 下无法自动输入，会改为复制。
 

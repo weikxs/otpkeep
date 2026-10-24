@@ -8,9 +8,9 @@
 
 Codes at hand with one click or one shortcut. Your accounts stay on your devices: no account, no cloud, no telemetry.
 
-[简体中文](README.zh-CN.md) · [Features](#features) · [Screenshots](#screenshots) · [Build](#building-from-source) · [Usage](#usage) · [Security](#data-security-and-privacy)
+[简体中文](README.zh-CN.md) · [Features](#features) · [Screenshots](#screenshots) · [Install](#install) · [Usage](#usage) · [Security](#data-security-and-privacy)
 
-![Status](https://img.shields.io/badge/status-early%20development-orange)
+[![Release](https://img.shields.io/github/v/release/weikxs/otpkeep)](https://github.com/weikxs/otpkeep/releases/latest)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux-lightgrey)
 ![Rust](https://img.shields.io/badge/rust-1.95-b7410e)
 ![Tauri](https://img.shields.io/badge/tauri-2-24c8db)
@@ -24,14 +24,15 @@ Codes at hand with one click or one shortcut. Your accounts stay on your devices
 </div>
 
 > [!IMPORTANT]
-> OTPKeep is in **early development**. There is no release yet; you can [build it from source](#building-from-source).
-> Do not rely on it as the only place your two-factor accounts are kept.
+> OTPKeep 0.1.0 is the first release. Until you trust it, keep another copy of your two-factor accounts — an
+> encrypted backup is one click away (**Export → Encrypted backup**).
 
 ## Contents
 
 - [Status](#status)
 - [Features](#features)
 - [Screenshots](#screenshots)
+- [Install](#install)
 - [Building from source](#building-from-source)
 - [Usage](#usage)
 - [Keyboard shortcuts](#keyboard-shortcuts)
@@ -46,8 +47,8 @@ Codes at hand with one click or one shortcut. Your accounts stay on your devices
 
 | Platform | State |
 |---|---|
-| macOS | Desktop app working: menu bar panel, main window, search panel, typing codes, browser management page, import / export, local-network sync |
-| Linux | Builds from the same code; typing codes works on X11, not on Wayland |
+| macOS 11+ | Released: one universal app for Apple silicon and Intel — menu bar panel, main window, search panel, typing codes, browser management page, import / export, local-network sync |
+| Linux (x86_64, arm64) | Released: `.deb`, `.rpm` and AppImage; typing codes works on X11, not on Wayland |
 | Windows | Planned |
 | Android (APK) | Planned |
 | iOS | Planned |
@@ -92,6 +93,69 @@ Codes at hand with one click or one shortcut. Your accounts stay on your devices
 </table>
 
 Screenshots show made-up demo accounts. They are generated from `apps/desktop-mobile` with `README_SHOTS=../../docs/images pnpm e2e readme-shots`.
+
+## Install
+
+### macOS and Linux, fully automatic
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/weikxs/otpkeep/main/install.sh | sh
+```
+
+The script picks the package for your system and CPU, checks it against the release's `checksums.txt` and
+installs it — nothing else is changed:
+
+| System | What it installs |
+|---|---|
+| macOS | `OTPKeep.app` into `/Applications` (or `~/Applications`), without the "downloaded from the internet" prompt |
+| Debian, Ubuntu, Raspberry Pi OS | the `.deb`, with `apt` (asks for `sudo`) |
+| Fedora, RHEL, openSUSE (x86_64) | the `.rpm`, with `dnf`, `zypper` or `yum` (asks for `sudo`) |
+| Any other Linux | the AppImage, as `otpkeep-app` in `~/.local/bin`, with an applications-menu entry |
+
+Run it again to upgrade. Options go after `sh -s --`, for example
+`curl -fsSL https://raw.githubusercontent.com/weikxs/otpkeep/main/install.sh | sh -s -- --version v0.1.0`:
+
+| Option | Meaning |
+|---|---|
+| `--version <tag>` | install this release instead of the latest |
+| `--format deb\|rpm\|appimage` | Linux: choose the package format |
+| `--dir <folder>` | macOS: where `OTPKeep.app` goes; AppImage: where `otpkeep-app` goes |
+| `--no-modify-path` | AppImage: do not add the folder to your shell's `PATH` |
+
+### Homebrew (macOS)
+
+```sh
+brew install --cask weikxs/tap/otpkeep
+brew upgrade --cask otpkeep          # later, to upgrade
+```
+
+### Packages
+
+Download from the [latest release](https://github.com/weikxs/otpkeep/releases/latest) and check the file against
+`checksums.txt` (`shasum -a 256 -c checksums.txt --ignore-missing`):
+
+| File | Platform |
+|---|---|
+| `otpkeep_<version>_darwin_universal.dmg` | macOS 11+, Apple silicon and Intel |
+| `otpkeep_<version>_linux_amd64.deb` / `_arm64.deb` | Debian, Ubuntu, Raspberry Pi OS (x86_64 / arm64) |
+| `otpkeep_<version>_linux_amd64.rpm` | Fedora, RHEL, openSUSE (x86_64) |
+| `otpkeep_<version>_linux_amd64.AppImage` / `_arm64.AppImage` | Any Linux with glibc (x86_64 / arm64) |
+
+The macOS app is not signed by Apple yet: the script and Homebrew handle that for you; if you open the disk image
+yourself, choose **Open Anyway** in System Settings → Privacy & Security the first time (see [SECURITY.md](SECURITY.md)).
+
+### Uninstall
+
+| Installed with | Remove with |
+|---|---|
+| The script or the disk image (macOS) | Quit OTPKeep (menu bar icon → Quit), then move `OTPKeep.app` to the Trash |
+| Homebrew | `brew uninstall --cask otpkeep` |
+| `.deb` | `sudo apt remove otp-keep` |
+| `.rpm` | `sudo dnf remove otp-keep` (or `sudo zypper remove otp-keep`) |
+| AppImage | `rm ~/.local/bin/otpkeep-app ~/.local/share/applications/otpkeep.desktop ~/.local/share/icons/hicolor/256x256/apps/otpkeep.png` |
+
+Uninstalling never touches your accounts: they stay in OTPKeep's [data folder](#data-security-and-privacy). To
+remove them too, export a backup first if you may need them, then delete that folder.
 
 ## Building from source
 
@@ -273,6 +337,9 @@ fuzz/               fuzz targets for the parsers
 **Can I sync through iCloud, Dropbox or a server?** No. Sync happens only directly between your devices, near each other, when you open a window. Use encrypted backups to keep a copy elsewhere.
 
 **Is there a Mac App Store version?** No; see [Data, security and privacy](#data-security-and-privacy).
+
+**Why is the Linux package called `otp-keep`?** The package tools derive it from the app's name; the program itself
+is `otpkeep-app`, and the command line is `otpkeep`.
 
 **Typing codes does nothing.** Grant Accessibility permission (macOS). On Wayland, typing is not possible and the code is copied instead.
 
