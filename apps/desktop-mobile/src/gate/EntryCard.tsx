@@ -10,11 +10,13 @@ export interface EntryCardProps {
   isMac: boolean;
   onEdit: (edit: EntryEdit) => Promise<GateEntry>;
   onShortcut: (shortcut: string | null) => Promise<GateEntry>;
+  /** OTPKeep copies the code; resolves with seconds until the clipboard is cleared. */
+  onCopy: () => Promise<{ clearsInS: number }>;
   onNotice: (message: string) => void;
 }
 
 /** One account: its names, its note and its shortcut, each editable in place. */
-export function EntryCard({ entry, text, isMac, onEdit, onShortcut, onNotice }: EntryCardProps) {
+export function EntryCard({ entry, text, isMac, onEdit, onShortcut, onCopy, onNotice }: EntryCardProps) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(entry.title);
   const [note, setNote] = useState(entry.note);
@@ -52,6 +54,16 @@ export function EntryCard({ entry, text, isMac, onEdit, onShortcut, onNotice }: 
       setError(explain(failure));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const copy = async () => {
+    try {
+      const { clearsInS } = await onCopy();
+      setError(null);
+      onNotice(text.copied(clearsInS));
+    } catch (failure) {
+      setError(explain(failure));
     }
   };
 
@@ -105,9 +117,14 @@ export function EntryCard({ entry, text, isMac, onEdit, onShortcut, onNotice }: 
           <>
             <div class="card-head">
               <span class="card-title">{entry.title}</span>
-              <button type="button" class="link-button" onClick={startEditing}>
-                {text.edit}
-              </button>
+              <span class="card-actions">
+                <button type="button" class="link-button" onClick={() => void copy()}>
+                  {text.copy}
+                </button>
+                <button type="button" class="link-button" onClick={startEditing}>
+                  {text.edit}
+                </button>
+              </span>
             </div>
             {subtitle !== "" && <div class="card-subtitle">{subtitle}</div>}
             {entry.note !== "" && <p class="card-note">{entry.note}</p>}

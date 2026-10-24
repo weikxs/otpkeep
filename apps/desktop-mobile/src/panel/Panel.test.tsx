@@ -224,3 +224,25 @@ describe("strings", () => {
     expect(strings("fr").copiedToast(0)).toBe("Copied");
   });
 });
+
+describe("copying in a browser preview", () => {
+  it("really puts the demo code on the clipboard", async () => {
+    show(demoApi({ clock: () => STEADY }));
+    const code = (await screen.findAllByTestId("code"))[0]?.textContent?.replace(" ", "");
+
+    fireEvent.click((await screen.findAllByTestId("entry"))[0] as HTMLElement);
+
+    await waitFor(async () => expect(await navigator.clipboard.readText()).toBe(code));
+  });
+
+  it("says it failed instead of pretending, when the browser refuses", async () => {
+    const write = vi.spyOn(navigator.clipboard, "writeText").mockRejectedValueOnce(new Error("denied"));
+    show(demoApi({ clock: () => STEADY }));
+
+    fireEvent.click((await screen.findAllByTestId("entry"))[0] as HTMLElement);
+
+    expect(await screen.findByText("复制失败")).toBeTruthy();
+    expect(screen.queryByText("已复制 ✓")).toBeNull();
+    write.mockRestore();
+  });
+});

@@ -156,6 +156,7 @@ fn router(shared: Arc<Shared>) -> Router {
         .route("/api/entries", get(list_entries))
         .route("/api/entries/{id}", patch(edit_entry))
         .route("/api/entries/{id}/shortcut", put(set_shortcut))
+        .route("/api/entries/{id}/copy", post(copy_code))
         .layer(middleware::from_fn_with_state(
             Arc::clone(&shared),
             check_origin,
@@ -336,6 +337,18 @@ async fn set_shortcut(
     .await
 }
 
+async fn copy_code(
+    State(shared): State<Arc<Shared>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Response {
+    if let Err(response) = authorize(&shared, &headers, true) {
+        return response;
+    }
+    let backend = Arc::clone(&shared.backend);
+    blocking(move || backend.copy(&id).map(|copied| json!(copied))).await
+}
+
 /// Runs a backend call off the async threads: it may wait for the vault and write files.
 async fn blocking(
     call: impl FnOnce() -> Result<serde_json::Value, GateError> + Send + 'static,
@@ -379,11 +392,12 @@ fn gate_error(error: &GateError) -> Response {
     let status = match error {
         GateError::NotFound => StatusCode::NOT_FOUND,
         GateError::Invalid(_) | GateError::ShortcutInvalid => StatusCode::UNPROCESSABLE_ENTITY,
-        GateError::ShortcutTaken(_) | GateError::ShortcutRejected | GateError::ReadOnly => {
-            StatusCode::CONFLICT
-        }
+        GateError::ShortcutTaken(_)
+        | GateError::ShortcutRejected
+        | GateError::ReadOnly
+        | GateError::NoCodeYet => StatusCode::CONFLICT,
         GateError::NeedsPassword => StatusCode::LOCKED,
-        GateError::Save => StatusCode::INTERNAL_SERVER_ERROR,
+        GateError::Save | GateError::Clipboard => StatusCode::INTERNAL_SERVER_ERROR,
     };
     let detail = match error {
         GateError::ShortcutTaken(by) => Some(by.clone()),

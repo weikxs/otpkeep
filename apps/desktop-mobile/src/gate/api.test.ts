@@ -74,6 +74,17 @@ describe("connect", () => {
     }
   });
 
+  it("asks OTPKeep to copy, and gets back only when the clipboard clears", async () => {
+    const { win, storage } = fakeWindow("");
+    storage.set("otpkeep-session", "s1");
+    const fetchFn = vi.fn().mockResolvedValueOnce(reply(200, { clearsInS: 30 }));
+    const api = await connect(win, fetchFn);
+
+    expect(await api.copy("e/1")).toEqual({ clearsInS: 30 });
+    expect(fetchFn.mock.calls[0]?.[0]).toBe("/api/entries/e%2F1/copy");
+    expect((fetchFn.mock.calls[0]?.[1] as RequestInit).method).toBe("POST");
+  });
+
   it("treats an unreadable refusal as unknown", async () => {
     const { win, storage } = fakeWindow("");
     storage.set("otpkeep-session", "s1");

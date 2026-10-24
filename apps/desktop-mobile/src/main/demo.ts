@@ -1,3 +1,4 @@
+import { previewCopy } from "../shared/previewClipboard";
 import { type SyncDemo, demoSync } from "./sync/demo";
 import {
   CommandFailure,
@@ -178,6 +179,10 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
     copied,
     state: async (query) => state(query),
     copy: async (id) => {
+      const account = accounts.find((a) => a.id === id);
+      const code = account && entry(account, clock()).code;
+      if (code === undefined) throw new CommandFailure("NO_CODE_YET");
+      await previewCopy(code);
       copied.push(id);
       return { clearsInS: settings.clipboardClearS };
     },

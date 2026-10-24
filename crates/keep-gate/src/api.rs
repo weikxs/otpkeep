@@ -1,6 +1,7 @@
 //! What the page can ask for, and what the app behind the page provides.
 //!
 //! Requests and replies carry display fields only: never secrets, and no codes (design/07-platform.md §2.5).
+//! Copying happens inside the app, so a code never travels to the page.
 
 use serde::{Deserialize, Serialize};
 
@@ -48,6 +49,14 @@ pub struct ShortcutChange {
     pub shortcut: Option<String>,
 }
 
+/// What the page learns after a copy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Copied {
+    /// Seconds until the clipboard is cleared, or 0 when it is not cleared.
+    pub clears_in_s: u64,
+}
+
 /// Why the app refused a request. The page shows a message for each code.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum GateError {
@@ -75,6 +84,12 @@ pub enum GateError {
     /// The change could not be saved.
     #[error("the change could not be saved")]
     Save,
+    /// An HOTP entry has no code until one is generated in OTPKeep.
+    #[error("generate a code in OTPKeep first")]
+    NoCodeYet,
+    /// The clipboard could not be written.
+    #[error("the code could not be copied")]
+    Clipboard,
 }
 
 impl GateError {
@@ -90,6 +105,8 @@ impl GateError {
             Self::NeedsPassword => "NEEDS_PASSWORD",
             Self::ReadOnly => "READ_ONLY",
             Self::Save => "SAVE_FAILED",
+            Self::NoCodeYet => "NO_CODE_YET",
+            Self::Clipboard => "COPY_FAILED",
         }
     }
 }
@@ -123,6 +140,13 @@ pub trait Backend: Send + Sync + 'static {
     ///
     /// Returns [`GateError`] when the shortcut is refused; the old one stays then.
     fn set_shortcut(&self, id: &str, shortcut: Option<&str>) -> Result<GateEntry, GateError>;
+    /// Copies the entry's current code to this computer's clipboard; the code is not returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GateError::NoCodeYet`] for an HOTP entry without a code, [`GateError::Clipboard`] when
+    /// writing failed, or [`GateError::NeedsPassword`] / [`GateError::NotFound`].
+    fn copy(&self, id: &str) -> Result<Copied, GateError>;
     /// A file of the page (`gate.html`, `assets/…`).
     fn asset(&self, path: &str) -> Option<Asset>;
 }

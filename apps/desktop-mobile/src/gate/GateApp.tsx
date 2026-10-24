@@ -109,9 +109,10 @@ function Entries({ api, text, isMac, onLost }: EntriesProps) {
     return updated;
   };
 
-  const guarded = async (call: () => Promise<GateEntry>) => {
+  /** Runs a request; a lost session or a needed master password ends the page. */
+  const watched = async <T,>(call: () => Promise<T>): Promise<T> => {
     try {
-      return replace(await call());
+      return await call();
     } catch (failure) {
       if (failure instanceof GateFailure && (failure.code === "NO_SESSION" || failure.code === "NEEDS_PASSWORD")) {
         onLost(failure.code);
@@ -119,6 +120,7 @@ function Entries({ api, text, isMac, onLost }: EntriesProps) {
       throw failure;
     }
   };
+  const guarded = async (call: () => Promise<GateEntry>) => replace(await watched(call));
 
   return (
     <main class="gate-main">
@@ -149,6 +151,7 @@ function Entries({ api, text, isMac, onLost }: EntriesProps) {
               isMac={isMac}
               onEdit={(edit) => guarded(() => api.edit(entry.id, edit))}
               onShortcut={(shortcut) => guarded(() => api.setShortcut(entry.id, shortcut))}
+              onCopy={() => watched(() => api.copy(entry.id))}
               onNotice={setNotice}
             />
           ))}

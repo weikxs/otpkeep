@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use tower::ServiceExt;
 
 use super::{BODY_LIMIT, test_router};
-use crate::api::{Asset, Backend, EntryEdit, GateEntry, GateError};
+use crate::api::{Asset, Backend, Copied, EntryEdit, GateEntry, GateError};
 
 const PORT: u16 = 4321;
 const HOST: &str = "127.0.0.1:4321";
@@ -16,6 +16,7 @@ const ORIGIN: &str = "http://127.0.0.1:4321";
 
 struct Demo {
     entries: Mutex<Vec<GateEntry>>,
+    copied: Mutex<Vec<String>>,
 }
 
 fn demo_entry(id: &str, title: &str) -> GateEntry {
@@ -73,6 +74,20 @@ impl Backend for Demo {
         Ok(entry.clone())
     }
 
+    fn copy(&self, id: &str) -> Result<Copied, GateError> {
+        if id == "hotp" {
+            return Err(GateError::NoCodeYet);
+        }
+        self.entries
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|e| e.id == id)
+            .ok_or(GateError::NotFound)?;
+        self.copied.lock().unwrap().push(id.to_owned());
+        Ok(Copied { clears_in_s: 30 })
+    }
+
     fn asset(&self, path: &str) -> Option<Asset> {
         (path == "gate.html" || path == "assets/app.js").then(|| Asset {
             bytes: path.as_bytes().to_vec(),
@@ -89,6 +104,7 @@ struct Page {
 fn page() -> (Page, super::TestHandle) {
     let backend = Arc::new(Demo {
         entries: Mutex::new(vec![demo_entry("e1", "GitHub"), demo_entry("e2", "Mail")]),
+        copied: Mutex::new(Vec::new()),
     });
     let (router, handle) = test_router(backend, Arc::new(|| 1_000_000), PORT);
     let link = handle.link();
@@ -382,6 +398,35 @@ async fn sets_and_clears_a_shortcut_and_names_the_holder_of_a_taken_one() {
 }
 
 #[tokio::test]
+async fn copies_inside_the_app_without_sending_the_code() {
+    let (page, _) = page();
+    let session = session(&page).await;
+
+    let (status, body) = send(
+        &page.router,
+        api("POST", "/api/entries/e1/copy", Some(&session), None),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, json!({ "clearsInS": 30 }));
+
+    let (status, body) = send(
+        &page.router,
+        api("POST", "/api/entries/hotp/copy", Some(&session), None),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["error"]["code"], "NO_CODE_YET");
+
+    let (status, _) = send(
+        &page.router,
+        api("POST", "/api/entries/e1/copy", None, None),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
 async fn refuses_oversized_bodies() {
     let (page, _) = page();
     let session = session(&page).await;
@@ -426,6 +471,7 @@ async fn ending_the_session_refuses_later_requests() {
 async fn a_real_server_listens_on_loopback_and_hands_out_links() {
     let backend = Arc::new(Demo {
         entries: Mutex::new(Vec::new()),
+        copied: Mutex::new(Vec::new()),
     });
     let gate = super::RunningGate::start(backend, Arc::new(|| 1_000_000))
         .await

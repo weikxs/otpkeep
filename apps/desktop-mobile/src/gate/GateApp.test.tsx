@@ -171,3 +171,25 @@ describe("GateApp", () => {
     expect(gateStrings("en-GB").count(1)).toBe("1 account");
   });
 });
+
+describe("copying from the management page", () => {
+  it("copies a code and says when the clipboard clears", async () => {
+    const api = demoGate();
+    const copy = vi.spyOn(api, "copy");
+    show(api);
+
+    fireEvent.click((await card("GitHub")).getByText("复制验证码"));
+
+    expect(await screen.findByText("已复制 · 30 秒后从剪贴板清除")).toBeTruthy();
+    expect(copy).toHaveBeenCalledWith("d1");
+    expect(await navigator.clipboard.readText()).toMatch(/^\d{6}$/u);
+  });
+
+  it("explains that an HOTP code is generated in OTPKeep first", async () => {
+    show(demoGate());
+
+    fireEvent.click((await card("Bank token")).getByText("复制验证码"));
+
+    expect(await screen.findByText("计数器型（HOTP）账号需要先在 OTPKeep 面板中生成验证码")).toBeTruthy();
+  });
+});

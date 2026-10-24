@@ -23,7 +23,7 @@ async function fakeOtpkeep(page: Page) {
     { id: "e2", title: "邮箱", issuer: "示例邮箱", account: "demo@example.com", note: "备用码在抽屉里", pinned: false, kind: "totp", shortcut: "control+alt+super+KeyM", defaultShortcut: "control+alt+super+Digit2" },
     { id: "e3", title: "Example Cloud", issuer: "Example Cloud", account: "ops@example.com", note: "", pinned: false, kind: "totp", defaultShortcut: "control+alt+super+Digit3" },
   ];
-  const seen = { sessions: 0, bearers: new Set<string>() };
+  const seen = { sessions: 0, bearers: new Set<string>(), copied: [] as string[] };
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -34,6 +34,11 @@ async function fakeOtpkeep(page: Page) {
     }
     seen.bearers.add(request.headers().authorization ?? "");
     if (url.pathname === "/api/entries") return route.fulfill({ json: { entries } });
+    // OTPKeep writes the clipboard itself; the page only learns when it clears.
+    if (url.pathname.endsWith("/copy")) {
+      seen.copied.push(url.pathname.split("/")[3] ?? "");
+      return route.fulfill({ json: { clearsInS: 30 } });
+    }
     const match = /^\/api\/entries\/([^/]+)(\/shortcut)?$/u.exec(url.pathname);
     const entry = entries.find((e) => e.id === match?.[1]);
     if (!entry) return route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND" } } });
@@ -71,6 +76,10 @@ for (const scheme of ["light", "dark"] as const) {
     await expect(page.getByRole("status")).toHaveText("快捷键已设置，按下即可复制验证码");
     await expect(cloud.locator("kbd")).toHaveText("⌃⌥⌘P");
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/gate-${scheme}-edited.png` });
+
+    await page.getByTestId("card").first().getByText("复制验证码").click();
+    await expect(page.getByRole("status")).toHaveText("已复制 · 30 秒后从剪贴板清除");
+    expect(seen.copied).toEqual(["e1"]);
 
     expect([...seen.bearers]).toEqual(["Bearer s1"]);
     expect(problems).toEqual([]);

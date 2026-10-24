@@ -1,3 +1,4 @@
+import { previewCopy } from "../shared/previewClipboard";
 import { type EntryEdit, GateFailure, type GateApi, type GateEntry } from "./api";
 
 /** Made-up accounts for the browser preview and tests. */
@@ -48,6 +49,15 @@ export function demoGate(): GateApi & { ended: boolean } {
       const row = entries.find((e) => e.defaultShortcut === canonical);
       if (row) throw new GateFailure("SHORTCUT_TAKEN", `ROW:${entries.indexOf(row) + 1}`);
       return replace({ ...entry, shortcut: canonical });
+    },
+    copy: async (id) => {
+      const entry = find(id);
+      if (entry.kind === "hotp") throw new GateFailure("NO_CODE_YET");
+      // A made-up code: the preview has no secrets.
+      await previewCopy(String(Math.floor(Date.now() / 30_000) % 1_000_000).padStart(6, "0")).catch(() => {
+        throw new GateFailure("COPY_FAILED");
+      });
+      return { clearsInS: 30 };
     },
     heartbeat: async () => {},
     end: () => {

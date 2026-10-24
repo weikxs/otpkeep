@@ -1,6 +1,7 @@
 /**
  * The management page's connection to OTPKeep (design/07-platform.md §2.5): the one-time link token after
- * `#k=` is traded for a session token, which every request carries. Replies never contain secrets or codes.
+ * `#k=` is traded for a session token, which every request carries. Replies never contain secrets or codes:
+ * copying happens inside OTPKeep, which writes this computer's clipboard.
  */
 
 export interface GateEntry {
@@ -36,6 +37,8 @@ export interface GateApi {
   entries(query: string): Promise<GateEntry[]>;
   edit(id: string, edit: EntryEdit): Promise<GateEntry>;
   setShortcut(id: string, shortcut: string | null): Promise<GateEntry>;
+  /** OTPKeep copies the entry's current code; returns seconds until the clipboard is cleared (0: never). */
+  copy(id: string): Promise<{ clearsInS: number }>;
   heartbeat(): Promise<void>;
   end(): void;
 }
@@ -129,6 +132,8 @@ function client(session: string, fetchFn: Fetch): GateApi {
     setShortcut: async (id, shortcut) =>
       ((await call("PUT", `/api/entries/${encodeURIComponent(id)}/shortcut`, { shortcut })) as { entry: GateEntry })
         .entry,
+    copy: async (id) =>
+      (await call("POST", `/api/entries/${encodeURIComponent(id)}/copy`)) as { clearsInS: number },
     heartbeat: async () => {
       await call("POST", "/api/heartbeat");
     },

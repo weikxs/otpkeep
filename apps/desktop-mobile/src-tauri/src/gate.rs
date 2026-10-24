@@ -2,7 +2,7 @@
 
 use std::sync::{Arc, Mutex, PoisonError};
 
-use keep_gate::{Asset, Backend, EntryEdit, GateEntry, GateError, RunningGate};
+use keep_gate::{Asset, Backend, Copied, EntryEdit, GateEntry, GateError, RunningGate};
 use keep_vault::service::system_now_ms;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -95,6 +95,21 @@ impl Backend for AppBackend {
         self.one(id)
     }
 
+    fn copy(&self, id: &str) -> Result<Copied, GateError> {
+        let clear_after = self
+            .app
+            .try_state::<Hotkeys>()
+            .ok_or(GateError::Save)?
+            .settings()
+            .clear_after();
+        let code = self.core()?.get().code(id).map_err(gate_error)?;
+        // Same rules as the panel: kept out of clipboard history, cleared later.
+        crate::clipboard::copy_then_clear(code, clear_after).map_err(|_| GateError::Clipboard)?;
+        Ok(Copied {
+            clears_in_s: clear_after.map_or(0, |d| d.as_secs()),
+        })
+    }
+
     fn asset(&self, path: &str) -> Option<Asset> {
         if path != "gate.html" && !path.starts_with("assets/") {
             return None;
@@ -126,8 +141,8 @@ fn gate_error(error: CoreError) -> GateError {
         CoreError::NotFound => GateError::NotFound,
         CoreError::ReadOnly => GateError::ReadOnly,
         CoreError::Invalid(code) => GateError::Invalid(code),
-        CoreError::NoCodeYet
-        | CoreError::Passcode
+        CoreError::NoCodeYet => GateError::NoCodeYet,
+        CoreError::Passcode
         | CoreError::Save
         | CoreError::SecretInvalid { .. }
         | CoreError::Import(_) => GateError::Save,

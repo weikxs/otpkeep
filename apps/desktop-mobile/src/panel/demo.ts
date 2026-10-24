@@ -1,3 +1,4 @@
+import { previewCopy } from "../shared/previewClipboard";
 import type { CopyResult, PanelApi, PanelEntry, PanelState } from "./api";
 
 /** Made-up accounts for the browser preview and tests; the codes are derived from the clock, not secrets. */
@@ -74,6 +75,9 @@ export function demoApi({ clock = Date.now, status = "ready", empty = false }: D
     copied,
     state: async (query) => state(query),
     copy: async (id): Promise<CopyResult> => {
+      const code = entries("").find((e) => e.id === id)?.code;
+      if (code === undefined) throw new Error(`no code for ${id}`);
+      await previewCopy(code);
       copied.push(id);
       return { clearsInS: CLEARS_IN_S };
     },
