@@ -13,6 +13,10 @@ thiserror = "2"
 tokio = { version = "1", features = ["io-util", "rt", "sync", "time", "macros"] }
 tracing = "0.1"
 
+[dev-dependencies]
+keep-vault = { path = "../keep-vault" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "io-util"] }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 dispatch2 = "0.3"
 objc2 = "0.6"

@@ -2287,6 +2287,7 @@ version = "0.0.1"
 dependencies = [
  "dispatch2",
  "keep-sync",
+ "keep-vault",
  "objc2",
  "objc2-core-bluetooth",
  "objc2-foundation",

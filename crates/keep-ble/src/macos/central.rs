@@ -13,7 +13,7 @@ use objc2::runtime::{AnyObject, NSObject, NSObjectProtocol, ProtocolObject};
 use objc2::{AllocAnyThread, DefinedClass, Message, define_class, msg_send};
 use objc2_core_bluetooth::{
     CBCentralManager, CBCentralManagerDelegate, CBL2CAPChannel, CBL2CAPPSM, CBManagerState,
-    CBPeripheral, CBPeripheralDelegate, CBService,
+    CBPeripheral, CBPeripheralDelegate, CBPeripheralState, CBService,
 };
 use objc2_foundation::{NSArray, NSDictionary, NSError, NSNumber, NSString};
 use tokio::sync::{mpsc, oneshot};
@@ -34,11 +34,29 @@ enum Event {
     Lost(String),
 }
 
-type Waiters = Mutex<HashMap<String, oneshot::Sender<Result<OnQueue<CBL2CAPChannel>, String>>>>;
+/// What waits for an L2CAP channel to open.
+type ChannelWaiter = oneshot::Sender<Result<OnQueue<CBL2CAPChannel>, String>>;
+
+/// Calls waiting for a delegate callback about one peripheral.
+#[derive(Default)]
+struct Waiters {
+    /// An L2CAP channel opening.
+    channels: Mutex<HashMap<String, ChannelWaiter>>,
+    /// A connection (or reconnection) finishing.
+    connections: Mutex<HashMap<String, oneshot::Sender<bool>>>,
+}
+
+impl Waiters {
+    fn connected(&self, id: &str, ok: bool) {
+        if let Some(waiter) = self.connections.lock().ok().and_then(|mut w| w.remove(id)) {
+            let _ = waiter.send(ok);
+        }
+    }
+}
 
 struct Ivars {
     events: mpsc::UnboundedSender<Event>,
-    channels: Arc<Waiters>,
+    waiting: Arc<Waiters>,
 }
 
 fn id_of(peripheral: &CBPeripheral) -> String {
@@ -83,10 +101,9 @@ define_class!(
 
         #[unsafe(method(centralManager:didConnectPeripheral:))]
         fn did_connect(&self, _central: &CBCentralManager, peripheral: &CBPeripheral) {
-            let _ = self
-                .ivars()
-                .events
-                .send(Event::Connected(id_of(peripheral)));
+            let id = id_of(peripheral);
+            self.ivars().waiting.connected(&id, true);
+            let _ = self.ivars().events.send(Event::Connected(id));
         }
 
         #[unsafe(method(centralManager:didFailToConnectPeripheral:error:))]
@@ -96,7 +113,9 @@ define_class!(
             peripheral: &CBPeripheral,
             _error: Option<&NSError>,
         ) {
-            let _ = self.ivars().events.send(Event::Lost(id_of(peripheral)));
+            let id = id_of(peripheral);
+            self.ivars().waiting.connected(&id, false);
+            let _ = self.ivars().events.send(Event::Lost(id));
         }
 
         #[unsafe(method(centralManager:didDisconnectPeripheral:error:))]
@@ -160,6 +179,7 @@ define_class!(
         ) {
             let waiter = self
                 .ivars()
+                .waiting
                 .channels
                 .lock()
                 .ok()
@@ -176,8 +196,8 @@ define_class!(
 );
 
 impl Delegate {
-    fn new(events: mpsc::UnboundedSender<Event>, channels: Arc<Waiters>) -> Retained<Self> {
-        let this = Self::alloc().set_ivars(Ivars { events, channels });
+    fn new(events: mpsc::UnboundedSender<Event>, waiting: Arc<Waiters>) -> Retained<Self> {
+        let this = Self::alloc().set_ivars(Ivars { events, waiting });
         // SAFETY: NSObject's designated initialiser.
         #[allow(unsafe_code)]
         unsafe {
@@ -191,7 +211,7 @@ struct Central {
     queue: DispatchRetained<DispatchQueue>,
     manager: OnQueue<CBCentralManager>,
     delegate: OnQueue<Delegate>,
-    channels: Arc<Waiters>,
+    waiting: Arc<Waiters>,
     peripherals: Mutex<Vec<OnQueue<CBPeripheral>>>,
 }
 
@@ -200,6 +220,23 @@ impl Central {
         let (manager, delegate) = (self.manager.clone(), self.delegate.clone());
         self.queue
             .exec_sync(move || work(manager.get(), delegate.get()));
+    }
+}
+
+impl Central {
+    /// Runs `work` with the manager on its queue and returns its result.
+    fn query<R: Send + 'static>(
+        &self,
+        work: impl FnOnce(&CBCentralManager) -> R + Send + 'static,
+    ) -> Option<R> {
+        let slot = Arc::new(Mutex::new(None));
+        let filled = Arc::clone(&slot);
+        self.on_queue(move |manager, _| {
+            if let Ok(mut slot) = filled.lock() {
+                *slot = Some(work(manager));
+            }
+        });
+        slot.lock().ok().and_then(|mut slot| slot.take())
     }
 }
 
@@ -230,17 +267,51 @@ struct Window {
     psm: CBL2CAPPSM,
 }
 
+impl Window {
+    /// Reconnects when the device dropped the connection since the search.
+    async fn ensure_connected(&self) -> std::io::Result<()> {
+        let peripheral = self.peripheral.clone();
+        let connected = self.central.query(move |_| {
+            // SAFETY: on the manager's queue, with a peripheral it reported.
+            #[allow(unsafe_code)]
+            let state = unsafe { peripheral.get().state() };
+            state == CBPeripheralState::Connected
+        });
+        if connected == Some(true) {
+            return Ok(());
+        }
+        let (sender, done) = oneshot::channel();
+        if let Ok(mut waiters) = self.central.waiting.connections.lock() {
+            waiters.insert(id_of(self.peripheral.get()), sender);
+        }
+        let peripheral = self.peripheral.clone();
+        self.central.on_queue(move |manager, _| {
+            // SAFETY: on the manager's queue, with a peripheral it reported.
+            #[allow(unsafe_code)]
+            unsafe {
+                manager.connectPeripheral_options(peripheral.get(), None);
+            }
+        });
+        match tokio::time::timeout(PER_DEVICE, done).await {
+            Ok(Ok(true)) => Ok(()),
+            _ => Err(std::io::Error::other(
+                "the device could not be reached over Bluetooth",
+            )),
+        }
+    }
+}
+
 impl Connector for Window {
     fn connect(&self) -> Connecting<'_> {
         Box::pin(async move {
+            self.ensure_connected().await?;
             let (sender, opened) = oneshot::channel();
-            let id = id_of(self.peripheral.get());
-            if let Ok(mut waiters) = self.central.channels.lock() {
-                waiters.insert(id, sender);
+            if let Ok(mut waiters) = self.central.waiting.channels.lock() {
+                waiters.insert(id_of(self.peripheral.get()), sender);
             }
             let (peripheral, psm) = (self.peripheral.clone(), self.psm);
             self.central.on_queue(move |_, _| {
-                // SAFETY: on the manager's queue, with a peripheral it reported and that is connected.
+                // SAFETY: on the manager's queue, with a connected peripheral it reported.
                 #[allow(unsafe_code)]
                 unsafe {
                     peripheral.get().openL2CAPChannel(psm);
@@ -260,8 +331,8 @@ pub(crate) async fn browse(
     settle: Duration,
 ) -> Result<Vec<FoundWindow>, BleError> {
     let (events, mut received) = mpsc::unbounded_channel();
-    let channels: Arc<Waiters> = Arc::default();
-    let delegate = Delegate::new(events, Arc::clone(&channels));
+    let waiting: Arc<Waiters> = Arc::default();
+    let delegate = Delegate::new(events, Arc::clone(&waiting));
     let queue = queue("otpkeep.ble.central");
     // SAFETY: the manager calls back on `queue`; the delegate is held as long as the manager.
     #[allow(unsafe_code)]
@@ -276,7 +347,7 @@ pub(crate) async fn browse(
         queue,
         manager: OnQueue(manager),
         delegate: OnQueue(delegate),
-        channels,
+        waiting,
         peripherals: Mutex::new(Vec::new()),
     });
     wait_until_usable(&mut received).await?;
