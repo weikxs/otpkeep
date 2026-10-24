@@ -48,7 +48,10 @@ pub enum InterfaceKind {
 
 /// A network card as the platform describes it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(clippy::struct_excessive_bools, reason = "the flags the system reports")]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "the flags the system reports"
+)]
 pub struct Interface {
     /// System name, such as `en0`.
     pub name: String,
