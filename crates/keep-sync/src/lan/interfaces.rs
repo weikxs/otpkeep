@@ -133,9 +133,13 @@ fn is_unique_local(v6: Ipv6Addr) -> bool {
 
 /// Whether `peer` is on the link of the card that accepted it: the same IPv4 subnet, the same IPv6 prefix for
 /// unique local addresses, or, for link-local addresses, the same card (`peer_scope` is the scope id the
-/// connection arrived with).
+/// connection arrived with). A loopback address, which [`eligible`] never returns, only accepts loopback.
 #[must_use]
 pub fn peer_is_on_link(local: &Eligible, peer: IpAddr, peer_scope: Option<u32>) -> bool {
+    // Loopback is never eligible, so this only lets a device talk to itself in tests.
+    if local.addr.is_loopback() {
+        return peer.is_loopback();
+    }
     if !is_private(peer) {
         return false;
     }

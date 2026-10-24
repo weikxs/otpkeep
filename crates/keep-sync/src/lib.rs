@@ -2,6 +2,7 @@
 
 pub mod channel;
 pub mod digest;
+pub mod flow;
 pub mod housekeeping;
 pub mod identity;
 pub mod lan;

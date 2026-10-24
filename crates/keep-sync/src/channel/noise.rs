@@ -55,6 +55,29 @@ pub enum ChannelError {
     /// A message is larger than allowed (`TOO_LARGE`).
     #[error("the data is larger than one sync allows")]
     TooLarge,
+    /// The opener is busy with another device (`BUSY`).
+    #[error("the other device is busy with another connection")]
+    Busy,
+    /// Nothing arrived in time.
+    #[error("the other device stopped responding")]
+    TimedOut,
+}
+
+/// Tells a connection that arrived while another is handled that the window is busy, before any handshake:
+/// an empty frame in place of the handshake's second message, which no Noise message can be. The caller limits
+/// how long this may take.
+///
+/// # Errors
+///
+/// Returns the connection's error.
+pub async fn refuse_busy<S: AsyncRead + AsyncWrite + Unpin>(mut stream: S) -> std::io::Result<()> {
+    // The joiner speaks first; answer its first message, so it reads the reply rather than a reset.
+    let len = stream.read_u16().await?;
+    let mut first = vec![0u8; usize::from(len)];
+    stream.read_exact(&mut first).await?;
+    stream.write_u16(0).await?;
+    stream.flush().await?;
+    stream.shutdown().await
 }
 
 /// An encrypted, authenticated connection.
@@ -64,6 +87,7 @@ pub struct Channel<S> {
     handshake_hash: [u8; 32],
     remote_static: [u8; 32],
     received: usize,
+    idle: Option<std::time::Duration>,
 }
 
 /// Runs the opener's side of the handshake on an accepted connection. Returns the channel and the joiner's
@@ -108,7 +132,15 @@ pub async fn connect_noise<S: AsyncRead + AsyncWrite + Unpin>(
         .build_initiator()
         .map_err(|_| ChannelError::Handshake)?;
     write_handshake(&mut stream, &mut state, &[]).await?;
-    let theirs = Hello::decode(&read_handshake(&mut stream, &mut state).await?)?;
+    let reply = read_frame(&mut stream).await?;
+    if reply.is_empty() {
+        return Err(ChannelError::Busy);
+    }
+    let mut payload = vec![0u8; MAX_FRAME];
+    let len = state
+        .read_message(&reply, &mut payload)
+        .map_err(|_| ChannelError::Handshake)?;
+    let theirs = Hello::decode(&payload[..len])?;
     write_handshake(&mut stream, &mut state, &ours.encode()).await?;
     Ok((finish(stream, state)?, theirs))
 }
@@ -164,6 +196,7 @@ fn finish<S>(stream: S, state: HandshakeState) -> Result<Channel<S>, ChannelErro
         handshake_hash,
         remote_static,
         received: 0,
+        idle: None,
     })
 }
 
@@ -196,6 +229,11 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Channel<S> {
     #[must_use]
     pub fn remote_static(&self) -> [u8; 32] {
         self.remote_static
+    }
+
+    /// From now on, a receive that waits longer than `idle` fails with [`ChannelError::TimedOut`].
+    pub fn set_idle_timeout(&mut self, idle: Option<std::time::Duration>) {
+        self.idle = idle;
     }
 
     /// Sends one message of at most [`MAX_MESSAGE`] bytes.
@@ -254,7 +292,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Channel<S> {
     }
 
     async fn decrypt_frame(&mut self) -> Result<Zeroizing<Vec<u8>>, ChannelError> {
-        let frame = read_frame(&mut self.stream).await?;
+        let frame = match self.idle {
+            Some(idle) => tokio::time::timeout(idle, read_frame(&mut self.stream))
+                .await
+                .map_err(|_| ChannelError::TimedOut)??,
+            None => read_frame(&mut self.stream).await?,
+        };
         let mut plain = Zeroizing::new(vec![0u8; frame.len()]);
         let len = self
             .transport

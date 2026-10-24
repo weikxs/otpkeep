@@ -29,6 +29,36 @@ pub const WINDOW_MAX_CONNECTIONS: u8 = 10;
 /// How often each side sends a keepalive while waiting for a person.
 pub const KEEPALIVE_MS: u64 = 10 * 1000;
 
+/// The session timers. [`Timers::default`] holds the values the design fixes; tests shorten them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Timers {
+    /// `HANDSHAKE`.
+    pub handshake_ms: u64,
+    /// `PAIR_CONFIRM`.
+    pub pair_confirm_ms: u64,
+    /// `SYNC_ALLOW`.
+    pub sync_allow_ms: u64,
+    /// `DATA_IDLE`.
+    pub data_idle_ms: u64,
+    /// `SESSION_MAX`.
+    pub session_max_ms: u64,
+    /// Keepalive interval.
+    pub keepalive_ms: u64,
+}
+
+impl Default for Timers {
+    fn default() -> Self {
+        Self {
+            handshake_ms: HANDSHAKE_MS,
+            pair_confirm_ms: PAIR_CONFIRM_MS,
+            sync_allow_ms: SYNC_ALLOW_MS,
+            data_idle_ms: DATA_IDLE_MS,
+            session_max_ms: SESSION_MAX_MS,
+            keepalive_ms: KEEPALIVE_MS,
+        }
+    }
+}
+
 /// What the window is for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowKind {
@@ -113,6 +143,7 @@ pub struct LanWindow {
     last_keepalive_ms: u64,
     connections: u8,
     wrong_codes: u8,
+    timers: Timers,
 }
 
 impl LanWindow {
@@ -125,7 +156,13 @@ impl LanWindow {
         if !(WINDOW_WAIT_MIN_MS..=WINDOW_WAIT_MAX_MS).contains(&wait_ms) {
             return Err(WindowError::BadWait);
         }
-        Ok(Self {
+        Ok(Self::with_timers(kind, wait_ms, now_ms, Timers::default()))
+    }
+
+    /// A window with other timers and any wait, for tests of the network layer.
+    #[must_use]
+    pub fn with_timers(kind: WindowKind, wait_ms: u64, now_ms: u64, timers: Timers) -> Self {
+        Self {
             kind,
             opened_ms: now_ms,
             wait_ms,
@@ -137,7 +174,14 @@ impl LanWindow {
             last_keepalive_ms: now_ms,
             connections: 0,
             wrong_codes: 0,
-        })
+            timers,
+        }
+    }
+
+    /// The window's timers.
+    #[must_use]
+    pub fn timers(&self) -> Timers {
+        self.timers
     }
 
     /// The window's kind.
@@ -248,7 +292,7 @@ impl LanWindow {
     #[must_use]
     pub fn keepalive_due(&self, now_ms: u64) -> bool {
         self.status == WindowStatus::AwaitingPerson
-            && now_ms.saturating_sub(self.last_keepalive_ms) >= KEEPALIVE_MS
+            && now_ms.saturating_sub(self.last_keepalive_ms) >= self.timers.keepalive_ms
     }
 
     /// A keepalive was sent.
@@ -270,7 +314,7 @@ impl LanWindow {
     /// dropped without closing the window.
     pub fn tick(&mut self, now_ms: u64) -> Option<CloseReason> {
         let since = |start: u64| now_ms.saturating_sub(start);
-        let session_over = since(self.accepted_ms) >= SESSION_MAX_MS;
+        let session_over = since(self.accepted_ms) >= self.timers.session_max_ms;
         match self.status {
             WindowStatus::Waiting | WindowStatus::Handshaking
                 if since(self.opened_ms) >= self.wait_ms =>
@@ -279,7 +323,7 @@ impl LanWindow {
             }
             WindowStatus::Closed(_) | WindowStatus::Waiting => None,
             WindowStatus::Handshaking => {
-                if since(self.accepted_ms) >= HANDSHAKE_MS {
+                if since(self.accepted_ms) >= self.timers.handshake_ms {
                     self.current = None;
                     self.status = WindowStatus::Waiting;
                 }
@@ -290,14 +334,14 @@ impl LanWindow {
             }
             WindowStatus::AwaitingPerson => {
                 let (limit, reason) = match self.kind {
-                    WindowKind::Pair => (PAIR_CONFIRM_MS, CloseReason::ConfirmTimeout),
-                    WindowKind::Sync => (SYNC_ALLOW_MS, CloseReason::AllowTimeout),
+                    WindowKind::Pair => (self.timers.pair_confirm_ms, CloseReason::ConfirmTimeout),
+                    WindowKind::Sync => (self.timers.sync_allow_ms, CloseReason::AllowTimeout),
                 };
                 (since(self.phase_ms) >= limit)
                     .then(|| self.close(reason))
                     .flatten()
             }
-            WindowStatus::Exchanging => (since(self.last_activity_ms) > DATA_IDLE_MS)
+            WindowStatus::Exchanging => (since(self.last_activity_ms) > self.timers.data_idle_ms)
                 .then(|| self.close(CloseReason::DataIdle))
                 .flatten(),
         }

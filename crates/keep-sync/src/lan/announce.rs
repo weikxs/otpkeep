@@ -34,6 +34,17 @@ pub struct Announcement {
     pub group_tag: Option<[u8; TAG_LEN]>,
 }
 
+/// A window someone else opened, as discovery found it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FoundWindow {
+    /// Its announcement.
+    pub announcement: Announcement,
+    /// Addresses on this device's links, with the IPv6 scope where it matters.
+    pub addrs: Vec<(std::net::IpAddr, Option<u32>)>,
+    /// Its port.
+    pub port: u16,
+}
+
 /// A record that is not a window this version can join.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum AnnounceError {

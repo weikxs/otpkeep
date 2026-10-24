@@ -284,3 +284,32 @@ async fn the_versions_both_support_decide_the_protocol() {
     assert_eq!(super::hello::common_version(&[1, 3, 2], &[2, 3]), Some(3));
     assert_eq!(super::hello::common_version(&[2], &[1]), None);
 }
+
+#[tokio::test]
+async fn a_busy_window_says_so_before_any_handshake() {
+    let (a, b) = duplex(1 << 16);
+    let device = identity(2);
+    let joiner_hello = hello(&device, "B");
+
+    let (refusal, outcome) = tokio::join!(
+        super::noise::refuse_busy(a),
+        connect_noise(
+            b,
+            Purpose::Sync,
+            &WINDOW,
+            device.exchange_secret(),
+            &joiner_hello
+        )
+    );
+
+    refusal.unwrap();
+    assert!(matches!(outcome, Err(ChannelError::Busy)));
+}
+
+#[tokio::test]
+async fn a_silent_peer_times_out_when_an_idle_limit_is_set() {
+    let ((mut opener, _), (_joiner, _)) = connected(Purpose::Sync).await;
+    opener.set_idle_timeout(Some(std::time::Duration::from_millis(50)));
+
+    assert!(matches!(opener.recv().await, Err(ChannelError::TimedOut)));
+}

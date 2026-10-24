@@ -171,3 +171,17 @@ fn unique_local_peers_must_share_the_prefix() {
     assert!(peer_is_on_link(&cards[0], ip("fd12:3456::abcd"), None));
     assert!(!peer_is_on_link(&cards[0], ip("fd12:3457::abcd"), None));
 }
+
+#[test]
+fn loopback_is_never_offered_and_only_ever_matches_loopback() {
+    let local = Eligible {
+        interface: "lo0".to_owned(),
+        index: 1,
+        addr: ip("127.0.0.1"),
+        prefix: 8,
+    };
+
+    assert!(eligible(&[nic("lo0", InterfaceKind::Ethernet, &[("127.0.0.1", 8)])]).is_empty());
+    assert!(peer_is_on_link(&local, ip("127.0.0.1"), None));
+    assert!(!peer_is_on_link(&local, ip("192.168.1.2"), None));
+}

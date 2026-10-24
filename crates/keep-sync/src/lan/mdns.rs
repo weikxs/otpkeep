@@ -9,7 +9,7 @@ use std::net::IpAddr;
 
 use mdns_sd::{IfKind, ResolvedService, ScopedIp, ServiceDaemon, ServiceEvent, ServiceInfo};
 
-use super::announce::{Announcement, SERVICE_TYPE, from_txt, to_txt};
+use super::announce::{Announcement, FoundWindow, SERVICE_TYPE, from_txt, to_txt};
 use super::interfaces::{Eligible, peer_is_on_link};
 
 /// Why discovery could not run.
@@ -24,17 +24,6 @@ pub enum DiscoveryError {
     /// No random bytes for the names.
     #[error("the system random number generator is unavailable")]
     Random,
-}
-
-/// A window someone else opened.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FoundWindow {
-    /// Its announcement.
-    pub announcement: Announcement,
-    /// Addresses on this device's links, with the IPv6 scope where it matters.
-    pub addrs: Vec<(IpAddr, Option<u32>)>,
-    /// Its port.
-    pub port: u16,
 }
 
 /// An mDNS daemon limited to the eligible cards.
