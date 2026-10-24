@@ -16,7 +16,7 @@ hkdf = "0.12"
 hmac = "0.12"
 keep-passcode = { path = "../keep-passcode" }
 keep-vault = { path = "../keep-vault" }
-sha2 = "0.10"
+sha2 = "0.11"
 snow = "0.10"
 spake2 = "=0.4.0"
 thiserror = "2"
