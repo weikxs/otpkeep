@@ -14,6 +14,7 @@ ed25519-dalek = "3.0"
 getrandom = "0.4"
 hkdf = "0.12"
 hmac = "0.12"
+keep-passcode = { path = "../keep-passcode" }
 keep-vault = { path = "../keep-vault" }
 sha2 = "0.10"
 snow = "0.10"
@@ -28,7 +29,7 @@ zeroize = "1.9"
 workspace = true
 
 [dev-dependencies]
-keep-passcode = { path = "../keep-passcode" }
 
 [target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
+mdns-sd = { version = "0.21", default-features = false, features = ["async"] }
 netdev = "0.46"
