@@ -42,8 +42,8 @@ function windowsFor(os: string): WindowConfig[] {
 describe("desktop window settings", () => {
   const macos = windowsFor("macos");
 
-  it("starts in the menu bar: both windows hidden until asked for", () => {
-    expect(macos.map((w) => w.label)).toEqual(["main", "panel"]);
+  it("starts in the menu bar: every window hidden until asked for", () => {
+    expect(macos.map((w) => w.label)).toEqual(["main", "panel", "search"]);
     expect(macos.every((w) => w.visible === false)).toBe(true);
   });
 
@@ -52,6 +52,13 @@ describe("desktop window settings", () => {
 
     expect(panel?.url).toBe("panel.html");
     expect(panel?.decorations).toBe(false);
+  });
+
+  it("shows the search panel without a title bar", () => {
+    const search = macos.find((w) => w.label === "search");
+
+    expect(search?.url).toBe("search.html");
+    expect(search?.decorations).toBe(false);
   });
 
   it("uses the same windows on every desktop system", () => {

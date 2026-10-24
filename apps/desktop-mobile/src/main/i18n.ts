@@ -61,6 +61,10 @@ const zh = {
   rowShortcuts: "前 10 个账号的快捷键",
   rowShortcutsHint: (mac: boolean): string =>
     mac ? "⌃⌥⌘1 … ⌃⌥⌘0 复制列表中第 1–10 个账号的验证码" : "Ctrl+Alt+Win+1 … 0 复制列表中第 1–10 个账号的验证码",
+  searchShortcut: "搜索面板快捷键",
+  searchShortcutHint: "在任何地方打开搜索框，输入名称后回车复制验证码",
+  searchShortcutOff: "已关闭",
+  searchShortcutReset: (label: string) => `恢复默认 ${label}`,
   about: "关于",
   version: (v: string) => `OTPKeep ${v} · 完全在本机工作，不联网`,
   exportButton: "导出",
@@ -406,6 +410,10 @@ const en: MainStrings = {
   rowShortcuts: "Shortcuts for the first 10 accounts",
   rowShortcutsHint: (mac) =>
     mac ? "⌃⌥⌘1 … ⌃⌥⌘0 copy the code of accounts 1–10 in the list" : "Ctrl+Alt+Win+1 … 0 copy the code of accounts 1–10 in the list",
+  searchShortcut: "Search panel shortcut",
+  searchShortcutHint: "Opens a search box anywhere; type a name and press Enter to copy its code",
+  searchShortcutOff: "Off",
+  searchShortcutReset: (label) => `Reset to ${label}`,
   about: "About",
   version: (v) => `OTPKeep ${v} · works entirely on this device, never online`,
   exportButton: "Export",

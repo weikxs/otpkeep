@@ -81,3 +81,25 @@ describe("settings", () => {
     expect((await dialog.findByRole("alert")).textContent).toBe("清除时间应为 10–120 秒，或选择不清除");
   });
 });
+
+describe("search panel shortcut", () => {
+  it("is changed, refused when taken, turned off and reset", async () => {
+    const api = show();
+    const dialog = await openSettings();
+    expect(await dialog.findByText("⌃⌥⌘Space")).toBeTruthy();
+
+    fireEvent.click(dialog.getByText("更改"));
+    fireEvent.keyDown(screen.getByTestId("recorder"), { code: "Digit1", ctrlKey: true, altKey: true, metaKey: true });
+    expect(await dialog.findByText("这个组合是列表第 1 个账号的默认快捷键，请换一个")).toBeTruthy();
+
+    fireEvent.click(dialog.getByText("更改"));
+    fireEvent.keyDown(screen.getByTestId("recorder"), { code: "KeyK", ctrlKey: true, altKey: true, metaKey: true });
+    await waitFor(async () => expect((await api.settings()).searchShortcut).toBe("Control+Alt+Super+KeyK"));
+
+    fireEvent.click(dialog.getByText("清除"));
+    expect(await dialog.findByText("已关闭")).toBeTruthy();
+
+    fireEvent.click(dialog.getByText("恢复默认 ⌃⌥⌘Space"));
+    await waitFor(async () => expect((await api.settings()).searchShortcut).toBe("control+alt+super+Space"));
+  });
+});

@@ -26,6 +26,24 @@
         "shadow": true,
         "maximizable": false,
         "minimizable": false
+      },
+      {
+        "label": "search",
+        "title": "OTPKeep",
+        "url": "search.html",
+        "width": 620,
+        "height": 400,
+        "resizable": false,
+        "decorations": false,
+        "transparent": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visibleOnAllWorkspaces": true,
+        "visible": false,
+        "focus": true,
+        "shadow": true,
+        "maximizable": false,
+        "minimizable": false
       }
     ]
   }

@@ -148,3 +148,27 @@ describe("keeping the list in order", () => {
     expect(await trash.findByText("回收站是空的")).toBeTruthy();
   });
 });
+
+describe("opening an entry from the search panel", () => {
+  it("shows every entry and opens the one asked for in its editor", async () => {
+    let open: (page: string) => void = () => {};
+    const api: MainApi = {
+      ...demoMain({ clock: () => STEADY }),
+      onPage: (listener) => {
+        open = listener;
+        return () => {};
+      },
+    };
+    show(api);
+    const search = await screen.findByRole("searchbox");
+    fireEvent.input(search, { target: { value: "github" } });
+    await waitFor(() => expect(screen.getAllByTestId("entry")).toHaveLength(1));
+    const steam = (await api.state("steam")).entries[0]?.id as string;
+
+    open(`edit:${steam}`);
+
+    const name = await screen.findByRole("textbox", { name: "显示名称" });
+    expect((name as HTMLInputElement).value).toBe("Steam");
+    expect((screen.getByRole("searchbox") as HTMLInputElement).value).toBe("");
+  });
+});

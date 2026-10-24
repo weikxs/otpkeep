@@ -4,8 +4,8 @@ import { defineConfig } from "vitest/config";
 
 const host = process.env.TAURI_DEV_HOST;
 
-// Three entry points share the same components: the app window (index.html), the menu bar panel (panel.html)
-// and the local browser management page served by the core (gate.html).
+// Four entry points share the same components: the app window (index.html), the menu bar panel (panel.html),
+// the search panel (search.html) and the local browser management page served by the core (gate.html).
 export default defineConfig({
   plugins: [preact()],
   clearScreen: false,
@@ -22,6 +22,7 @@ export default defineConfig({
         main: resolve(import.meta.dirname, "index.html"),
         gate: resolve(import.meta.dirname, "gate.html"),
         panel: resolve(import.meta.dirname, "panel.html"),
+        search: resolve(import.meta.dirname, "search.html"),
       },
     },
   },

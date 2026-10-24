@@ -5,10 +5,10 @@ import { Ring } from "../shared/Ring";
 import { formatShortcut } from "../shared/shortcut";
 import { groupCode, monogram, tileColor } from "./format";
 import type { Strings } from "./i18n";
+import { useLiveState } from "./live";
 
 /** Codes ending within this many seconds also show the next one (FR-1.4). */
 const NEXT_CODE_WINDOW_S = 5;
-const TICK_MS = 250;
 const COPIED_MS = 1200;
 const TOAST_MS = 2600;
 
@@ -22,43 +22,12 @@ export interface PanelProps {
 
 /** The menu bar quick panel (design/12). */
 export function Panel({ api, text, isMac, clock = Date.now }: PanelProps) {
-  const [state, setState] = useState<PanelState | null>(null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [offset, setOffset] = useState(0);
-  const [now, setNow] = useState(clock());
   const search = useRef<HTMLInputElement>(null);
-
-  const load = useCallback(
-    async (q: string) => {
-      const next = await api.state(q);
-      setOffset(next.nowMs - clock());
-      setNow(clock());
-      setState(next);
-    },
-    [api, clock],
-  );
-
-  useEffect(() => {
-    void load(query);
-    setSelected(0);
-  }, [query, load]);
-
-  // Names and shortcuts changed on the management page, or the panel opened again.
-  useEffect(() => api.onChange(() => void load(query)), [api, load, query]);
-
-  const coreNow = now + offset;
-  const expired = state?.entries.some((e) => e.validUntilMs !== undefined && e.validUntilMs <= coreNow) ?? false;
-  useEffect(() => {
-    if (expired) void load(query);
-  }, [expired, load, query]);
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(clock()), TICK_MS);
-    return () => clearInterval(timer);
-  }, [clock]);
+  const { state, setState, coreNow } = useLiveState(api, query, clock);
 
   useEffect(() => search.current?.focus(), [state?.status]);
 
@@ -66,12 +35,7 @@ export function Panel({ api, text, isMac, clock = Date.now }: PanelProps) {
 
   const copy = useCallback(
     async (entry: PanelEntry) => {
-      if (entry.kind === "hotp" && entry.code === undefined) {
-        const generated = await api.nextHotp(entry.id);
-        setState((current) =>
-          current && { ...current, entries: current.entries.map((e) => (e.id === entry.id ? generated : e)) },
-        );
-      }
+      await generateIfNeeded(api, entry, setState);
       try {
         const result = await api.copy(entry.id);
         setCopiedId(entry.id);
@@ -82,7 +46,7 @@ export function Panel({ api, text, isMac, clock = Date.now }: PanelProps) {
         setToast(text.copyFailed);
       }
     },
-    [api, text],
+    [api, text, setState],
   );
 
   const onKey = (event: KeyboardEvent) => {
@@ -97,8 +61,11 @@ export function Panel({ api, text, isMac, clock = Date.now }: PanelProps) {
       const entry = entries[selected];
       if (entry) void copy(entry);
     } else if (event.key === "Escape") {
-      if (query !== "") setQuery("");
-      else void api.hide();
+      if (query === "") void api.hide();
+      else {
+        setQuery("");
+        setSelected(0);
+      }
     } else if ((event.metaKey || event.ctrlKey) && /^[0-9]$/u.test(event.key)) {
       const index = event.key === "0" ? 9 : Number(event.key) - 1;
       const entry = entries[index];
@@ -122,7 +89,11 @@ export function Panel({ api, text, isMac, clock = Date.now }: PanelProps) {
             value={query}
             placeholder={text.search}
             aria-label={text.search}
-            onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
+            onInput={(e) => {
+              // Reset here, not in an effect: an effect runs after a key pressed right after typing.
+              setQuery((e.target as HTMLInputElement).value);
+              setSelected(0);
+            }}
           />
         </header>
       )}
@@ -188,6 +159,19 @@ export function Panel({ api, text, isMac, clock = Date.now }: PanelProps) {
   );
 }
 
+/** An HOTP entry shows no code until one is generated; copying generates it first. */
+export async function generateIfNeeded(
+  api: Pick<PanelApi, "nextHotp">,
+  entry: PanelEntry,
+  setState: (update: (current: PanelState | null) => PanelState | null) => void,
+) {
+  if (entry.kind !== "hotp" || entry.code !== undefined) return;
+  const generated = await api.nextHotp(entry.id);
+  setState((current) =>
+    current && { ...current, entries: current.entries.map((e) => (e.id === entry.id ? generated : e)) },
+  );
+}
+
 interface ListProps {
   entries: PanelEntry[];
   query: string;
@@ -200,7 +184,7 @@ interface ListProps {
   onHover: (index: number) => void;
 }
 
-function EntryList({ entries, query, selected, copiedId, coreNow, text, isMac, onCopy, onHover }: ListProps) {
+export function EntryList({ entries, query, selected, copiedId, coreNow, text, isMac, onCopy, onHover }: ListProps) {
   const pinnedCount = query === "" ? entries.filter((e) => e.pinned).length : 0;
   return (
     <ul class="entries" role="listbox" aria-label={query === "" ? text.all : text.results}>
@@ -288,13 +272,13 @@ function Row({ entry, index, selected, copied, coreNow, text, isMac, onCopy, onH
 }
 
 interface PasswordPromptProps {
-  api: PanelApi;
+  api: Pick<PanelApi, "unlock">;
   text: Strings;
   onOpened: (state: PanelState) => void;
 }
 
 /** Asked once per run when the data is protected by a master password. */
-function PasswordPrompt({ api, text, onOpened }: PasswordPromptProps) {
+export function PasswordPrompt({ api, text, onOpened }: PasswordPromptProps) {
   const [password, setPassword] = useState("");
   const [wrong, setWrong] = useState(false);
   const submit = async (event: Event) => {
@@ -329,7 +313,7 @@ function PasswordPrompt({ api, text, onOpened }: PasswordPromptProps) {
   );
 }
 
-function SearchIcon() {
+export function SearchIcon() {
   return (
     <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
       <circle cx="7" cy="7" r="4.5" />

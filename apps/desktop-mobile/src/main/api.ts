@@ -124,6 +124,10 @@ export interface Settings {
   clipboardClearS: number;
   rowShortcuts: boolean;
   rowShortcutsDefault: boolean;
+  /** The search panel's global shortcut; null when it is off. */
+  searchShortcut: string | null;
+  /** What it is on this system when never changed; null where there is none. */
+  searchShortcutDefault: string | null;
   version: string;
 }
 
@@ -173,6 +177,8 @@ export interface MainApi extends SyncApi {
   entryQr(id: string): Promise<QrImage>;
   settings(): Promise<Settings>;
   setSettings(patch: SettingsPatch): Promise<Settings>;
+  /** Sets the search panel's global shortcut, or turns it off with `null`. */
+  setSearchShortcut(shortcut: string | null): Promise<Settings>;
   /** Calls `listener` when the settings changed (here or in another window). */
   onSettings(listener: (settings: Settings) => void): () => void;
   /** Applies one action to several entries, all or nothing; returns how many changed. */
@@ -239,6 +245,7 @@ export async function tauriMainApi(): Promise<MainApi> {
     entryQr: (id) => call("entry_qr", { id }),
     settings: () => call("get_settings"),
     setSettings: (patch) => call("set_settings", { patch }),
+    setSearchShortcut: (shortcut) => call("set_search_panel_shortcut", { shortcut }),
     onSettings: (listener) => subscribe<Settings>("settings-changed", listener),
     batch: (ids, action) => call("batch_entries", { ids, action }),
     rename: (id, change) => call("rename_entry", { id, issuer: change.issuer ?? null, account: change.account ?? null }),

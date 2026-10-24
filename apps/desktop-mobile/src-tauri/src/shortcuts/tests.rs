@@ -4,6 +4,7 @@ use super::{Holder, ShortcutError, ShortcutMap, Target, canonical};
 
 fn mac() -> ShortcutMap {
     ShortcutMap::new(true, BTreeMap::new())
+        .with_search(Some(super::SEARCH_PANEL_DEFAULT.to_owned()))
 }
 
 #[test]
@@ -41,7 +42,7 @@ fn macos_gives_the_first_ten_rows_defaults() {
         Some("control+alt+super+Digit0")
     );
     assert_eq!(map.default_for(10), None);
-    assert_eq!(map.targets().len(), 10);
+    assert_eq!(map.targets().len(), 11, "ten rows and the search panel");
 }
 
 #[test]
@@ -116,5 +117,32 @@ fn an_own_shortcut_taken_while_defaults_were_off_wins_over_the_default() {
         on.default_for(1).as_deref(),
         Some("control+alt+super+Digit2")
     );
-    assert_eq!(on.targets().len(), 10, "nine defaults and the entry's own");
+    assert_eq!(
+        on.targets().len(),
+        10,
+        "nine defaults and the entry's own (no search panel here)"
+    );
+}
+
+#[test]
+fn the_search_panel_shortcut_can_move_or_go() {
+    let moved = mac().with_search(Some("control+alt+KeyK".to_owned()));
+
+    assert_eq!(
+        moved.holder("control+alt+KeyK", "e1"),
+        Some(Holder::SearchPanel)
+    );
+    assert_eq!(
+        moved.holder("control+alt+super+Space", "e1"),
+        None,
+        "the old one is free"
+    );
+    assert!(
+        moved
+            .targets()
+            .contains(&("control+alt+KeyK".to_owned(), Target::Search))
+    );
+    let gone = mac().with_search(None);
+    assert_eq!(gone.search(), None);
+    assert!(!gone.targets().iter().any(|(_, t)| *t == Target::Search));
 }

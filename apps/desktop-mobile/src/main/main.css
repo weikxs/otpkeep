@@ -915,6 +915,13 @@ textarea {
   font-size: 14px;
 }
 
+.setting-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
 .setting select {
   min-width: 150px;
 }

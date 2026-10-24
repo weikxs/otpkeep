@@ -76,6 +76,8 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
     clipboardClearS: 30,
     rowShortcuts: true,
     rowShortcutsDefault: true,
+    searchShortcut: "control+alt+super+Space",
+    searchShortcutDefault: "control+alt+super+Space",
     version: "0.0.1",
   };
   let tokens = 0;
@@ -251,6 +253,11 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
         throw new CommandFailure("INVALID", "CLIPBOARD");
       }
       settings = { ...settings, ...patch };
+      return settings;
+    },
+    setSearchShortcut: async (shortcut) => {
+      if (shortcut?.toLowerCase() === "control+alt+super+digit1") throw new CommandFailure("SHORTCUT_TAKEN", "ROW:1");
+      settings = { ...settings, searchShortcut: shortcut };
       return settings;
     },
     onSettings: () => () => {},

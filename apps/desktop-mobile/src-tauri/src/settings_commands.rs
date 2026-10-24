@@ -10,7 +10,8 @@
 use tauri::{AppHandle, Emitter, State};
 
 use crate::commands::CommandError;
-use crate::hotkeys::{Hotkeys, UpdateError, update_settings};
+use crate::hotkeys::{Hotkeys, UpdateError, set_search_shortcut, update_settings};
+use crate::key_commands::shortcut_error;
 use crate::preferences::{SettingsPatch, SettingsView, view};
 
 #[tauri::command]
@@ -24,7 +25,25 @@ pub fn set_settings(patch: SettingsPatch, app: AppHandle) -> Result<SettingsView
         UpdateError::Invalid(rule) => CommandError::with("INVALID", rule.to_owned()),
         UpdateError::Save => CommandError::code("SAVE_FAILED"),
     })?;
-    let shown = view(&settings);
-    let _ = app.emit("settings-changed", shown.clone());
+    Ok(announce(&app, &settings))
+}
+
+/// Sets the search panel's global shortcut, or turns it off with `None`.
+#[tauri::command]
+pub fn set_search_panel_shortcut(
+    shortcut: Option<String>,
+    app: AppHandle,
+    hotkeys: State<'_, Hotkeys>,
+) -> Result<SettingsView, CommandError> {
+    set_search_shortcut(&app, shortcut.as_deref()).map_err(|error| shortcut_error(&app, error))?;
+    let shown = announce(&app, &hotkeys.settings());
+    // Row badges may change when the search panel gives back a row's default.
+    let _ = app.emit("vault-changed", ());
     Ok(shown)
+}
+
+fn announce(app: &AppHandle, settings: &crate::settings::Settings) -> SettingsView {
+    let shown = view(settings);
+    let _ = app.emit("settings-changed", shown.clone());
+    shown
 }

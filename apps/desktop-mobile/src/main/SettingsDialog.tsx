@@ -1,11 +1,13 @@
 import { useEffect, useState } from "preact/hooks";
+import { ShortcutField } from "../shared/ShortcutField";
+import { formatShortcut } from "../shared/shortcut";
 import { CommandFailure, type MainApi, type Settings, type SettingsPatch } from "./api";
 import { type MainStrings, describe } from "./i18n";
 
 const CLEAR_CHOICES = [0, 10, 20, 30, 45, 60, 90, 120];
 
 export interface SettingsDialogProps {
-  api: Pick<MainApi, "settings" | "setSettings">;
+  api: Pick<MainApi, "settings" | "setSettings" | "setSearchShortcut">;
   text: MainStrings;
   isMac: boolean;
   /** Called with the saved settings, so the window can follow the theme and language. */
@@ -20,10 +22,10 @@ export function SettingsDialog({ api, text, isMac, onSaved, onClose }: SettingsD
 
   useEffect(() => void api.settings().then(setSettings), [api]);
 
-  const change = async (patch: SettingsPatch) => {
+  const save = async (saving: Promise<Settings>) => {
     setError(null);
     try {
-      const saved = await api.setSettings(patch);
+      const saved = await saving;
       setSettings(saved);
       onSaved(saved);
     } catch (thrown) {
@@ -31,6 +33,7 @@ export function SettingsDialog({ api, text, isMac, onSaved, onClose }: SettingsD
       setError(describe(text, failure.code, failure.detail));
     }
   };
+  const change = (patch: SettingsPatch) => save(api.setSettings(patch));
   const value = (e: Event) => (e.target as HTMLSelectElement).value;
 
   return (
@@ -89,6 +92,29 @@ export function SettingsDialog({ api, text, isMac, onSaved, onClose }: SettingsD
                 onChange={(e) => void change({ rowShortcuts: (e.target as HTMLInputElement).checked })}
               />
             </label>
+            <div class="setting">
+              <span class="setting-name">
+                {text.searchShortcut}
+                <span class="muted">{text.searchShortcutHint}</span>
+              </span>
+              <span class="setting-value">
+                <ShortcutField
+                  {...(settings.searchShortcut ? { shortcut: settings.searchShortcut } : {})}
+                  isMac={isMac}
+                  text={{ ...text.shortcutTexts, noShortcut: text.searchShortcutOff }}
+                  onSave={(shortcut) => save(api.setSearchShortcut(shortcut))}
+                />
+                {settings.searchShortcutDefault && settings.searchShortcut !== settings.searchShortcutDefault && (
+                  <button
+                    type="button"
+                    class="link-button"
+                    onClick={() => void save(api.setSearchShortcut(settings.searchShortcutDefault))}
+                  >
+                    {text.searchShortcutReset(formatShortcut(settings.searchShortcutDefault, isMac))}
+                  </button>
+                )}
+              </span>
+            </div>
             <div class="setting about">
               <span class="setting-name">{text.about}</span>
               <span class="muted">{text.version(settings.version)}</span>

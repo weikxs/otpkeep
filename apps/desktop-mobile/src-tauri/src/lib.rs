@@ -114,6 +114,7 @@ fn builder() -> tauri::Builder<tauri::Wry> {
             key_commands::set_shortcut,
             settings_commands::get_settings,
             settings_commands::set_settings,
+            settings_commands::set_search_panel_shortcut,
             export_commands::export_file,
             export_commands::export_google,
             export_commands::entry_qr,

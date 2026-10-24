@@ -20,6 +20,10 @@ pub struct SettingsView {
     pub row_shortcuts: bool,
     /// What `row_shortcuts` is on this system when never changed.
     pub row_shortcuts_default: bool,
+    /// The search panel's shortcut; absent when it has none.
+    pub search_shortcut: Option<String>,
+    /// What the search panel's shortcut is on this system when never changed.
+    pub search_shortcut_default: Option<&'static str>,
     pub version: &'static str,
 }
 
@@ -47,6 +51,9 @@ pub fn view(settings: &Settings) -> SettingsView {
         clipboard_clear_s: settings.clipboard_clear_s.unwrap_or(DEFAULT_CLEAR_S),
         row_shortcuts: settings.row_shortcuts_on(),
         row_shortcuts_default: cfg!(target_os = "macos"),
+        search_shortcut: settings.search_shortcut_on(),
+        search_shortcut_default: cfg!(target_os = "macos")
+            .then_some(crate::shortcuts::SEARCH_PANEL_DEFAULT),
         version: env!("CARGO_PKG_VERSION"),
     }
 }

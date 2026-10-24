@@ -45,6 +45,8 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved }:
   const [allCount, setAllCount] = useState(0);
   const [selecting, setSelecting] = useState(false);
   const [chosen, setChosen] = useState<string[]>([]);
+  /** An entry the search panel asked to edit; its row opens its editor once shown. */
+  const [editId, setEditId] = useState<string | null>(null);
 
   const load = useCallback(
     async (q: string) => {
@@ -66,6 +68,13 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved }:
         if (page === "add" || page === "import") setDialog({ tab: page === "add" ? "paste" : "file" });
         if (page === "settings") setSettingsOpen(true);
         if (page === "sync") setSyncOpen(true);
+        if (page.startsWith("edit:")) {
+          // Show every entry so the one asked for is on screen.
+          setQuery("");
+          setTag(null);
+          setSelecting(false);
+          setEditId(page.slice("edit:".length));
+        }
       }),
     [api],
   );
@@ -264,6 +273,8 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved }:
                   loadHistory={() => api.history(entry.id)}
                   onDropRow={(moved, place) => void after(api.move(moved, { to: place, other: entry.id }))}
                   selection={selecting ? { chosen: chosen.includes(entry.id), onToggle: () => toggle(entry.id) } : undefined}
+                  startEditing={editId === entry.id}
+                  onEditStarted={() => setEditId(null)}
                 />
               );
               return heading === null

@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { groupCode, monogram, tileColor } from "../panel/format";
 import { Ring } from "../shared/Ring";
 import { formatShortcut } from "../shared/shortcut";
@@ -33,6 +33,9 @@ export interface EntryRowProps {
   onDropRow: (moved: string, place: "before" | "after") => void;
   /** In selection mode: whether the row is chosen; a click chooses instead of copying. */
   selection?: { chosen: boolean; onToggle: () => void } | undefined;
+  /** Opens the editor now (asked for from the search panel). */
+  startEditing?: boolean;
+  onEditStarted?: () => void;
 }
 
 /** One account in the main window: click to copy; names and the note are edited in place. */
@@ -40,6 +43,16 @@ export function EntryRow(props: EntryRowProps) {
   const { entry, coreNow, copied, text, isMac, sortable, onCopy, onDropRow, selection } = props;
   const [editing, setEditing] = useState(false);
   const [dropAt, setDropAt] = useState<"before" | "after" | null>(null);
+  const row = useRef<HTMLLIElement>(null);
+  const { startEditing, onEditStarted } = props;
+  useEffect(() => {
+    if (!startEditing) return;
+    setEditing(true);
+    onEditStarted?.();
+  }, [startEditing, onEditStarted]);
+  useEffect(() => {
+    if (editing) row.current?.scrollIntoView?.({ block: "nearest" });
+  }, [editing]);
   const subtitle = [entry.issuer, entry.account].filter((s) => s !== "" && s !== entry.title).join(" · ");
   const remainingS =
     entry.validUntilMs === undefined ? undefined : Math.max(0, Math.ceil((entry.validUntilMs - coreNow) / 1000));
@@ -47,7 +60,7 @@ export function EntryRow(props: EntryRowProps) {
 
   if (editing) {
     return (
-      <li class="entry-row editing" data-testid="entry">
+      <li class="entry-row editing" data-testid="entry" ref={row}>
         <EntryEditor
           entry={entry}
           text={text}

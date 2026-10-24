@@ -30,6 +30,9 @@ pub struct Settings {
     /// Whether the first ten rows get shortcuts; absent is the system's default (on for macOS).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub row_shortcuts: Option<bool>,
+    /// The search panel's shortcut; absent is the system's default (`⌃⌥⌘Space` on macOS), empty is off.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub search_shortcut: Option<String>,
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
 }
@@ -41,6 +44,18 @@ impl Settings {
         match self.clipboard_clear_s.unwrap_or(DEFAULT_CLEAR_S) {
             0 => None,
             seconds => Some(Duration::from_secs(u64::from(seconds))),
+        }
+    }
+
+    /// The search panel's shortcut in effect, if any.
+    #[must_use]
+    pub fn search_shortcut_on(&self) -> Option<String> {
+        match &self.search_shortcut {
+            None => {
+                cfg!(target_os = "macos").then(|| crate::shortcuts::SEARCH_PANEL_DEFAULT.to_owned())
+            }
+            Some(chosen) if chosen.is_empty() => None,
+            Some(chosen) => Some(chosen.clone()),
         }
     }
 
@@ -159,6 +174,40 @@ mod tests {
 
         assert_eq!(settings, Settings::default());
         assert!(dir.path().join("settings.json.unreadable").exists());
+    }
+
+    #[test]
+    fn the_search_panel_shortcut_is_the_default_until_chosen_or_turned_off() {
+        let chosen = |stored: Option<&str>| Settings {
+            search_shortcut: stored.map(str::to_owned),
+            ..Settings::default()
+        };
+
+        assert_eq!(
+            chosen(None).search_shortcut_on().is_some(),
+            cfg!(target_os = "macos")
+        );
+        assert_eq!(chosen(Some("")).search_shortcut_on(), None);
+        assert_eq!(
+            chosen(Some("control+alt+KeyK"))
+                .search_shortcut_on()
+                .as_deref(),
+            Some("control+alt+KeyK")
+        );
+    }
+
+    #[test]
+    fn an_empty_search_shortcut_survives_saving_as_off() {
+        let dir = temp_dir();
+        let file = SettingsFile::new(Some(dir.path()));
+        let off = Settings {
+            search_shortcut: Some(String::new()),
+            ..Settings::default()
+        };
+
+        file.save(&off).unwrap();
+
+        assert_eq!(file.load().search_shortcut_on(), None);
     }
 
     #[test]

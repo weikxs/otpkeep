@@ -10,8 +10,8 @@ use tauri_plugin_global_shortcut::{Modifiers, Shortcut};
 
 /// Rows with a default shortcut.
 pub const DEFAULT_ROWS: usize = 10;
-/// Kept free for the search panel (`⌃⌥⌘Space`, FR-3.8).
-const SEARCH_PANEL: &str = "control+alt+super+Space";
+/// The search panel's shortcut on macOS when the person did not choose one (`⌃⌥⌘Space`, FR-3.8).
+pub const SEARCH_PANEL_DEFAULT: &str = "control+alt+super+Space";
 
 /// What a shortcut copies.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,6 +20,8 @@ pub enum Target {
     Row(usize),
     /// This entry, wherever it is.
     Entry(String),
+    /// Opens the search panel.
+    Search,
 }
 
 /// Who already uses a shortcut.
@@ -64,13 +66,34 @@ pub fn canonical(input: &str) -> Result<String, ShortcutError> {
 pub struct ShortcutMap {
     defaults: bool,
     entries: BTreeMap<String, String>,
+    /// The search panel's shortcut, when it has one.
+    search: Option<String>,
 }
 
 impl ShortcutMap {
     /// `defaults`: whether the first rows get default shortcuts (macOS).
     #[must_use]
     pub fn new(defaults: bool, entries: BTreeMap<String, String>) -> Self {
-        Self { defaults, entries }
+        Self {
+            defaults,
+            entries,
+            search: None,
+        }
+    }
+
+    /// A copy with the search panel's shortcut set or removed. The caller checks it with [`Self::holder`].
+    #[must_use]
+    pub fn with_search(&self, search: Option<String>) -> Self {
+        Self {
+            search,
+            ..self.clone()
+        }
+    }
+
+    /// The search panel's shortcut.
+    #[must_use]
+    pub fn search(&self) -> Option<&str> {
+        self.search.as_deref()
     }
 
     /// The default shortcut of row `index` (0-based), if it has one. An entry's own shortcut wins over a
@@ -82,7 +105,9 @@ impl ShortcutMap {
         }
         let digit = (index + 1) % DEFAULT_ROWS;
         let shortcut = format!("control+alt+super+Digit{digit}");
-        (!self.entries.values().any(|own| *own == shortcut)).then_some(shortcut)
+        let taken = self.entries.values().any(|own| *own == shortcut)
+            || self.search.as_deref() == Some(shortcut.as_str());
+        (!taken).then_some(shortcut)
     }
 
     /// A copy with the row defaults turned on or off.
@@ -90,7 +115,7 @@ impl ShortcutMap {
     pub fn with_defaults(&self, defaults: bool) -> Self {
         Self {
             defaults,
-            entries: self.entries.clone(),
+            ..self.clone()
         }
     }
 
@@ -115,13 +140,14 @@ impl ShortcutMap {
             .entries
             .iter()
             .map(|(entry, s)| (s.clone(), Target::Entry(entry.clone())));
-        defaults.chain(own).collect()
+        let search = self.search.iter().map(|s| (s.clone(), Target::Search));
+        defaults.chain(own).chain(search).collect()
     }
 
     /// Who uses `shortcut` (canonical), not counting `entry` itself.
     #[must_use]
     pub fn holder(&self, shortcut: &str, entry: &str) -> Option<Holder> {
-        if shortcut == SEARCH_PANEL {
+        if self.search.as_deref() == Some(shortcut) {
             return Some(Holder::SearchPanel);
         }
         if let Some(row) =
@@ -154,8 +180,8 @@ impl ShortcutMap {
             }
         }
         Ok(Self {
-            defaults: self.defaults,
             entries,
+            ..self.clone()
         })
     }
 

@@ -61,14 +61,18 @@ pub fn set_shortcut(
 ) -> Result<()> {
     // The entry must exist before a shortcut is given to it.
     vault.get().key_info(id)?;
-    set_entry_shortcut(&app, id, shortcut.as_deref()).map_err(|error| match error {
+    set_entry_shortcut(&app, id, shortcut.as_deref())
+        .map_err(|error| shortcut_error(&app, error))?;
+    let _ = app.emit("vault-changed", ());
+    Ok(())
+}
+
+/// A shortcut that could not be set, as the windows show it.
+pub(crate) fn shortcut_error(app: &AppHandle, error: SetError) -> CommandError {
+    match error {
         SetError::Invalid => CommandError::code("SHORTCUT_INVALID"),
         SetError::Rejected => CommandError::code("SHORTCUT_REJECTED"),
         SetError::Save => CommandError::code("SAVE_FAILED"),
-        SetError::Taken(holder) => {
-            CommandError::with("SHORTCUT_TAKEN", taken_detail(&app, &holder))
-        }
-    })?;
-    let _ = app.emit("vault-changed", ());
-    Ok(())
+        SetError::Taken(holder) => CommandError::with("SHORTCUT_TAKEN", taken_detail(app, &holder)),
+    }
 }

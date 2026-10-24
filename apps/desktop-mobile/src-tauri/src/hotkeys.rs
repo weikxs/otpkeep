@@ -39,7 +39,11 @@ impl Hotkeys {
     #[must_use]
     pub fn load(file: SettingsFile) -> Self {
         let settings = file.load();
-        let map = ShortcutMap::new(settings.row_shortcuts_on(), valid_only(&settings));
+        let search = settings
+            .search_shortcut_on()
+            .and_then(|s| crate::shortcuts::canonical(&s).ok());
+        let map = ShortcutMap::new(settings.row_shortcuts_on(), valid_only(&settings))
+            .with_search(search);
         Self {
             file,
             state: Mutex::new(HotkeyState {
@@ -195,6 +199,75 @@ pub fn set_entry_shortcut<R: Runtime>(
     Ok(())
 }
 
+/// Sets the search panel's shortcut, or turns it off with `None`: checked against the other shortcuts,
+/// registered with the system, then saved. On failure the old one stays.
+///
+/// # Errors
+///
+/// Returns [`SetError`].
+pub fn set_search_shortcut<R: Runtime>(
+    app: &AppHandle<R>,
+    input: Option<&str>,
+) -> Result<(), SetError> {
+    let hotkeys = app.try_state::<Hotkeys>().ok_or(SetError::Save)?;
+    let wanted = input
+        .map(crate::shortcuts::canonical)
+        .transpose()
+        .map_err(|_| SetError::Invalid)?;
+    let mut state = hotkeys.state();
+    let old = state.map.search().map(str::to_owned);
+    if old == wanted {
+        return Ok(());
+    }
+    if let Some(text) = &wanted {
+        let without = state.map.with_search(None);
+        if let Some(holder) = without.holder(text, "") {
+            return Err(SetError::Taken(holder));
+        }
+    }
+    if let Some(old) = &old
+        && let Some(id) = unregister(app, old)
+    {
+        state.registered.remove(&id);
+    }
+    let new_id = match &wanted {
+        Some(text) => {
+            let Some(id) = register(app, text) else {
+                if let Some(old) = &old
+                    && let Some(id) = register(app, old)
+                {
+                    state.registered.insert(id, (old.clone(), Target::Search));
+                }
+                return Err(SetError::Rejected);
+            };
+            Some(id)
+        }
+        None => None,
+    };
+    let mut settings = state.settings.clone();
+    // Empty is "off", which is different from "not chosen" (the system's default).
+    settings.search_shortcut = Some(wanted.clone().unwrap_or_default());
+    if hotkeys.file.save(&settings).is_err() {
+        if let Some(text) = &wanted {
+            unregister(app, text);
+        }
+        if let Some(old) = &old
+            && let Some(id) = register(app, old)
+        {
+            state.registered.insert(id, (old.clone(), Target::Search));
+        }
+        return Err(SetError::Save);
+    }
+    if let (Some(id), Some(text)) = (new_id, &wanted) {
+        state.registered.insert(id, (text.clone(), Target::Search));
+    }
+    state.settings = settings;
+    state.map = state.map.with_search(wanted);
+    // A row default the old search shortcut shadowed comes back.
+    reregister_rows(app, &mut state);
+    Ok(())
+}
+
 /// Why the settings could not be changed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpdateError {
@@ -270,12 +343,17 @@ fn pressed<R: Runtime>(app: &AppHandle<R>, id: u32) {
     let Some((_, target)) = hotkeys.state().registered.get(&id).cloned() else {
         return;
     };
+    if target == Target::Search {
+        crate::desktop::show_search(app);
+        return;
+    }
     let clear_after = hotkeys.settings().clear_after();
     let Some(core) = app.try_state::<AppCore>() else {
         return;
     };
     let entry = match target {
         Target::Entry(entry) => Some(entry),
+        Target::Search => None,
         Target::Row(index) => core
             .get()
             .list("")

@@ -6,7 +6,9 @@ use std::time::{Duration, Instant};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, Rect, WebviewWindow, WindowEvent};
+use tauri::{
+    AppHandle, Emitter, Manager, PhysicalPosition, Rect, Runtime, WebviewWindow, WindowEvent,
+};
 
 use crate::icon;
 
@@ -14,6 +16,10 @@ use crate::icon;
 pub const PANEL: &str = "panel";
 /// The main window's label.
 pub const MAIN: &str = "main";
+/// The search panel's window label (design/04 §6).
+pub const SEARCH: &str = "search";
+/// The search panel sits this far down the screen, like other launchers.
+const SEARCH_FROM_TOP: f64 = 0.22;
 /// Gap between the menu bar and the panel, in physical pixels.
 const PANEL_GAP: f64 = 6.0;
 /// A click on the icon right after the panel hid on blur was the click that hid it.
@@ -87,6 +93,14 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
                         .lock()
                         .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Instant::now());
                 }
+            }
+        });
+    }
+    if let Some(search) = app.get_webview_window(SEARCH) {
+        let window = search.clone();
+        search.on_window_event(move |event| {
+            if let WindowEvent::Focused(false) = event {
+                let _ = window.hide();
             }
         });
     }
@@ -168,4 +182,49 @@ pub fn show_main(app: &AppHandle, page: Option<&str>) {
     if let Some(page) = page {
         let _ = main.emit("open-page", page);
     }
+}
+
+/// Shows the search panel in the middle of the screen the pointer is on, or hides it when it is open.
+pub fn show_search<R: Runtime>(app: &AppHandle<R>) {
+    let Some(search) = app.get_webview_window(SEARCH) else {
+        return;
+    };
+    if search.is_visible().unwrap_or(false) {
+        let _ = search.hide();
+        return;
+    }
+    if let Some(panel) = app.get_webview_window(PANEL) {
+        let _ = panel.hide();
+    }
+    place_centred(app, &search);
+    let _ = search.show();
+    let _ = search.set_focus();
+    let _ = search.emit("search-shown", ());
+}
+
+/// Centres the search panel across the pointer's screen, a little above the middle.
+fn place_centred<R: Runtime>(app: &AppHandle<R>, search: &WebviewWindow<R>) {
+    let monitor = app
+        .cursor_position()
+        .ok()
+        .and_then(|at| search.monitor_from_point(at.x, at.y).ok().flatten())
+        .or_else(|| search.primary_monitor().ok().flatten());
+    let Some(monitor) = monitor else {
+        let _ = search.center();
+        return;
+    };
+    let size = search
+        .outer_size()
+        .map_or((0.0, 0.0), |s| (f64::from(s.width), f64::from(s.height)));
+    let (left, top) = (
+        f64::from(monitor.position().x),
+        f64::from(monitor.position().y),
+    );
+    let (width, height) = (
+        f64::from(monitor.size().width),
+        f64::from(monitor.size().height),
+    );
+    let x = left + (width - size.0) / 2.0;
+    let y = top + height * SEARCH_FROM_TOP;
+    let _ = search.set_position(PhysicalPosition::new(x, y));
 }
