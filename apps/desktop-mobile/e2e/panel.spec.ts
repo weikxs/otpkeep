@@ -11,7 +11,7 @@ for (const scheme of ["light", "dark"] as const) {
     page.on("console", (message) => {
       if (message.type() === "error") problems.push(message.text());
     });
-    await page.setViewportSize({ width: 340, height: 480 });
+    await page.setViewportSize({ width: 340, height: 560 });
     await page.emulateMedia({ colorScheme: scheme });
 
     await page.goto("/panel.html");

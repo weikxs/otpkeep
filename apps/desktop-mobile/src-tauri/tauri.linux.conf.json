@@ -15,7 +15,7 @@
         "title": "OTPKeep",
         "url": "panel.html",
         "width": 340,
-        "height": 480,
+        "height": 560,
         "resizable": false,
         "decorations": false,
         "alwaysOnTop": true,

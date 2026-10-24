@@ -243,6 +243,8 @@ function Row({ entry, index, selected, copied, coreNow, text, isMac, onCopy, onH
         <span class="title">{entry.title}</span>
         {subtitle !== "" && <span class="subtitle">{subtitle}</span>}
       </span>
+      {/* Always shown: the row's shortcut is how it is copied without opening the panel. */}
+      <span class="shortcut">{entry.shortcut === undefined ? "" : formatShortcut(entry.shortcut, isMac)}</span>
       <span class="code-area">
         {copied ? (
           <span class="copied">{text.copied} ✓</span>
@@ -262,7 +264,6 @@ function Row({ entry, index, selected, copied, coreNow, text, isMac, onCopy, onH
             )}
           </>
         )}
-        {entry.shortcut !== undefined && <span class="shortcut">{formatShortcut(entry.shortcut, isMac)}</span>}
       </span>
       {remainingS !== undefined && entry.periodS !== undefined && (
         <Ring remaining={remainingS} period={entry.periodS} ending={ending} label={text.seconds(remainingS)} />
