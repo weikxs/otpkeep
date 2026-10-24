@@ -66,7 +66,7 @@ describe("settings", () => {
     show();
     const dialog = await openSettings();
 
-    expect(await dialog.findByText("OTPKeep 0.0.1 · 完全在本机工作，不联网")).toBeTruthy();
+    expect(await dialog.findByText("OTPKeep 0.1.0 · 完全在本机工作，不联网")).toBeTruthy();
   });
 
   it("explains a refused value", async () => {

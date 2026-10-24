@@ -80,7 +80,7 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
     panelOpacity: 90,
     searchShortcut: "control+alt+super+Space",
     searchShortcutDefault: "control+alt+super+Space",
-    version: "0.0.1",
+    version: "0.1.0",
   };
   let tokens = 0;
   let typing: "ready" | "needsPermission" | "unsupported" = "needsPermission";

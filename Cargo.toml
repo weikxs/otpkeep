@@ -4,7 +4,7 @@ members = ["crates/*", "apps/cli", "apps/desktop-mobile/src-tauri"]
 default-members = ["crates/*", "apps/cli", "apps/desktop-mobile/src-tauri"]
 
 [workspace.package]
-version = "0.0.1"
+version = "0.1.0"
 edition = "2024"
 rust-version = "1.95"
 repository = "https://github.com/weikxs/otpkeep"
