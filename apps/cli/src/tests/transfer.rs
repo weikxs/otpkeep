@@ -32,6 +32,7 @@ fn on_terminal(
         now_ms: || super::NOW_MS,
         prompt: answers,
         new_kdf: quick_kdf,
+        network: crate::lan::Network::Loopback(crate::lan::WindowDirectory::default()),
         lock_wait: WAIT,
     };
     let code = run(&args, &mut context, &mut out, &mut err);

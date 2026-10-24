@@ -10,7 +10,7 @@ COVER_MIN := 80
 # The app crate is the Tauri shell; its logic lives in the core crates.
 COVER_EXCLUDE := --exclude otpkeep-app
 
-.PHONY: all build ui ui-install test test-rust test-ui cover fmt fmt-check clippy deny audit privacy sim \
+.PHONY: all build ui ui-install test test-rust test-ui cover fmt fmt-check clippy deny audit privacy sim lan-smoke \
         check perf fuzz e2e hooks app clean
 
 all: check
@@ -69,6 +69,12 @@ perf: $(TEST_TMP)
 SIM_SEEDS ?= 10000
 sim: $(TEST_TMP)
 	OTPKEEP_SIM_SEEDS=$(SIM_SEEDS) cargo test --release -p keep-sync --test simulation
+
+# Pairs and syncs two command-line processes on this machine over the real local network (needs a usable
+# Wi-Fi or Ethernet connection; uses temporary data and a master password, never the keychain or real vault).
+lan-smoke: $(TEST_TMP)
+	cargo build -p otpkeep-cli
+	scripts/lan-smoke.py target/debug/otpkeep
 
 # Fuzz every parser of outside data (needs nightly Rust and cargo-fuzz). FUZZ_SECONDS per target.
 FUZZ_SECONDS ?= 60

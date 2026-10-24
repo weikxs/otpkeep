@@ -17,6 +17,7 @@ mod export;
 mod files;
 mod import;
 mod init;
+pub mod lan;
 mod open;
 mod sources;
 
@@ -42,6 +43,8 @@ pub const EXIT_READ_ONLY: u8 = 8;
 pub const EXIT_CANCELLED: u8 = 9;
 /// The input is not valid for this entry or command.
 pub const EXIT_INVALID_INPUT: u8 = 10;
+/// A pairing or sync did not complete; the JSON error code says why.
+pub const EXIT_NOT_SYNCED: u8 = 11;
 /// The command line could not be understood.
 pub const EXIT_USAGE: u8 = 64;
 
@@ -75,6 +78,19 @@ Commands:
                    --plaintext                 required for every format except backup: the file is unencrypted
                    --yes                       do not ask before writing an unencrypted file
                    --backup-password-file <f>  read the backup password from the first line of <f>
+  sync wait      Open a sync window: show a code, then allow the member that enters it
+                   --minutes <1-5>  how long to wait (default 2)
+  sync join      Find this group's waiting device and sync with it, entering the code it shows
+                   --to <name|fingerprint>  which device, when several wait
+  pair open      Add a device to this device's sync group (starting a group if there is none)
+                   --minutes <1-5>, --name <name of this device>, --qr  also print the invite and its QR code
+  pair join      Join a sync group: find the waiting device and enter its pairing code
+                   --invite <text>  use an invite instead of searching; --to <name|fingerprint>
+                   --name <name of this device>; --replace  drop this device's entries (backed up first)
+  devices        List the devices of the sync group
+  devices remove <fingerprint>   Remove a device from the sync group for good
+  group leave    Leave the sync group, keeping the entries
+  rename <name>  Rename this device in the sync group
   version        Print the version
   help           Print this help
 
@@ -96,6 +112,8 @@ pub enum Prompt {
     NewBackupPassword,
     /// A yes-or-no question; "y" or "yes" is yes.
     Confirm(String),
+    /// A line of visible text, such as a code shown on another device.
+    Text(String),
 }
 
 /// What the command line needs from its surroundings; tests pass their own.
@@ -116,6 +134,8 @@ pub struct Context<'a> {
     pub new_kdf: fn() -> Option<KdfParams>,
     /// How long to wait for the lock.
     pub lock_wait: Duration,
+    /// Where pairing and sync run.
+    pub network: lan::Network,
 }
 
 /// A failure, with its exit code, a stable code for `--json`, and candidates when several entries matched.
@@ -210,8 +230,43 @@ pub fn run(
             options,
             export::export(context, format, &out, &transfer, options),
         ),
+        Command::Lan { action, options } => (options, run_lan(context, action, options, out)),
     };
     report(options, result, out, err)
+}
+
+fn run_lan(
+    context: &mut Context<'_>,
+    action: args::LanAction,
+    options: Options,
+    out: &mut impl Write,
+) -> Result<commands::Printed, CliError> {
+    use args::LanAction as A;
+    match action {
+        A::SyncWait { minutes } => lan::sync_wait(context, minutes, options, out),
+        A::SyncJoin { to } => lan::sync_join(context, to.as_deref(), options, out),
+        A::PairOpen { minutes, name, qr } => {
+            lan::pair_open(context, minutes, name.as_deref(), qr, options, out)
+        }
+        A::PairJoin {
+            invite,
+            to,
+            name,
+            replace,
+        } => lan::pair_join(
+            context,
+            invite.as_deref(),
+            to.as_deref(),
+            name.as_deref(),
+            replace,
+            options,
+            out,
+        ),
+        A::Devices => lan::devices(context, options),
+        A::RemoveDevice { fingerprint } => lan::remove_device(context, &fingerprint, options),
+        A::Leave => lan::leave(context, options),
+        A::Rename { name } => lan::rename(context, &name, options),
+    }
 }
 
 fn report(

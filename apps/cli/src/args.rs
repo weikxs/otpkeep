@@ -31,6 +31,40 @@ pub(crate) enum Command {
         transfer: Transfer,
         options: Options,
     },
+    Lan {
+        action: LanAction,
+        options: Options,
+    },
+}
+
+/// Pairing, sync and device commands.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum LanAction {
+    SyncWait {
+        minutes: Option<u64>,
+    },
+    SyncJoin {
+        to: Option<String>,
+    },
+    PairOpen {
+        minutes: Option<u64>,
+        name: Option<String>,
+        qr: bool,
+    },
+    PairJoin {
+        invite: Option<String>,
+        to: Option<String>,
+        name: Option<String>,
+        replace: bool,
+    },
+    Devices,
+    RemoveDevice {
+        fingerprint: String,
+    },
+    Leave,
+    Rename {
+        name: String,
+    },
 }
 
 /// What `export` writes.
@@ -99,6 +133,7 @@ pub(crate) fn parse(args: &[String]) -> Result<Command, UsageError> {
         "init" => parse_init(rest),
         "import" => parse_import(rest),
         "export" => parse_export(rest),
+        "sync" | "pair" | "devices" | "group" | "rename" => parse_lan(command, rest),
         other => Err(UsageError(format!("unknown command '{other}'"))),
     }
 }
@@ -243,6 +278,135 @@ fn parse_transfer(rest: &[String], valued: &[&str]) -> Result<TransferArgs, Usag
         }
     }
     Ok(parsed)
+}
+
+/// Flags of the LAN commands: words, flags with values, and plain switches.
+struct LanArgs {
+    words: Vec<String>,
+    values: Vec<(String, String)>,
+    switches: Vec<String>,
+    options: Options,
+}
+
+impl LanArgs {
+    fn value(&self, name: &str) -> Option<String> {
+        self.values
+            .iter()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.clone())
+    }
+
+    fn switch(&self, name: &str) -> bool {
+        self.switches.iter().any(|s| s == name)
+    }
+}
+
+fn parse_lan_flags(
+    rest: &[String],
+    valued: &[&str],
+    switches: &[&str],
+) -> Result<LanArgs, UsageError> {
+    let mut parsed = LanArgs {
+        words: Vec::new(),
+        values: Vec::new(),
+        switches: Vec::new(),
+        options: Options::default(),
+    };
+    let mut args = rest.iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            flag if valued.contains(&flag) => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| UsageError(format!("'{flag}' needs a value")))?;
+                parsed.values.push((flag.to_owned(), value.clone()));
+            }
+            flag if switches.contains(&flag) => parsed.switches.push(flag.to_owned()),
+            flag if flag.starts_with("--") => apply(&mut parsed.options, flag)?,
+            word => parsed.words.push(word.to_owned()),
+        }
+    }
+    Ok(parsed)
+}
+
+fn minutes(parsed: &LanArgs) -> Result<Option<u64>, UsageError> {
+    parsed
+        .value("--minutes")
+        .map(|m| match m.parse::<u64>() {
+            Ok(n) if (1..=5).contains(&n) => Ok(n),
+            _ => Err(UsageError("'--minutes' must be 1 to 5".to_owned())),
+        })
+        .transpose()
+}
+
+fn parse_lan(command: &str, rest: &[String]) -> Result<Command, UsageError> {
+    let (sub, rest) = match command {
+        "devices" | "rename" => ("", rest),
+        _ => match rest.split_first() {
+            Some((sub, rest)) => (sub.as_str(), rest),
+            None => {
+                return Err(UsageError(format!(
+                    "'{command}' needs a subcommand; see 'otpkeep help'"
+                )));
+            }
+        },
+    };
+    let parsed = parse_lan_flags(
+        rest,
+        &["--minutes", "--to", "--name", "--invite"],
+        &["--qr", "--replace"],
+    )?;
+    let action = match (command, sub) {
+        ("sync", "wait") => LanAction::SyncWait {
+            minutes: minutes(&parsed)?,
+        },
+        ("sync", "join") => LanAction::SyncJoin {
+            to: parsed.value("--to"),
+        },
+        ("pair", "open") => LanAction::PairOpen {
+            minutes: minutes(&parsed)?,
+            name: parsed.value("--name"),
+            qr: parsed.switch("--qr"),
+        },
+        ("pair", "join") => LanAction::PairJoin {
+            invite: parsed.value("--invite"),
+            to: parsed.value("--to"),
+            name: parsed.value("--name"),
+            replace: parsed.switch("--replace"),
+        },
+        ("devices", "") => match parsed.words.as_slice() {
+            [] => LanAction::Devices,
+            [verb, fingerprint] if verb == "remove" => LanAction::RemoveDevice {
+                fingerprint: fingerprint.clone(),
+            },
+            _ => {
+                return Err(UsageError(
+                    "use 'otpkeep devices' or 'otpkeep devices remove <fingerprint>'".to_owned(),
+                ));
+            }
+        },
+        ("group", "leave") => LanAction::Leave,
+        ("rename", "") => match parsed.words.as_slice() {
+            [name] => LanAction::Rename { name: name.clone() },
+            _ => {
+                return Err(UsageError(
+                    "'rename' needs one name, quoted if it has spaces".to_owned(),
+                ));
+            }
+        },
+        _ => return Err(UsageError(format!("unknown command '{command} {sub}'"))),
+    };
+    let takes_words = matches!(
+        action,
+        LanAction::RemoveDevice { .. } | LanAction::Rename { .. }
+    );
+    if !takes_words && let Some(word) = parsed.words.first() {
+        return Err(UsageError(format!("unexpected argument '{word}'")));
+    }
+    Ok(Command::Lan {
+        action,
+        options: parsed.options,
+    })
 }
 
 fn apply(options: &mut Options, flag: &str) -> Result<(), UsageError> {

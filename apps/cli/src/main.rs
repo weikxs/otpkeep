@@ -29,7 +29,8 @@ fn ask(prompt: Prompt) -> Option<String> {
         Prompt::BackupPassword => rpassword::prompt_password("Backup password: ").ok(),
         Prompt::NewMasterPassword => new_password("New master password: "),
         Prompt::NewBackupPassword => new_password("New backup password: "),
-        Prompt::Confirm(question) => answer(&question),
+        Prompt::Confirm(question) => answer(&format!("{question} [y/N] ")),
+        Prompt::Text(question) => answer(&format!("{question} ")),
     }
 }
 
@@ -45,7 +46,7 @@ fn new_password(label: &str) -> Option<String> {
 
 /// Reads a line from the terminal itself, since standard input may be in use.
 fn answer(question: &str) -> Option<String> {
-    let _ = write!(stderr(), "{question} [y/N] ");
+    let _ = write!(stderr(), "{question}");
     let _ = stderr().flush();
     #[cfg(unix)]
     {
@@ -81,6 +82,7 @@ fn main() -> ExitCode {
         now_ms,
         prompt: &ask,
         new_kdf,
+        network: otpkeep_cli::lan::Network::System,
         lock_wait: LOCK_WAIT,
     };
     ExitCode::from(run(

@@ -107,6 +107,7 @@ fn cli(dir: Option<&Path>, keystore: &MemoryKeystore, args: &[&str], stdin: &str
         now_ms: || NOW_MS,
         prompt: &|_| None,
         new_kdf: quick_kdf,
+        network: crate::lan::Network::Loopback(crate::lan::WindowDirectory::default()),
         lock_wait: WAIT,
     };
     let code = run(&args, &mut context, &mut out, &mut err);
@@ -444,6 +445,7 @@ fn a_terminal_prompts_for_the_master_password() {
         now_ms: || NOW_MS,
         prompt: &|_| Some("typed".to_owned()),
         new_kdf: quick_kdf,
+        network: crate::lan::Network::Loopback(crate::lan::WindowDirectory::default()),
         lock_wait: WAIT,
     };
 
@@ -454,3 +456,5 @@ fn a_terminal_prompts_for_the_master_password() {
 }
 
 mod transfer;
+
+mod lan;
