@@ -117,3 +117,39 @@ pub(crate) fn member_doc(n: u8, events: &[keep_vault::MemberEvent]) -> VaultDoc 
     }
     doc
 }
+
+/// A Noise channel between device 1 (opener) and device 2 (joiner), over an in-memory pipe.
+pub(crate) async fn channel_pair() -> (
+    crate::channel::noise::Channel<tokio::io::DuplexStream>,
+    crate::channel::noise::Channel<tokio::io::DuplexStream>,
+) {
+    use crate::channel::hello::Hello;
+    use crate::channel::noise::{Purpose, accept_noise, connect_noise};
+    let (a, b) = tokio::io::duplex(1 << 16);
+    let (opener, joiner) = (identity(1), identity(2));
+    let hello = |d: &crate::identity::DeviceIdentity| Hello {
+        device: d.device_id(),
+        dx_cert: Some(d.dx_cert()),
+        platform: keep_vault::Platform::Linux,
+        lan_name: "Test".to_owned(),
+        versions: vec![crate::channel::PROTOCOL_VERSION],
+    };
+    let (opener_hello, joiner_hello) = (hello(&opener), hello(&joiner));
+    let (open, join) = tokio::join!(
+        accept_noise(
+            a,
+            Purpose::Sync,
+            &[1; 16],
+            opener.exchange_secret(),
+            &opener_hello
+        ),
+        connect_noise(
+            b,
+            Purpose::Sync,
+            &[1; 16],
+            joiner.exchange_secret(),
+            &joiner_hello
+        )
+    );
+    (open.unwrap().0, join.unwrap().0)
+}

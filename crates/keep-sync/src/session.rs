@@ -138,7 +138,7 @@ fn check_members(
 }
 
 /// A timestamp later than anything in `doc`, from the opener.
-fn next_stamp(doc: &VaultDoc, now_ms: u64) -> Hlc {
+pub(crate) fn next_stamp(doc: &VaultDoc, now_ms: u64) -> Hlc {
     let wall_ms = now_ms.max(doc.clock.wall_ms);
     let logical = if wall_ms == doc.clock.wall_ms {
         doc.clock.logical.saturating_add(1)
@@ -152,7 +152,7 @@ fn next_stamp(doc: &VaultDoc, now_ms: u64) -> Hlc {
     }
 }
 
-fn with_presence(mut doc: VaultDoc, devices: &[DeviceId], stamp: Hlc) -> VaultDoc {
+pub(crate) fn with_presence(mut doc: VaultDoc, devices: &[DeviceId], stamp: Hlc) -> VaultDoc {
     if let Some(group) = doc.group.as_mut() {
         for device in devices {
             let seen = group.presence.entry(*device).or_insert(stamp);
@@ -164,7 +164,10 @@ fn with_presence(mut doc: VaultDoc, devices: &[DeviceId], stamp: Hlc) -> VaultDo
 }
 
 /// Names and notes in `before` that `after` replaced.
-fn overwritten(before: &VaultDoc, after: &VaultDoc) -> Vec<(EntryId, HistoryField, String)> {
+pub(crate) fn overwritten(
+    before: &VaultDoc,
+    after: &VaultDoc,
+) -> Vec<(EntryId, HistoryField, String)> {
     let mut changes = Vec::new();
     for old in &before.entries {
         let Some(new) = after.entries.iter().find(|e| e.id == old.id) else {
@@ -179,6 +182,9 @@ fn overwritten(before: &VaultDoc, after: &VaultDoc) -> Vec<(EntryId, HistoryFiel
     }
     changes
 }
+
+pub mod data;
+pub mod exchange;
 
 #[cfg(test)]
 mod tests;
