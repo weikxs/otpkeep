@@ -20,7 +20,7 @@ importers:
         version: 1.64.1
       '@preact/preset-vite':
         specifier: ^2.10.6
-        version: 2.10.6(@babel/core@7.29.7)(preact@10.29.8)(vite@8.3.5(@types/node@22.20.5))
+        version: 2.10.6(@babel/core@7.29.7)(preact@10.29.8)(vite@8.3.5(@types/node@26.6.5))
       '@tauri-apps/cli':
         specifier: ^2.12.4
         version: 2.12.4
@@ -28,8 +28,8 @@ importers:
         specifier: ^3.2.6
         version: 3.2.6(preact@10.29.8)
       '@types/node':
-        specifier: ^22
-        version: 22.20.5
+        specifier: ^26
+        version: 26.6.5
       happy-dom:
         specifier: ^21.0.4
         version: 21.0.4
@@ -38,10 +38,10 @@ importers:
         version: 6.0.3
       vite:
         specifier: ^8.3.5
-        version: 8.3.5(@types/node@22.20.5)
+        version: 8.3.5(@types/node@26.6.5)
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@types/node@22.20.5)(happy-dom@21.0.4)(vite@8.3.5(@types/node@22.20.5))
+        version: 5.0.5(@types/node@26.6.5)(happy-dom@21.0.4)(vite@8.3.5(@types/node@26.6.5))
 
 packages:
 
@@ -404,8 +404,8 @@ packages:
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
 
-  '@types/node@22.20.5':
-    resolution: {integrity: sha512-U2+DNr+wSjpsTS/wZGYHq7GcwfuSmKiKvoPvK22zwTlRhU91yOniN4qRR5KhIjvif7ysw/dz/hKmfDH0Ris4aA==}
+  '@types/node@26.6.5':
+    resolution: {integrity: sha512-uMzsv9stDdofIZBx4UGh4Z9ZgXnGC9seRDscilBcTHAeOFk67MZg/k9bWVfO+bk4qZmG+l52hRnLwUiH2LnJTg==}
 
   '@types/whatwg-mimetype@3.0.2':
     resolution: {integrity: sha512-c2AKvDT8ToxLIOUlN51gTiHXflsfIFisS4pO7pDPoKouJCESkhZnEy623gwP9laCy5lnLDAw1vAzu2vM2YLOrA==}
@@ -777,8 +777,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  undici-types@6.21.0:
-    resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+  undici-types@8.9.0:
+    resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
 
   update-browserslist-db@1.3.4:
     resolution: {integrity: sha512-t8wonIOdQyOjtPd2VktlBu6QjTVTks6v8bSi7kd0r2Vll8TK1JYDZtRRdbmCHOAMphkZgrzK+L+vXK4pyZ8t4A==}
@@ -1060,19 +1060,19 @@ snapshots:
     dependencies:
       playwright: 1.64.1
 
-  '@preact/preset-vite@2.10.6(@babel/core@7.29.7)(preact@10.29.8)(vite@8.3.5(@types/node@22.20.5))':
+  '@preact/preset-vite@2.10.6(@babel/core@7.29.7)(preact@10.29.8)(vite@8.3.5(@types/node@26.6.5))':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/plugin-transform-react-jsx': 7.29.7(@babel/core@7.29.7)
       '@babel/plugin-transform-react-jsx-development': 7.29.7(@babel/core@7.29.7)
-      '@prefresh/vite': 2.4.12(preact@10.29.8)(vite@8.3.5(@types/node@22.20.5))
+      '@prefresh/vite': 2.4.12(preact@10.29.8)(vite@8.3.5(@types/node@26.6.5))
       '@rollup/pluginutils': 5.5.1
       babel-plugin-transform-hook-names: 1.0.2(@babel/core@7.29.7)
       debug: 4.4.3
       magic-string: 0.30.21
       picocolors: 1.1.1
-      vite: 8.3.5(@types/node@22.20.5)
-      vite-prerender-plugin: 0.5.14(vite@8.3.5(@types/node@22.20.5))
+      vite: 8.3.5(@types/node@26.6.5)
+      vite-prerender-plugin: 0.5.14(vite@8.3.5(@types/node@26.6.5))
       zimmerframe: 1.1.5
     transitivePeerDependencies:
       - preact
@@ -1089,7 +1089,7 @@ snapshots:
 
   '@prefresh/utils@1.2.1': {}
 
-  '@prefresh/vite@2.4.12(preact@10.29.8)(vite@8.3.5(@types/node@22.20.5))':
+  '@prefresh/vite@2.4.12(preact@10.29.8)(vite@8.3.5(@types/node@26.6.5))':
     dependencies:
       '@babel/core': 7.29.7
       '@prefresh/babel-plugin': 0.5.4(@babel/core@7.29.7)
@@ -1097,7 +1097,7 @@ snapshots:
       '@prefresh/utils': 1.2.1
       '@rollup/pluginutils': 4.2.1
       preact: 10.29.8
-      vite: 8.3.5(@types/node@22.20.5)
+      vite: 8.3.5(@types/node@26.6.5)
     transitivePeerDependencies:
       - supports-color
 
@@ -1235,24 +1235,24 @@ snapshots:
 
   '@types/estree@1.0.9': {}
 
-  '@types/node@22.20.5':
+  '@types/node@26.6.5':
     dependencies:
-      undici-types: 6.21.0
+      undici-types: 8.9.0
 
   '@types/whatwg-mimetype@3.0.2': {}
 
   '@types/ws@8.18.2':
     dependencies:
-      '@types/node': 22.20.5
+      '@types/node': 26.6.5
 
-  '@vitest/mocker@5.0.5(vite@8.3.5(@types/node@22.20.5))':
+  '@vitest/mocker@5.0.5(vite@8.3.5(@types/node@26.6.5))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.0.5
       estree-walker: 3.0.3
       magic-string: 1.4.3
     optionalDependencies:
-      vite: 8.3.5(@types/node@22.20.5)
+      vite: 8.3.5(@types/node@26.6.5)
 
   '@vitest/spy@5.0.5': {}
 
@@ -1284,7 +1284,7 @@ snapshots:
 
   buffer-image-size@0.6.4:
     dependencies:
-      '@types/node': 22.20.5
+      '@types/node': 26.6.5
 
   caniuse-lite@1.0.30001819: {}
 
@@ -1359,7 +1359,7 @@ snapshots:
 
   happy-dom@21.0.4:
     dependencies:
-      '@types/node': 22.20.5
+      '@types/node': 26.6.5
       '@types/whatwg-mimetype': 3.0.2
       '@types/ws': 8.18.2
       buffer-image-size: 0.6.4
@@ -1534,7 +1534,7 @@ snapshots:
 
   typescript@6.0.3: {}
 
-  undici-types@6.21.0: {}
+  undici-types@8.9.0: {}
 
   update-browserslist-db@1.3.4(browserslist@4.29.4):
     dependencies:
@@ -1542,7 +1542,7 @@ snapshots:
       escalade: 3.2.0
       picocolors: 1.1.1
 
-  vite-prerender-plugin@0.5.14(vite@8.3.5(@types/node@22.20.5)):
+  vite-prerender-plugin@0.5.14(vite@8.3.5(@types/node@26.6.5)):
     dependencies:
       kolorist: 1.8.0
       magic-string: 0.30.21
@@ -1550,9 +1550,9 @@ snapshots:
       simple-code-frame: 1.3.0
       source-map: 0.7.6
       stack-trace: 1.0.0
-      vite: 8.3.5(@types/node@22.20.5)
+      vite: 8.3.5(@types/node@26.6.5)
 
-  vite@8.3.5(@types/node@22.20.5):
+  vite@8.3.5(@types/node@26.6.5):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
@@ -1560,13 +1560,13 @@ snapshots:
       rolldown: 1.2.15
       tinyglobby: 0.2.17
     optionalDependencies:
-      '@types/node': 22.20.5
+      '@types/node': 26.6.5
       fsevents: 2.3.3
 
-  vitest@5.0.5(@types/node@22.20.5)(happy-dom@21.0.4)(vite@8.3.5(@types/node@22.20.5)):
+  vitest@5.0.5(@types/node@26.6.5)(happy-dom@21.0.4)(vite@8.3.5(@types/node@26.6.5)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.5(vite@8.3.5(@types/node@22.20.5))
+      '@vitest/mocker': 5.0.5(vite@8.3.5(@types/node@26.6.5))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
@@ -1577,10 +1577,10 @@ snapshots:
       tinybench: 6.2.2
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
-      vite: 8.3.5(@types/node@22.20.5)
+      vite: 8.3.5(@types/node@26.6.5)
       why-is-node-running: 3.2.1
     optionalDependencies:
-      '@types/node': 22.20.5
+      '@types/node': 26.6.5
       happy-dom: 21.0.4
     transitivePeerDependencies:
       - msw
