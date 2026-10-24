@@ -10,7 +10,7 @@
 use tauri::{AppHandle, Emitter, State};
 
 use crate::commands::{AppCore, CommandError};
-use crate::core::{CoreError, History, MoveTo, TrashItem};
+use crate::core::{BatchAction, CoreError, History, MoveTo, TrashItem};
 
 type Result<T> = std::result::Result<T, CommandError>;
 
@@ -63,4 +63,17 @@ pub fn trash_list(vault: State<'_, AppCore>) -> Result<Vec<TrashItem>> {
 #[tauri::command]
 pub fn entry_history(id: &str, vault: State<'_, AppCore>) -> Result<History> {
     Ok(vault.get().history(id)?)
+}
+
+/// Applies one action to several entries at once; returns how many changed.
+#[tauri::command]
+pub fn batch_entries(
+    ids: Vec<String>,
+    action: BatchAction,
+    vault: State<'_, AppCore>,
+    app: AppHandle,
+) -> Result<usize> {
+    let changed = vault.get().batch(&ids, &action)?;
+    let _ = app.emit("vault-changed", ());
+    Ok(changed)
 }

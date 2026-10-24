@@ -31,11 +31,13 @@ export interface EntryRowProps {
   loadHistory: () => Promise<History>;
   /** Another row was dropped on this one. */
   onDropRow: (moved: string, place: "before" | "after") => void;
+  /** In selection mode: whether the row is chosen; a click chooses instead of copying. */
+  selection?: { chosen: boolean; onToggle: () => void } | undefined;
 }
 
 /** One account in the main window: click to copy; names and the note are edited in place. */
 export function EntryRow(props: EntryRowProps) {
-  const { entry, coreNow, copied, text, isMac, sortable, onCopy, onDropRow } = props;
+  const { entry, coreNow, copied, text, isMac, sortable, onCopy, onDropRow, selection } = props;
   const [editing, setEditing] = useState(false);
   const [dropAt, setDropAt] = useState<"before" | "after" | null>(null);
   const subtitle = [entry.issuer, entry.account].filter((s) => s !== "" && s !== entry.title).join(" · ");
@@ -88,12 +90,26 @@ export function EntryRow(props: EntryRowProps) {
         if (moved !== entry.id) onDropRow(moved, place);
       }}
     >
-      {sortable && (
+      {selection && (
+        <input
+          type="checkbox"
+          class="row-check"
+          checked={selection.chosen}
+          aria-label={entry.title}
+          onChange={selection.onToggle}
+        />
+      )}
+      {sortable && !selection && (
         <span class="drag-handle" title={text.dragHint} aria-hidden="true">
           ⋮⋮
         </span>
       )}
-      <button type="button" class="entry-main" onClick={() => onCopy(entry)} aria-label={`${entry.title} ${text.copied}`}>
+      <button
+        type="button"
+        class="entry-main"
+        onClick={() => (selection ? selection.onToggle() : onCopy(entry))}
+        aria-label={`${entry.title} ${text.copied}`}
+      >
         <span class={`tile tile-${tileColor(entry.issuer || entry.title)}`} aria-hidden="true">
           {monogram(entry.issuer, entry.title)}
         </span>
@@ -144,7 +160,7 @@ export function EntryRow(props: EntryRowProps) {
           <span class="ring-space" />
         )}
       </button>
-      <span class="entry-actions">
+      <span class={`entry-actions${selection ? " hidden" : ""}`}>
         {entry.shortcut !== undefined && <kbd class="keys">{formatShortcut(entry.shortcut, isMac)}</kbd>}
         <button type="button" class="link-button" onClick={() => setEditing(true)}>
           {text.edit}

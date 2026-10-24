@@ -3,6 +3,7 @@ import { type AddTab, AddDialog } from "./AddDialog";
 import { CommandFailure, type Entry, type MainApi, type MainState } from "./api";
 import type { EntryChange } from "./EntryEditor";
 import { ENTRY_DRAG_TYPE, EntryRow } from "./EntryRow";
+import { BatchBar } from "./BatchBar";
 import { TrashDialog } from "./TrashDialog";
 import { type MainStrings, describe } from "./i18n";
 
@@ -32,6 +33,8 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
   const [tag, setTag] = useState<string | null>(null);
   const [trashOpen, setTrashOpen] = useState(false);
   const [trashCount, setTrashCount] = useState(0);
+  const [selecting, setSelecting] = useState(false);
+  const [chosen, setChosen] = useState<string[]>([]);
 
   const load = useCallback(
     async (q: string) => {
@@ -135,7 +138,10 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
   const empty = state.entries.length === 0 && query === "" && trashCount === 0;
   const allTags = [...new Set(state.entries.flatMap((e) => e.tags))].sort((a, b) => a.localeCompare(b));
   const shown = tag === null ? state.entries : state.entries.filter((e) => e.tags.includes(tag));
-  const sortable = query === "" && tag === null;
+  const sortable = query === "" && tag === null && !selecting;
+  const toggle = (id: string) =>
+    setChosen((current) => (current.includes(id) ? current.filter((c) => c !== id) : [...current, id]));
+  const chosenTags = [...new Set(shown.filter((e) => chosen.includes(e.id)).flatMap((e) => e.tags))].sort();
   const grouped = sortable && shown.some((e) => e.pinned);
   return (
     <div
@@ -180,6 +186,11 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
         <main class="list">
           <div class="list-head">
             <span class="muted">{text.count(shown.length)}</span>
+            {!selecting && shown.length > 0 && (
+              <button type="button" class="link-button" onClick={() => setSelecting(true)}>
+                {text.select}
+              </button>
+            )}
             {allTags.length > 0 && (
               <span class="tag-filter" role="group" aria-label={text.tags}>
                 {[null, ...allTags].map((t) => (
@@ -228,6 +239,7 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
                   onTrash={() => after(api.trash(entry.id), text.trashed)}
                   loadHistory={() => api.history(entry.id)}
                   onDropRow={(moved, place) => void after(api.move(moved, { to: place, other: entry.id }))}
+                  selection={selecting ? { chosen: chosen.includes(entry.id), onToggle: () => toggle(entry.id) } : undefined}
                 />
               );
               return heading === null
@@ -241,6 +253,25 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
             })}
           </ul>
         </main>
+      )}
+      {selecting && (
+        <BatchBar
+          count={chosen.length}
+          tags={chosenTags}
+          text={text}
+          onSelectAll={() => setChosen(shown.map((e) => e.id))}
+          onSelectNone={() => setChosen([])}
+          onApply={async (action) => {
+            const changed = await api.batch(chosen, action);
+            setToast(action.action === "trash" ? text.batchTrashed(changed) : text.batchDone(changed));
+            if (action.action === "trash") setChosen([]);
+            await load(query);
+          }}
+          onDone={() => {
+            setSelecting(false);
+            setChosen([]);
+          }}
+        />
       )}
       {dragging && <div class="drop-veil">{text.dropHere}</div>}
       {dialog && (

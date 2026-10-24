@@ -18,11 +18,13 @@ use zeroize::Zeroizing;
 
 use crate::staging::Staging;
 
+mod batch;
 mod import;
 mod import_view;
 mod key;
 mod manage;
 
+pub use batch::BatchAction;
 pub use import::{ImportProblem, ManualForm};
 pub use import_view::ImportView;
 pub use key::{KeyForm, KeyInfo};

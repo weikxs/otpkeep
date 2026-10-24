@@ -211,6 +211,26 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
           purgeAtMs: (a.trashedAt ?? 0) + TRASH_KEEP_MS,
         })),
     history: async (id) => history.get(id) ?? { title: [], note: [] },
+    batch: async (ids, action) => {
+      let changed = 0;
+      if (action.action !== "trash" && action.tag.trim() === "") throw new CommandFailure("INVALID", "TAG_EMPTY");
+      for (const id of ids) {
+        const a = accounts.find((x) => x.id === id);
+        if (!a) throw new CommandFailure("NOT_FOUND");
+        const tags = a.tags ?? [];
+        if (action.action === "trash") {
+          change(id, (x) => ({ ...x, trashedAt: clock() }));
+          changed += 1;
+        } else if (action.action === "addTag" && !tags.includes(action.tag.trim())) {
+          change(id, (x) => ({ ...x, tags: [...tags, action.tag.trim()] }));
+          changed += 1;
+        } else if (action.action === "removeTag" && tags.includes(action.tag)) {
+          change(id, (x) => ({ ...x, tags: tags.filter((t) => t !== action.tag) }));
+          changed += 1;
+        }
+      }
+      return changed;
+    },
     rename: async (id, names) => change(id, (a) => ({ ...a, ...names })),
     keyInfo: async (id) => {
       const a = accounts.find((x) => x.id === id);

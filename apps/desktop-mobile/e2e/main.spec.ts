@@ -96,3 +96,18 @@ test("the advanced part shows the shortcut and code settings", async ({ page }) 
   await expect(page.getByText(/按新设置，现在的验证码是/u)).toBeVisible();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/main-advanced.png`, fullPage: true });
 });
+
+test("several accounts are tagged at once", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 640 });
+  await page.goto("/index.html");
+
+  await page.getByText("选择", { exact: true }).click();
+  await page.getByRole("checkbox", { name: "GitHub" }).check();
+  await page.getByRole("checkbox", { name: "Steam" }).check();
+  await page.getByText("加标签").click();
+  await page.getByLabel("要添加的标签").fill("常用");
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/main-batch.png` });
+  await page.getByText("应用").click();
+
+  await expect(page.getByText("已修改 2 个账号")).toBeVisible();
+});

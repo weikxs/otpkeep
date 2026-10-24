@@ -92,6 +92,7 @@ fn builder() -> tauri::Builder<tauri::Wry> {
             manage_commands::purge_entry,
             manage_commands::trash_list,
             manage_commands::entry_history,
+            manage_commands::batch_entries,
             key_commands::key_info,
             key_commands::preview_key,
             key_commands::replace_key,

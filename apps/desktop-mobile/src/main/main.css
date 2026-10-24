@@ -841,3 +841,49 @@ textarea {
   color: var(--accent);
   font-size: 13px;
 }
+
+/* Batch selection */
+.row-check {
+  margin-left: 14px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.entry-actions.hidden {
+  visibility: hidden;
+}
+
+.batch-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--line);
+  background: var(--card);
+  box-shadow: 0 -6px 18px rgb(0 0 0 / 8%);
+}
+
+.batch-count {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.batch-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.batch-inline input,
+.batch-inline select {
+  height: 28px;
+  padding: 0 8px !important;
+}
+
+.batch-error {
+  flex-basis: 100%;
+}

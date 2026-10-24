@@ -114,6 +114,8 @@ export interface KeyForm {
   counter: number;
 }
 
+export type BatchAction = { action: "trash" } | { action: "addTag"; tag: string } | { action: "removeTag"; tag: string };
+
 export interface MainApi {
   state(query: string): Promise<MainState>;
   copy(id: string): Promise<CopyResult>;
@@ -128,6 +130,8 @@ export interface MainApi {
   purge(id: string): Promise<void>;
   trashList(): Promise<TrashItem[]>;
   history(id: string): Promise<History>;
+  /** Applies one action to several entries, all or nothing; returns how many changed. */
+  batch(ids: string[], action: BatchAction): Promise<number>;
   rename(id: string, change: { issuer?: string; account?: string }): Promise<void>;
   keyInfo(id: string): Promise<KeyInfo>;
   previewKey(id: string, form: KeyForm): Promise<string | null>;
@@ -185,6 +189,7 @@ export async function tauriMainApi(): Promise<MainApi> {
     purge: (id) => call("purge_entry", { id }),
     trashList: () => call("trash_list"),
     history: (id) => call("entry_history", { id }),
+    batch: (ids, action) => call("batch_entries", { ids, action }),
     rename: (id, change) => call("rename_entry", { id, issuer: change.issuer ?? null, account: change.account ?? null }),
     keyInfo: (id) => call("key_info", { id }),
     previewKey: (id, form) => call("preview_key", { id, form }),
