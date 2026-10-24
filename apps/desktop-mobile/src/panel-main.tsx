@@ -4,6 +4,8 @@ import { demoApi } from "./panel/demo";
 import { strings } from "./panel/i18n";
 import { Panel } from "./panel/Panel";
 import "./shared/tokens.css";
+import "./shared/tiles.css";
+import "./shared/ring.css";
 import "./panel/panel.css";
 
 const root = document.getElementById("panel");

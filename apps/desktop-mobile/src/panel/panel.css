@@ -134,26 +134,6 @@ button {
   background: var(--hover);
 }
 
-.tile {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  color: var(--tile-text);
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.tile-0 { background: var(--tile-0); }
-.tile-1 { background: var(--tile-1); }
-.tile-2 { background: var(--tile-2); }
-.tile-3 { background: var(--tile-3); }
-.tile-4 { background: var(--tile-4); }
-.tile-5 { background: var(--tile-5); }
-.tile-6 { background: var(--tile-6); }
-.tile-7 { background: var(--tile-7); }
-
 .names {
   display: flex;
   flex-direction: column;
@@ -238,43 +218,6 @@ button {
 
 .entry:hover .shortcut {
   opacity: 1;
-}
-
-.ring {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-}
-
-.ring svg {
-  position: absolute;
-  inset: 0;
-}
-
-.ring-track,
-.ring-value {
-  fill: none;
-  stroke-width: 2;
-}
-
-.ring-track {
-  stroke: var(--line);
-}
-
-.ring-value {
-  stroke: var(--accent);
-  stroke-linecap: round;
-  transition: stroke-dasharray 240ms linear;
-}
-
-.ring.ending .ring-value {
-  stroke: var(--amber);
-}
-
-.ring-seconds {
-  font-size: 0;
 }
 
 /* Messages: empty, locked, unavailable */

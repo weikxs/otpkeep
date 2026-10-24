@@ -1,6 +1,7 @@
 import { Fragment } from "preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { PanelApi, PanelEntry, PanelState } from "./api";
+import { Ring } from "../shared/Ring";
 import { formatShortcut } from "../shared/shortcut";
 import { groupCode, monogram, tileColor } from "./format";
 import type { Strings } from "./i18n";
@@ -283,29 +284,6 @@ function Row({ entry, index, selected, copied, coreNow, text, isMac, onCopy, onH
         <Ring remaining={remainingS} period={entry.periodS} ending={ending} label={text.seconds(remainingS)} />
       )}
     </li>
-  );
-}
-
-const RING_RADIUS = 7;
-const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
-
-function Ring({ remaining, period, ending, label }: { remaining: number; period: number; ending: boolean; label: string }) {
-  const fraction = Math.min(1, remaining / period);
-  return (
-    <span class={`ring${ending ? " ending" : ""}`} title={label} aria-label={label}>
-      <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
-        <circle class="ring-track" cx="9" cy="9" r={RING_RADIUS} />
-        <circle
-          class="ring-value"
-          cx="9"
-          cy="9"
-          r={RING_RADIUS}
-          stroke-dasharray={`${RING_LENGTH * fraction} ${RING_LENGTH}`}
-          transform="rotate(-90 9 9)"
-        />
-      </svg>
-      <span class="ring-seconds">{remaining}</span>
-    </span>
   );
 }
 

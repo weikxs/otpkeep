@@ -357,3 +357,63 @@ fn editing_needs_the_password_first() {
         Err(CoreError::NeedsPassword)
     );
 }
+
+#[test]
+fn the_main_window_sees_every_entry_and_counter_codes_far_down_the_list() {
+    let dir = temp_dir();
+    let keystore = MemoryKeystore::new();
+    let open = create_vault(&VaultPaths::new(dir.path()), &keystore, WAIT).unwrap();
+    let mut service = VaultService::new(open, || STEADY_MS);
+    for byte in 0..25u8 {
+        service
+            .add(entry(
+                &format!("Demo {byte}"),
+                "Demo",
+                byte + 10,
+                CodeSpec::default(),
+            ))
+            .unwrap();
+    }
+    service
+        .add(entry("Late counter", "Bank", 99, hotp()))
+        .unwrap();
+    service
+        .add(entry("Steam", "Steam", 98, CodeSpec::steam(30).unwrap()))
+        .unwrap();
+    drop(service);
+    let mut app = Core::start(
+        Some(VaultPaths::new(dir.path())),
+        Box::new(keystore),
+        Arc::new(|| STEADY_MS),
+        WAIT,
+    );
+
+    let all = app.state_all("");
+    assert_eq!(all.entries.len(), 27);
+    let steam = all.entries.iter().find(|e| e.title == "Steam").unwrap();
+    assert_eq!(steam.kind, EntryKind::Steam);
+    assert_eq!(steam.code.as_ref().map(String::len), Some(5));
+    assert!(steam.valid_until_ms.is_some());
+
+    let late = all
+        .entries
+        .iter()
+        .find(|e| e.title == "Late counter")
+        .unwrap()
+        .id
+        .clone();
+    assert!(app.next_hotp(&late).unwrap().code.is_some());
+}
+
+#[test]
+fn rows_carry_the_note() {
+    let dir = temp_dir();
+    let mut app = keystore_core(dir.path(), STEADY_MS);
+    let id = app.list("cloud").unwrap().remove(0).id;
+    app.edit(&id, None, Some("备用码在抽屉里".to_owned()))
+        .unwrap();
+
+    let row = app.state("cloud").entries.remove(0);
+
+    assert_eq!(row.note, "备用码在抽屉里");
+}

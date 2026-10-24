@@ -41,6 +41,7 @@ pub struct PanelEntry {
     pub title: String,
     pub issuer: String,
     pub account: String,
+    pub note: String,
     pub kind: EntryKind,
     pub pinned: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -73,6 +74,8 @@ pub struct EntryInfo {
 pub enum EntryKind {
     Totp,
     Hotp,
+    /// Steam Guard: time-based, five characters.
+    Steam,
 }
 
 /// There is no app lock (ADR-019): a vault protected by a master password asks for it once per run.
@@ -226,12 +229,22 @@ impl Core {
     /// What the panel shows for `query`.
     #[must_use]
     pub fn state(&self, query: &str) -> PanelState {
+        self.state_limited(query, Some(PANEL_LIMIT))
+    }
+
+    /// Every entry matching `query` (all of them when empty), for the main window.
+    #[must_use]
+    pub fn state_all(&self, query: &str) -> PanelState {
+        self.state_limited(query, None)
+    }
+
+    fn state_limited(&self, query: &str, limit: Option<usize>) -> PanelState {
         let now_ms = (self.clock)();
         let (status, entries, problem, in_group, read_only) = match &self.vault {
             Vault::Fresh => (PanelStatus::Ready, Vec::new(), None, false, false),
             Vault::Open { service, read_only } => (
                 PanelStatus::Ready,
-                rows(service, query, now_ms),
+                rows(service, query, limit, now_ms),
                 None,
                 service.doc().group.is_some(),
                 *read_only,
@@ -283,7 +296,7 @@ impl Core {
         }
         let entry = find(service, id)?;
         service.next_hotp(entry)?;
-        rows(service, "", now_ms)
+        rows(service, "", None, now_ms)
             .into_iter()
             .find(|row| row.id == id)
             .ok_or(CoreError::NotFound)
@@ -380,8 +393,8 @@ fn select<'a>(service: &'a VaultService, query: &str, limit: Option<usize>) -> V
 }
 
 /// The panel's rows: at most [`PANEL_LIMIT`] without a search.
-fn rows(service: &VaultService, query: &str, now_ms: u64) -> Vec<PanelEntry> {
-    select(service, query, Some(PANEL_LIMIT))
+fn rows(service: &VaultService, query: &str, limit: Option<usize>, now_ms: u64) -> Vec<PanelEntry> {
+    select(service, query, limit)
         .into_iter()
         .map(|entry| row(service, entry, now_ms))
         .collect()
@@ -389,6 +402,7 @@ fn rows(service: &VaultService, query: &str, now_ms: u64) -> Vec<PanelEntry> {
 
 fn kind_of(entry: &Entry) -> EntryKind {
     match entry.key.value.spec.kind() {
+        CodeKind::TimeBased { .. } if entry.key.value.spec.is_steam() => EntryKind::Steam,
         CodeKind::TimeBased { .. } => EntryKind::Totp,
         CodeKind::CounterBased => EntryKind::Hotp,
     }
@@ -423,12 +437,13 @@ fn check_title_and_note(title: Option<&str>, note: Option<&str>) -> Result<(), C
 
 fn row(service: &VaultService, entry: &Entry, now_ms: u64) -> PanelEntry {
     let passcode: Option<Passcode> = service.passcode(entry.id).ok();
-    let (kind, period_s) = match entry.key.value.spec.kind() {
-        CodeKind::TimeBased { period_s } => (EntryKind::Totp, Some(period_s)),
-        CodeKind::CounterBased => (EntryKind::Hotp, None),
+    let kind = kind_of(entry);
+    let period_s = match entry.key.value.spec.kind() {
+        CodeKind::TimeBased { period_s } => Some(period_s),
+        CodeKind::CounterBased => None,
     };
-    let valid_until_ms = match (kind, period_s, &passcode) {
-        (EntryKind::Totp, Some(period), Some(_)) => {
+    let valid_until_ms = match (period_s, &passcode) {
+        (Some(period), Some(_)) => {
             let step_ms = u64::from(period) * MS_PER_S;
             Some((now_ms / step_ms + 1) * step_ms)
         }
@@ -439,6 +454,7 @@ fn row(service: &VaultService, entry: &Entry, now_ms: u64) -> PanelEntry {
         title: entry.title.value.clone(),
         issuer: entry.issuer.value.clone(),
         account: entry.account.value.clone(),
+        note: entry.note.value.clone(),
         kind,
         pinned: entry.pinned.value,
         code: passcode.as_ref().map(|p| p.code().to_owned()),

@@ -5,6 +5,7 @@ import { GateApp } from "./gate/GateApp";
 import { gateStrings } from "./gate/i18n";
 import { isMacPlatform } from "./shared/shortcut";
 import "./shared/tokens.css";
+import "./shared/tiles.css";
 import "./gate/gate.css";
 
 const root = document.getElementById("app");

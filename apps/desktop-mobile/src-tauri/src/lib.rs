@@ -67,6 +67,8 @@ fn builder() -> tauri::Builder<tauri::Wry> {
         .manage(gate::GateServer::default())
         .invoke_handler(tauri::generate_handler![
             commands::panel_state,
+            commands::main_state,
+            commands::edit_entry,
             commands::copy_code,
             commands::next_hotp,
             commands::unlock,

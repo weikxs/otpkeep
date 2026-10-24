@@ -46,6 +46,7 @@ impl AppBackend {
                     kind: match info.kind {
                         EntryKind::Totp => "totp",
                         EntryKind::Hotp => "hotp",
+                        EntryKind::Steam => "steam",
                     }
                     .to_owned(),
                     shortcut,

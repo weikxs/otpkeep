@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard};
 
 use serde::Serialize;
-use tauri::{AppHandle, State, WebviewWindow};
+use tauri::{AppHandle, Emitter, State, WebviewWindow};
 
 use crate::clipboard::{CLEAR_AFTER, copy_then_clear};
 use crate::core::{Core, CoreError, ImportProblem, PanelEntry, PanelState};
@@ -133,6 +133,33 @@ fn with_shortcuts(
         })
         .collect();
     PanelState { entries, ..state }
+}
+
+/// Every entry for the main window, with the same shortcuts and codes as the panel.
+#[tauri::command]
+pub fn main_state(
+    query: &str,
+    vault: State<'_, AppCore>,
+    hotkeys: State<'_, Hotkeys>,
+) -> PanelState {
+    let core = vault.get();
+    let state = core.state_all(query);
+    let places = list_places(&core);
+    with_shortcuts(state, &hotkeys.map(), &places)
+}
+
+/// Changes an entry's name and / or note.
+#[tauri::command]
+pub fn edit_entry(
+    id: &str,
+    title: Option<String>,
+    note: Option<String>,
+    vault: State<'_, AppCore>,
+    app: AppHandle,
+) -> CommandResult<()> {
+    vault.get().edit(id, title, note)?;
+    let _ = app.emit("vault-changed", ());
+    Ok(())
 }
 
 #[tauri::command]

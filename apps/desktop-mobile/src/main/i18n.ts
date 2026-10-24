@@ -1,0 +1,296 @@
+/** The main window's text in Simplified Chinese and English; the system language decides. */
+
+import { strings as panelStrings } from "../panel/i18n";
+import type { Place, SkippedPart } from "./api";
+
+const zh = {
+  appName: "OTPKeep",
+  sep: "：",
+  unavailable: panelStrings("zh").unavailable,
+  problems: panelStrings("zh").problems,
+  search: "搜索名称、账号、备注或标签",
+  add: "添加",
+  manage: "在浏览器中管理",
+  count: (n: number) => `${n} 个账号`,
+  copied: "已复制",
+  copiedToast: (s: number) => (s > 0 ? `已复制 · ${s} 秒后从剪贴板清除` : "已复制"),
+  next: "下一个",
+  generate: "生成",
+  noCode: "无法计算",
+  noMatch: "没有匹配的账号",
+  edit: "编辑",
+  save: "保存",
+  cancel: "取消",
+  close: "关闭",
+  back: "返回",
+  saved: "已保存",
+  name: "显示名称",
+  note: "备注",
+  notePlaceholder: "例如：备用码放在哪里、这个账号做什么用",
+  // Empty state
+  welcomeTitle: "添加第一个账号",
+  welcomeBody: "OTPKeep 完全在本机工作，密钥加密保存，不联网。",
+  welcomePaste: "粘贴链接",
+  welcomePasteHint: "otpauth:// 链接，或多行链接",
+  welcomeFile: "图片或文件",
+  welcomeFileHint: "二维码截图、备份、GoldenPassport 数据",
+  welcomeManual: "手动输入",
+  welcomeManualHint: "只有密钥时使用",
+  dropHint: "也可以把文件或图片拖进窗口",
+  // Add dialog
+  addTitle: "添加账号",
+  tabPaste: "粘贴链接",
+  tabFile: "图片或文件",
+  tabManual: "手动输入",
+  pastePlaceholder: "粘贴 otpauth:// 链接；多个链接每行一个。也可以在这里按 ⌘V 粘贴二维码截图",
+  read: "读取",
+  chooseFile: "选择图片或文件",
+  fileHint: "支持二维码图片（一张图可含多个码）、OTPKeep 备份、GoldenPassport 数据、链接清单",
+  dropHere: "松开以读取",
+  reading: "正在读取…",
+  issuer: "服务商",
+  account: "账号",
+  secret: "密钥",
+  secretPlaceholder: "例如 JBSW Y3DP EHPK 3PXP",
+  advanced: "高级设置",
+  kind: "类型",
+  kinds: { totp: "按时间（TOTP）", hotp: "按次数（HOTP）", steam: "Steam 令牌" },
+  algorithm: "算法",
+  digits: "位数",
+  period: "周期（秒）",
+  counter: "计数器",
+  preview: "预览",
+  // Preview
+  previewTitle: (n: number) => (n === 0 ? "没有可添加的账号" : `将添加 ${n} 个账号`),
+  compareHint: "添加前可以先到网站上核对下面的验证码",
+  addChosen: (n: number) => `添加 ${n} 个`,
+  already: (title: string) => `已存在：${title}`,
+  alreadyInImport: "与本次导入中的另一个相同",
+  addAnyway: "仍然添加",
+  titleTaken: "已有同名账号",
+  shortened: "部分内容过长，已截短",
+  skippedTitle: (n: number) => `${n} 处无法读取`,
+  added: (n: number) => (n === 0 ? "没有添加账号" : `已添加 ${n} 个账号`),
+  backupTitle: "这是 OTPKeep 备份",
+  backupBody: "请输入创建备份时设置的口令。",
+  backupPassword: "备份口令",
+  open: "打开",
+  // Locked / unavailable
+  needsPassword: "输入主口令以打开数据",
+  password: "主口令",
+  wrongPassword: "主口令不正确",
+  place: (place: Place) => {
+    switch (place.kind) {
+      case "line":
+        return `第 ${place.line} 行`;
+      case "transfer":
+        return `第 ${place.code} 个转移码中的第 ${place.index} 个账号`;
+      case "named":
+        return `“${place.name}”`;
+    }
+  },
+  reasons: {
+    NOT_A_LINK: "不是 otpauth:// 链接",
+    WRONG_SCHEME: "不是两步验证链接",
+    UNSUPPORTED_KIND: "不支持这种验证码类型",
+    SECRET_MISSING: "链接里没有密钥",
+    SECRET_INVALID: "密钥中有不合法的字符",
+    UNSUPPORTED_ALGORITHM: "不支持这种算法",
+    PARAM_OUT_OF_RANGE: "参数超出范围",
+    GOOGLE_EXPORT: "这是 Google 验证器导出码，请用“图片或文件”导入",
+    MICROSOFT_PUSH: "这是微软验证器的推送码，只能在微软验证器中使用；在微软的设置页选择“使用其他验证器应用”即可获得普通二维码",
+    ORACLE_ENROLMENT: "这是 Oracle 验证器的注册码，密钥需要 Oracle 服务器解开；请向管理员索取普通 TOTP 码",
+    BARE_SECRET: "这是一串单独的密钥，请用“手动输入”添加",
+    TRANSFER_UNREADABLE: "转移码已损坏或不完整",
+    TRANSFER_ACCOUNT_UNSUPPORTED: "转移码中的这个账号使用了不支持的设置",
+  } as Record<string, string>,
+  errors: {
+    NEEDS_PASSWORD: "请先输入主口令",
+    NOT_FOUND: "这个账号已不存在",
+    READ_ONLY: "新版本 OTPKeep 正在使用这些数据，不能修改",
+    SAVE_FAILED: "保存失败，请重试",
+    CLIPBOARD: "复制失败",
+    BACKUP_PASSWORD_WRONG: "备份口令不正确，或备份文件已被改动",
+    BACKUP_DAMAGED: "备份文件已损坏",
+    BACKUP_NEWER: "备份由更新版本的 OTPKeep 创建，请先更新",
+    IMAGE_TOO_LARGE: "图片太大，无法识别",
+    UNKNOWN_FORMAT: "无法识别这个文件。支持：二维码图片、OTPKeep 备份、GoldenPassport 数据、otpauth 链接清单",
+    FILE_TOO_LARGE: "文件太大，不是可导入的格式",
+    IMPORT_GONE: "预览已过期，请重新读取",
+    IMPORT_CHANGED: "数据在预览后有变化，已重新预览，请再确认一次",
+    NO_KEYSTORE: "系统钥匙串不可用，无法创建加密数据",
+    UNKNOWN: "出错了，请重试",
+  } as Record<string, string>,
+  invalid: {
+    DIGITS: "位数应为 6–8",
+    PERIOD: "周期应为 1–300 秒",
+    KIND: "不支持这种类型",
+    ALGORITHM: "不支持这种算法",
+    NAME_MISSING: "请至少填写服务商或账号",
+    SECRET_MISSING: "请填写密钥",
+    TITLE_EMPTY: "名称不能为空",
+    TITLE_TOO_LONG: "名称不能超过 100 个字符",
+    NOTE_TOO_LONG: "备注不能超过 2000 个字符",
+    CHOICE_MISMATCH: "选择与预览不符，请重新读取",
+  } as Record<string, string>,
+  secretInvalid: (position: string, found: string) =>
+    `密钥第 ${position} 个字符“${found}”不合法。密钥只含字母 A–Z 和数字 2–7${"01890".includes(found) ? "；数字 0、1、8、9 常是字母 O、I、B、G 看错了" : ""}`,
+};
+
+export type MainStrings = typeof zh;
+
+const en: MainStrings = {
+  ...zh,
+  sep: ": ",
+  unavailable: panelStrings("en").unavailable,
+  problems: panelStrings("en").problems,
+  reasons: {
+    NOT_A_LINK: "not an otpauth:// link",
+    WRONG_SCHEME: "not a two-factor link",
+    UNSUPPORTED_KIND: "this kind of code is not supported",
+    SECRET_MISSING: "the link has no secret",
+    SECRET_INVALID: "the secret has a character that is not allowed",
+    UNSUPPORTED_ALGORITHM: "this algorithm is not supported",
+    PARAM_OUT_OF_RANGE: "a value is out of range",
+    GOOGLE_EXPORT: "a Google Authenticator export; import it under “Picture or file”",
+    MICROSOFT_PUSH:
+      "a Microsoft Authenticator approval code, which only that app can use; choose “use a different authenticator app” in Microsoft's set-up to get an ordinary code",
+    ORACLE_ENROLMENT: "an Oracle Mobile Authenticator enrolment code; ask the administrator for an ordinary TOTP code",
+    BARE_SECRET: "a secret on its own; add it under “Type it in”",
+    TRANSFER_UNREADABLE: "the transfer code is damaged or incomplete",
+    TRANSFER_ACCOUNT_UNSUPPORTED: "this account in the transfer code uses settings that are not supported",
+  },
+  errors: {
+    NEEDS_PASSWORD: "Enter the master password first",
+    NOT_FOUND: "This account no longer exists",
+    READ_ONLY: "A newer OTPKeep uses this data; it cannot be changed",
+    SAVE_FAILED: "Could not save; try again",
+    CLIPBOARD: "Could not copy",
+    BACKUP_PASSWORD_WRONG: "The backup password is wrong, or the backup was changed",
+    BACKUP_DAMAGED: "The backup is damaged",
+    BACKUP_NEWER: "A newer OTPKeep made this backup; please update first",
+    IMAGE_TOO_LARGE: "The picture is too large to read",
+    UNKNOWN_FORMAT:
+      "OTPKeep cannot read this file. It reads QR code pictures, OTPKeep backups, GoldenPassport data and otpauth link lists",
+    FILE_TOO_LARGE: "The file is too large to be an import",
+    IMPORT_GONE: "The preview expired; read it again",
+    IMPORT_CHANGED: "The data changed after the preview; it was previewed again, please check once more",
+    NO_KEYSTORE: "The system keychain is unavailable, so the encrypted data cannot be created",
+    UNKNOWN: "Something went wrong; try again",
+  },
+  invalid: {
+    DIGITS: "Digits must be 6–8",
+    PERIOD: "The period must be 1–300 seconds",
+    KIND: "This type is not supported",
+    ALGORITHM: "This algorithm is not supported",
+    NAME_MISSING: "Fill in at least the service or the account",
+    SECRET_MISSING: "Fill in the secret",
+    TITLE_EMPTY: "The name cannot be empty",
+    TITLE_TOO_LONG: "The name cannot be longer than 100 characters",
+    NOTE_TOO_LONG: "The note cannot be longer than 2000 characters",
+    CHOICE_MISMATCH: "The selection does not match the preview; read it again",
+  },
+  search: "Search names, accounts, notes or tags",
+  add: "Add",
+  manage: "Manage in the browser",
+  count: (n) => `${n} account${n === 1 ? "" : "s"}`,
+  copied: "Copied",
+  copiedToast: (s) => (s > 0 ? `Copied · clipboard clears in ${s}s` : "Copied"),
+  next: "Next",
+  generate: "Generate",
+  noCode: "Unavailable",
+  noMatch: "No account matches",
+  edit: "Edit",
+  save: "Save",
+  cancel: "Cancel",
+  close: "Close",
+  back: "Back",
+  saved: "Saved",
+  name: "Display name",
+  note: "Note",
+  notePlaceholder: "For example: where the backup codes are, what this account is for",
+  welcomeTitle: "Add your first account",
+  welcomeBody: "OTPKeep works entirely on this device; secrets are encrypted and never sent anywhere.",
+  welcomePaste: "Paste a link",
+  welcomePasteHint: "An otpauth:// link, or several",
+  welcomeFile: "Picture or file",
+  welcomeFileHint: "QR code screenshot, backup, GoldenPassport data",
+  welcomeManual: "Type it in",
+  welcomeManualHint: "When you only have the secret",
+  dropHint: "You can also drop a file or picture on the window",
+  addTitle: "Add accounts",
+  tabPaste: "Paste a link",
+  tabFile: "Picture or file",
+  tabManual: "Type it in",
+  pastePlaceholder: "Paste otpauth:// links, one per line. You can also paste a QR code screenshot here",
+  read: "Read",
+  chooseFile: "Choose a picture or file",
+  fileHint: "QR code pictures (several codes per picture), OTPKeep backups, GoldenPassport data, link lists",
+  dropHere: "Drop to read",
+  reading: "Reading…",
+  issuer: "Service",
+  account: "Account",
+  secret: "Secret",
+  secretPlaceholder: "For example JBSW Y3DP EHPK 3PXP",
+  advanced: "Advanced",
+  kind: "Type",
+  kinds: { totp: "Time-based (TOTP)", hotp: "Counter-based (HOTP)", steam: "Steam Guard" },
+  algorithm: "Algorithm",
+  digits: "Digits",
+  period: "Period (seconds)",
+  counter: "Counter",
+  preview: "Preview",
+  previewTitle: (n) => (n === 0 ? "Nothing to add" : `${n} account${n === 1 ? "" : "s"} to add`),
+  compareHint: "Before adding, you can compare the codes below with the website",
+  addChosen: (n) => `Add ${n}`,
+  already: (title) => `Already present: ${title}`,
+  alreadyInImport: "Same as another account in this import",
+  addAnyway: "Add anyway",
+  titleTaken: "An account has this name",
+  shortened: "Some values were too long and were shortened",
+  skippedTitle: (n) => `${n} part${n === 1 ? "" : "s"} could not be read`,
+  added: (n) => (n === 0 ? "Nothing was added" : `Added ${n} account${n === 1 ? "" : "s"}`),
+  backupTitle: "This is an OTPKeep backup",
+  backupBody: "Enter the password set when the backup was made.",
+  backupPassword: "Backup password",
+  open: "Open",
+  needsPassword: "Enter the master password to open your data",
+  password: "Master password",
+  wrongPassword: "The master password is not correct",
+  place: (place) => {
+    switch (place.kind) {
+      case "line":
+        return `Line ${place.line}`;
+      case "transfer":
+        return `Account ${place.index} of transfer code ${place.code}`;
+      case "named":
+        return `“${place.name}”`;
+    }
+  },
+  secretInvalid: (position, found) =>
+    `Character ${position} of the secret, “${found}”, is not allowed. Secrets use the letters A–Z and the digits 2–7`,
+};
+
+export function mainStrings(language: string): MainStrings {
+  return language.toLowerCase().startsWith("zh") ? zh : en;
+}
+
+/** The message for a refusal. */
+export function describe(text: MainStrings, code: string, detail?: string): string {
+  if (code === "INVALID" && detail) return text.invalid[detail] ?? text.errors.UNKNOWN ?? code;
+  if (code === "SECRET_INVALID" && detail) {
+    const [position = "?", found = "?"] = detail.split(":");
+    return text.secretInvalid(position, found);
+  }
+  return text.errors[code] ?? text.errors.UNKNOWN ?? code;
+}
+
+/** Why a part of a source was skipped. */
+export function describeSkipped(text: MainStrings, part: SkippedPart): string {
+  const reason = text.reasons[part.reason] ?? part.reason;
+  if (part.reason === "SECRET_INVALID" && part.detail) {
+    const [position = "?", found = "?"] = part.detail.split(":");
+    return `${text.place(part.place)}${text.sep}${text.secretInvalid(position, found)}`;
+  }
+  return `${text.place(part.place)}${text.sep}${reason}`;
+}

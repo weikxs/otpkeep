@@ -1,0 +1,37 @@
+/* The countdown ring (design/12 §2), shared by the panel and the main window. */
+.ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+}
+
+.ring svg {
+  position: absolute;
+  inset: 0;
+}
+
+.ring-track,
+.ring-value {
+  fill: none;
+  stroke-width: 2;
+}
+
+.ring-track {
+  stroke: var(--line);
+}
+
+.ring-value {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  transition: stroke-dasharray 240ms linear;
+}
+
+.ring.ending .ring-value {
+  stroke: var(--amber);
+}
+
+.ring-seconds {
+  font-size: 0;
+}

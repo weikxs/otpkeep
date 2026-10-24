@@ -93,26 +93,6 @@ button {
   background: var(--card);
 }
 
-.tile {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  color: var(--tile-text);
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.tile-0 { background: var(--tile-0); }
-.tile-1 { background: var(--tile-1); }
-.tile-2 { background: var(--tile-2); }
-.tile-3 { background: var(--tile-3); }
-.tile-4 { background: var(--tile-4); }
-.tile-5 { background: var(--tile-5); }
-.tile-6 { background: var(--tile-6); }
-.tile-7 { background: var(--tile-7); }
-
 .card-body {
   display: flex;
   flex-direction: column;
@@ -264,4 +244,11 @@ button {
   color: var(--toast-text);
   font-size: 13px;
   box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+}
+
+.card .tile {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font-size: 14px;
 }

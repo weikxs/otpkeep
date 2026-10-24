@@ -3,13 +3,15 @@
  * current and next codes (design/12 §6).
  */
 
-export type EntryKind = "totp" | "hotp";
+export type EntryKind = "totp" | "hotp" | "steam";
 
 export interface PanelEntry {
   id: string;
   title: string;
   issuer: string;
   account: string;
+  /** Shown in the main window; the panel leaves it out. */
+  note: string;
   kind: EntryKind;
   pinned: boolean;
   /** Current code; for HOTP only after "generate". */
