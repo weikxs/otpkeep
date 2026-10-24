@@ -24,6 +24,9 @@ const LABEL_PART: &AsciiSet = &QUERY_VALUE.remove(b'@');
 #[must_use]
 pub fn write_key_uri(uri: &KeyUri) -> Zeroizing<String> {
     let (kind, period_s) = match uri.spec.kind() {
+        // Steam gets its own type: an app that does not know it refuses the link instead of showing wrong
+        // decimal codes, which is what an unknown `encoder=steam` would give.
+        CodeKind::TimeBased { period_s } if uri.spec.is_steam() => ("steam", Some(period_s)),
         CodeKind::TimeBased { period_s } => ("totp", Some(period_s)),
         CodeKind::CounterBased => ("hotp", None),
     };
@@ -42,7 +45,7 @@ pub fn write_key_uri(uri: &KeyUri) -> Zeroizing<String> {
     if let Some(name) = digest_name(uri.spec.digest()) {
         let _ = write!(link, "&algorithm={name}");
     }
-    if uri.spec.digits() != DEFAULT_DIGITS {
+    if uri.spec.digits() != DEFAULT_DIGITS && !uri.spec.is_steam() {
         let _ = write!(link, "&digits={}", uri.spec.digits());
     }
     match period_s {

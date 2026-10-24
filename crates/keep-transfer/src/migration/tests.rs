@@ -314,6 +314,19 @@ fn keeps_out_what_the_format_cannot_express() {
 }
 
 #[test]
+fn keeps_steam_guard_out_of_transfer_codes() {
+    let owned = [
+        item(1, CodeSpec::steam(30).unwrap(), 0, "Steam", "alex"),
+        item(2, CodeSpec::default(), 0, "b", "b"),
+    ];
+
+    let export = encode_migration(&as_export(&owned), BATCH_BUDGET_BYTES).unwrap();
+
+    assert_eq!(export.separate, [(0, Incompatible::Steam)]);
+    assert_eq!(export.links.len(), 1);
+}
+
+#[test]
 fn splits_into_batches_that_fit_the_budget_and_belong_together() {
     let owned: Vec<_> = (0..40u8)
         .map(|i| {

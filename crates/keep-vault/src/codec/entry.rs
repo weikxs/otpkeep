@@ -29,6 +29,9 @@ const SPEC_KIND: u64 = 1;
 const SPEC_PERIOD: u64 = 2;
 const SPEC_DIGEST: u64 = 3;
 const SPEC_DIGITS: u64 = 4;
+/// Written only for Steam Guard codes; absent means decimal digits.
+const SPEC_ENCODING: u64 = 5;
+const ENCODING_STEAM: u64 = 1;
 const KIND_TOTP: u64 = 0;
 const KIND_HOTP: u64 = 1;
 
@@ -146,6 +149,9 @@ fn key_to_value(key: &KeyMaterial) -> Value {
     }
     spec_pairs.push((int(SPEC_DIGEST), int(digest_code(spec.digest()))));
     spec_pairs.push((int(SPEC_DIGITS), int(u64::from(spec.digits()))));
+    if spec.is_steam() {
+        spec_pairs.push((int(SPEC_ENCODING), int(ENCODING_STEAM)));
+    }
     Value::Map(vec![
         (int(KEY_SECRET), Value::Bytes(key.secret.expose().to_vec())),
         (int(KEY_SPEC), Value::Map(spec_pairs)),
@@ -190,8 +196,26 @@ fn spec_from_value(mut value: Value) -> Result<CodeSpec, DecodeError> {
     let digest = digest_from_code(as_u64(map.required(SPEC_DIGEST, NAME)?, NAME)?)?;
     let digits = u8::try_from(as_u64(map.required(SPEC_DIGITS, NAME)?, NAME)?)
         .map_err(|_| DecodeError::Invalid(NAME))?;
+    let encoding = map
+        .optional(SPEC_ENCODING)
+        .map(|value| as_u64(value, NAME))
+        .transpose()?;
     map.finish(NAME)?;
-    CodeSpec::new(kind, digest, digits).map_err(|_| DecodeError::Invalid(NAME))
+    match encoding {
+        None => CodeSpec::new(kind, digest, digits).map_err(|_| DecodeError::Invalid(NAME)),
+        Some(ENCODING_STEAM) => {
+            let CodeKind::TimeBased { period_s } = kind else {
+                return Err(DecodeError::Invalid(NAME));
+            };
+            let spec = CodeSpec::steam(period_s).map_err(|_| DecodeError::Invalid(NAME))?;
+            // Anything else written beside the Steam mark is a damaged or forged file.
+            if spec.digest() != digest || spec.digits() != digits {
+                return Err(DecodeError::Invalid(NAME));
+            }
+            Ok(spec)
+        }
+        Some(_) => Err(DecodeError::Invalid(NAME)),
+    }
 }
 
 const fn digest_code(digest: Digest) -> u64 {

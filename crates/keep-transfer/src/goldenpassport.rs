@@ -178,6 +178,8 @@ pub enum GpIncompatible {
     Digits,
     /// Not 30 seconds.
     Period,
+    /// Steam Guard; GoldenPassport only shows decimal digits.
+    Steam,
 }
 
 /// A GoldenPassport `.secrets` file. It holds every secret unencrypted and is wiped when dropped.
@@ -211,6 +213,7 @@ pub fn write_secrets(items: &[GpExportItem<'_>]) -> GpExport {
 
 fn gp_incompatibility(uri: &KeyUri) -> Option<GpIncompatible> {
     match uri.spec.kind() {
+        _ if uri.spec.is_steam() => Some(GpIncompatible::Steam),
         CodeKind::CounterBased => Some(GpIncompatible::CounterBased),
         _ if uri.spec.digest() != Digest::Sha1 => Some(GpIncompatible::Algorithm),
         _ if uri.spec.digits() != 6 => Some(GpIncompatible::Digits),

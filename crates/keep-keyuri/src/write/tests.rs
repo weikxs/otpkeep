@@ -146,3 +146,26 @@ proptest! {
         prop_assert!(parsed.notes.iter().all(|n| *n == KeyUriNote::ShortSecret));
     }
 }
+
+#[test]
+fn writes_steam_as_its_own_link_type_so_other_apps_cannot_misread_it() {
+    let uri = uri("Steam", "alex", CodeSpec::steam(30).unwrap(), 0);
+
+    let link = write_key_uri(&uri);
+
+    assert_eq!(
+        link.as_str(),
+        "otpauth://steam/Steam:alex?secret=JBSWY3DPEHPK3PXP&issuer=Steam"
+    );
+    assert_eq!(parse_key_uri(&link).unwrap().uri, uri);
+}
+
+#[test]
+fn writes_a_steam_period_other_than_thirty() {
+    let uri = uri("", "alex", CodeSpec::steam(60).unwrap(), 0);
+
+    assert_eq!(
+        write_key_uri(&uri).as_str(),
+        "otpauth://steam/alex?secret=JBSWY3DPEHPK3PXP&period=60"
+    );
+}

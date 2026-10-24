@@ -12,6 +12,17 @@ pub const MIN_PERIOD_S: u16 = 1;
 pub const MAX_PERIOD_S: u16 = 300;
 /// TOTP period used when a link or form does not say.
 pub const DEFAULT_PERIOD_S: u16 = 30;
+/// Characters in a Steam Guard code.
+pub const STEAM_DIGITS: u8 = 5;
+
+/// How the truncated HMAC value is written as a passcode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Encoding {
+    /// Decimal digits, as RFC 4226 and almost every service use.
+    Decimal,
+    /// Steam Guard: five characters from a 26-letter alphabet, always TOTP with SHA-1.
+    Steam,
+}
 
 /// Whether codes follow the clock (TOTP) or a counter (HOTP).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -66,6 +77,7 @@ pub struct CodeSpec {
     kind: CodeKind,
     digest: Digest,
     digits: u8,
+    encoding: Encoding,
 }
 
 impl CodeSpec {
@@ -87,6 +99,24 @@ impl CodeSpec {
             kind,
             digest,
             digits,
+            encoding: Encoding::Decimal,
+        })
+    }
+
+    /// A Steam Guard specification: TOTP with SHA-1 and five Steam characters.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SpecError::PeriodOutOfRange`] for a period outside 1–300 seconds.
+    pub fn steam(period_s: u16) -> Result<Self, SpecError> {
+        if !(MIN_PERIOD_S..=MAX_PERIOD_S).contains(&period_s) {
+            return Err(SpecError::PeriodOutOfRange(period_s));
+        }
+        Ok(Self {
+            kind: CodeKind::TimeBased { period_s },
+            digest: Digest::Sha1,
+            digits: STEAM_DIGITS,
+            encoding: Encoding::Steam,
         })
     }
 
@@ -102,10 +132,22 @@ impl CodeSpec {
         self.digest
     }
 
-    /// The number of digits in each passcode.
+    /// The number of digits (or Steam characters) in each passcode.
     #[must_use]
     pub const fn digits(&self) -> u8 {
         self.digits
+    }
+
+    /// Decimal digits or Steam characters.
+    #[must_use]
+    pub const fn encoding(&self) -> Encoding {
+        self.encoding
+    }
+
+    /// Whether this is a Steam Guard specification.
+    #[must_use]
+    pub const fn is_steam(&self) -> bool {
+        matches!(self.encoding, Encoding::Steam)
     }
 }
 
@@ -118,6 +160,7 @@ impl Default for CodeSpec {
             },
             digest: Digest::Sha1,
             digits: DEFAULT_DIGITS,
+            encoding: Encoding::Decimal,
         }
     }
 }

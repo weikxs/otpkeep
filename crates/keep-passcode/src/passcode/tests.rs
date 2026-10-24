@@ -211,3 +211,35 @@ proptest! {
         prop_assert!(text.bytes().all(|b| b.is_ascii_digit()));
     }
 }
+
+/// steamguard-cli's published test: this secret at 1616374841 gives `2F9J5`.
+const STEAM_SECRET: &[u8] = &[
+    0xce, 0xf2, 0x1a, 0xca, 0x9d, 0xc9, 0x3e, 0xfb, 0x6f, 0x5f, 0xf4, 0x06, 0x1e, 0xab, 0x2a, 0x28,
+    0x19, 0x3f, 0xe3, 0x8b,
+];
+
+#[test]
+fn matches_the_steam_guard_reference_code() {
+    let key = secret(STEAM_SECRET);
+    let spec = CodeSpec::steam(30).unwrap();
+
+    assert_eq!(code(&key, spec, Moment::Time(1_616_374_841)), "2F9J5");
+}
+
+#[test]
+fn steam_codes_use_only_the_steam_alphabet_and_offer_the_next_one() {
+    let key = secret(STEAM_SECRET);
+    let spec = CodeSpec::steam(30).unwrap();
+
+    let passcode = derive(&key, spec, Moment::Time(1_616_374_858));
+
+    assert_eq!(passcode.valid_for_s(), Some(2));
+    for text in [passcode.code(), passcode.next().unwrap()] {
+        assert_eq!(text.len(), 5);
+        assert!(
+            text.chars()
+                .all(|c| "23456789BCDFGHJKMNPQRTVWXY".contains(c)),
+            "{text}"
+        );
+    }
+}

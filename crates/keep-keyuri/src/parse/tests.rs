@@ -141,9 +141,9 @@ fn rejects_what_is_not_an_otpauth_link() {
         }
     );
     assert_eq!(
-        fault(&format!("otpauth://steam/a?secret={DEMO}")),
+        fault(&format!("otpauth://yaotp/a?secret={DEMO}")),
         KeyUriFault::UnsupportedKind {
-            found: "steam".to_owned()
+            found: "yaotp".to_owned()
         }
     );
 }

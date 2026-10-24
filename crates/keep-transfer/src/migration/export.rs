@@ -45,6 +45,8 @@ pub enum Incompatible {
     Digits(u8),
     /// MD5 codes are not well defined (design/03-passcode.md §1).
     Md5,
+    /// Steam Guard codes; Google Authenticator only shows decimal digits.
+    Steam,
 }
 
 /// The result of an export.
@@ -119,6 +121,9 @@ pub fn encode_migration(
 }
 
 fn compatibility(spec: CodeSpec) -> Option<Incompatible> {
+    if spec.is_steam() {
+        return Some(Incompatible::Steam);
+    }
     if let CodeKind::TimeBased { period_s } = spec.kind()
         && period_s != TRANSFER_PERIOD_S
     {

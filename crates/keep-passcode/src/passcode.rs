@@ -4,13 +4,15 @@ use std::fmt;
 
 use hmac::{Hmac, KeyInit, Mac};
 
-use crate::{CodeKind, CodeSpec, Digest, SecretKey};
+use crate::{CodeKind, CodeSpec, Digest, Encoding, SecretKey};
 
 /// In the last this-many seconds of a TOTP period, the next code is offered as well (PRD FR-1.4).
 pub const NEXT_CODE_WINDOW_S: u16 = 5;
 
 /// Bytes read by RFC 4226 dynamic truncation.
 const TRUNCATED_LEN: usize = 4;
+/// The characters of Steam Guard codes; the truncated value is written in base 26, lowest place first.
+const STEAM_ALPHABET: &[u8; 26] = b"23456789BCDFGHJKMNPQRTVWXY";
 
 /// The point in "code time" to derive a passcode for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,8 +123,36 @@ fn time_passcode(
     })
 }
 
-/// HOTP value for one counter: HMAC, dynamic truncation, modulo `10^digits`, zero padded.
+/// The passcode for one counter value, written as the specification says.
 fn counter_code(secret: &SecretKey, spec: CodeSpec, counter: u64) -> Result<String, PasscodeError> {
+    let value = truncated(secret, spec, counter)?;
+    Ok(match spec.encoding() {
+        Encoding::Decimal => decimal(value, spec.digits()),
+        Encoding::Steam => steam(value, spec.digits()),
+    })
+}
+
+/// RFC 4226: modulo `10^digits`, zero padded.
+fn decimal(value: u32, digits: u8) -> String {
+    let modulus = 10u32.pow(u32::from(digits));
+    let width = usize::from(digits);
+    format!("{:0width$}", value % modulus)
+}
+
+/// Steam Guard: base 26 over [`STEAM_ALPHABET`], lowest place first.
+fn steam(mut value: u32, digits: u8) -> String {
+    let base = u32::try_from(STEAM_ALPHABET.len()).unwrap_or(u32::MAX);
+    (0..digits)
+        .map(|_| {
+            let index = usize::try_from(value % base).unwrap_or(0);
+            value /= base;
+            char::from(STEAM_ALPHABET[index])
+        })
+        .collect()
+}
+
+/// HMAC and RFC 4226 dynamic truncation: a 31-bit value.
+fn truncated(secret: &SecretKey, spec: CodeSpec, counter: u64) -> Result<u32, PasscodeError> {
     let mac = hmac_of(spec.digest(), secret.expose(), &counter.to_be_bytes())?;
     let last = mac.last().copied().unwrap_or(0);
     let offset = usize::from(last & 0x0f);
@@ -131,10 +161,7 @@ fn counter_code(secret: &SecretKey, spec: CodeSpec, counter: u64) -> Result<Stri
         .ok_or(PasscodeError::UnsupportedDigest(spec.digest()))?;
     let mut word = [0u8; TRUNCATED_LEN];
     word.copy_from_slice(window);
-    let value = u32::from_be_bytes(word) & 0x7fff_ffff;
-    let modulus = 10u32.pow(u32::from(spec.digits()));
-    let digits = usize::from(spec.digits());
-    Ok(format!("{:0digits$}", value % modulus))
+    Ok(u32::from_be_bytes(word) & 0x7fff_ffff)
 }
 
 fn hmac_of(digest: Digest, key: &[u8], message: &[u8]) -> Result<Vec<u8>, PasscodeError> {

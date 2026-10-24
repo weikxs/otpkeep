@@ -1,4 +1,6 @@
-use super::{CodeKind, CodeSpec, DEFAULT_DIGITS, DEFAULT_PERIOD_S, Digest, SpecError};
+use super::{
+    CodeKind, CodeSpec, DEFAULT_DIGITS, DEFAULT_PERIOD_S, Digest, Encoding, STEAM_DIGITS, SpecError,
+};
 
 #[test]
 fn the_default_is_thirty_second_six_digit_sha1() {
@@ -61,4 +63,32 @@ fn only_md5_is_marked_as_not_computable() {
     for digest in [Digest::Sha1, Digest::Sha256, Digest::Sha512] {
         assert!(digest.can_compute(), "{digest:?}");
     }
+}
+
+#[test]
+fn ordinary_specs_use_decimal_digits() {
+    assert_eq!(CodeSpec::default().encoding(), Encoding::Decimal);
+}
+
+#[test]
+fn steam_is_five_characters_sha1_time_based() {
+    let spec = CodeSpec::steam(30).unwrap();
+
+    assert_eq!(spec.encoding(), Encoding::Steam);
+    assert_eq!(spec.kind(), CodeKind::TimeBased { period_s: 30 });
+    assert_eq!(spec.digest(), Digest::Sha1);
+    assert_eq!(spec.digits(), STEAM_DIGITS);
+}
+
+#[test]
+fn steam_periods_follow_the_usual_range() {
+    assert!(CodeSpec::steam(60).is_ok());
+    assert_eq!(CodeSpec::steam(0), Err(SpecError::PeriodOutOfRange(0)));
+}
+
+#[test]
+fn steam_and_decimal_specs_differ() {
+    let decimal = CodeSpec::new(CodeKind::TimeBased { period_s: 30 }, Digest::Sha1, 6).unwrap();
+
+    assert_ne!(CodeSpec::steam(30).unwrap(), decimal);
 }

@@ -554,3 +554,80 @@ fn debug_output_never_shows_device_keys() {
         "{debug}"
     );
 }
+
+#[test]
+fn a_steam_specification_survives() {
+    for period_s in [30, 60] {
+        let mut doc = sample_doc();
+        doc.entries[0].key.value.spec = CodeSpec::steam(period_s).unwrap();
+
+        let back = decode_vault(&encode_vault(&doc)).unwrap();
+
+        assert_eq!(back, doc);
+        assert!(back.entries[0].key.value.spec.is_steam());
+    }
+}
+
+/// The spec map of the first entry: key -> [material, stamp]; material {2: spec}.
+fn spec_map_mut(value: &mut Value) -> &mut Vec<(Value, Value)> {
+    let key = map_mut(entry_map_mut(value))
+        .iter_mut()
+        .find(|(k, _)| *k == Value::Integer(6.into()))
+        .map(|(_, v)| v)
+        .unwrap();
+    let Value::Array(pair) = key else { panic!() };
+    let spec = map_mut(&mut pair[0])
+        .iter_mut()
+        .find(|(k, _)| *k == Value::Integer(2.into()))
+        .map(|(_, v)| v)
+        .unwrap();
+    map_mut(spec)
+}
+
+#[test]
+fn decimal_specifications_are_written_as_before() {
+    let mut doc = sample_doc();
+    doc.entries[0].key.value.spec = CodeSpec::default();
+    let mut value = to_value(&doc);
+
+    // No encoding field for decimal codes, so files written before Steam support keep their exact bytes.
+    let keys: Vec<Value> = spec_map_mut(&mut value)
+        .iter()
+        .map(|(k, _)| k.clone())
+        .collect();
+    assert_eq!(keys, [1, 2, 3, 4].map(|k| Value::Integer(k.into())));
+}
+
+#[test]
+fn rejects_a_steam_mark_beside_other_settings() {
+    let mut doc = sample_doc();
+    doc.entries[0].key.value.spec = CodeSpec::steam(30).unwrap();
+    let mut value = to_value(&doc);
+    for (k, v) in spec_map_mut(&mut value).iter_mut() {
+        if *k == Value::Integer(4.into()) {
+            *v = Value::Integer(6.into());
+        }
+    }
+
+    assert_eq!(
+        decode_vault(&to_bytes(&value)),
+        Err(DecodeError::Invalid("key.spec"))
+    );
+}
+
+#[test]
+fn rejects_an_unknown_encoding() {
+    let mut doc = sample_doc();
+    doc.entries[0].key.value.spec = CodeSpec::steam(30).unwrap();
+    let mut value = to_value(&doc);
+    for (k, v) in spec_map_mut(&mut value).iter_mut() {
+        if *k == Value::Integer(5.into()) {
+            *v = Value::Integer(9.into());
+        }
+    }
+
+    assert_eq!(
+        decode_vault(&to_bytes(&value)),
+        Err(DecodeError::Invalid("key.spec"))
+    );
+}

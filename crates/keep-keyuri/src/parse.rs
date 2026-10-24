@@ -3,7 +3,7 @@
 use keep_passcode::base32::{self, Base32Fault};
 use keep_passcode::{
     CodeKind, CodeSpec, DEFAULT_DIGITS, DEFAULT_PERIOD_S, Digest, MAX_DIGITS, MAX_PERIOD_S,
-    MIN_DIGITS, MIN_PERIOD_S, SecretKey,
+    MIN_DIGITS, MIN_PERIOD_S, STEAM_DIGITS, SecretKey,
 };
 use percent_encoding::percent_decode_str;
 use zeroize::Zeroizing;
@@ -12,6 +12,8 @@ use crate::clean::{fold_width, locate, without_invisible};
 use crate::{KeyUri, KeyUriFault, KeyUriNote};
 
 const SCHEME: &str = "otpauth";
+/// The Steam Guard link type, encoder value and issuer.
+const STEAM: &str = "steam";
 const FULL_WIDTH_COLON: char = '\u{ff1a}';
 const ENCODED_COLON: &str = "%3a";
 
@@ -42,31 +44,7 @@ pub fn parse_key_uri(text: &str) -> Result<ParsedKeyUri, KeyUriFault> {
     let issuer = choose_issuer(params.get("issuer"), label_issuer, &mut notes);
 
     let secret = read_secret(params.get("secret"))?;
-    let digest = read_digest(params.get("algorithm"))?;
-    let digits = read_number(
-        "digits",
-        params.get("digits"),
-        DEFAULT_DIGITS,
-        MIN_DIGITS..=MAX_DIGITS,
-    )?;
-    let (kind, counter) = match kind_text.to_ascii_lowercase().as_str() {
-        "totp" => {
-            let range = MIN_PERIOD_S..=MAX_PERIOD_S;
-            let period_s = read_number("period", params.get("period"), DEFAULT_PERIOD_S, range)?;
-            (CodeKind::TimeBased { period_s }, 0)
-        }
-        "hotp" => (
-            CodeKind::CounterBased,
-            read_counter(params.get("counter"), &mut notes)?,
-        ),
-        _ => {
-            return Err(KeyUriFault::UnsupportedKind {
-                found: kind_text.to_owned(),
-            });
-        }
-    };
-    let spec = CodeSpec::new(kind, digest, digits)
-        .map_err(|_| out_of_range("digits", &digits.to_string()))?;
+    let (spec, counter) = read_spec(kind_text, &params, &issuer, &mut notes)?;
 
     if secret.is_short() {
         notes.push(KeyUriNote::ShortSecret);
@@ -144,6 +122,66 @@ fn read_secret(value: Option<&str>) -> Result<SecretKey, KeyUriFault> {
         Base32Fault::MisplacedPadding { at } => KeyUriFault::SecretInvalid { at, found: '=' },
     })?;
     SecretKey::from_bytes(bytes.to_vec()).map_err(|_| KeyUriFault::SecretMissing)
+}
+
+/// How codes are computed, and the HOTP counter (0 for TOTP).
+fn read_spec(
+    kind_text: &str,
+    params: &Params,
+    issuer: &str,
+    notes: &mut Vec<KeyUriNote>,
+) -> Result<(CodeSpec, u64), KeyUriFault> {
+    let kind = kind_text.to_ascii_lowercase();
+    if kind == "hotp" {
+        let counter = read_counter(params.get("counter"), notes)?;
+        return Ok((decimal_spec(CodeKind::CounterBased, params)?, counter));
+    }
+    if kind != "totp" && kind != STEAM {
+        return Err(KeyUriFault::UnsupportedKind {
+            found: kind_text.to_owned(),
+        });
+    }
+    let range = MIN_PERIOD_S..=MAX_PERIOD_S;
+    let period_s = read_number("period", params.get("period"), DEFAULT_PERIOD_S, range)?;
+    if is_steam(&kind, params, issuer) {
+        return Ok((steam_spec(period_s, params)?, 0));
+    }
+    Ok((decimal_spec(CodeKind::TimeBased { period_s }, params)?, 0))
+}
+
+/// Steam Guard, in the three ways apps write it: the `steam` link type (Aegis, 2FAuth, Ente), `encoder=steam`
+/// (KeePassXC, steamguard-cli, Strongbox), or a `Steam` issuer without other digits (FreeOTP).
+fn is_steam(kind: &str, params: &Params, issuer: &str) -> bool {
+    let encoder = params
+        .get("encoder")
+        .is_some_and(|e| e.trim().eq_ignore_ascii_case(STEAM));
+    let by_issuer = issuer.trim().eq_ignore_ascii_case(STEAM)
+        && params
+            .get("digits")
+            .is_none_or(|d| fold_width(d).trim() == STEAM_DIGITS.to_string());
+    kind == STEAM || encoder || by_issuer
+}
+
+/// Steam codes are always SHA-1 with five characters; a link saying otherwise is refused, not guessed at.
+fn steam_spec(period_s: u16, params: &Params) -> Result<CodeSpec, KeyUriFault> {
+    if read_digest(params.get("algorithm"))? != Digest::Sha1 {
+        return Err(KeyUriFault::UnsupportedAlgorithm {
+            found: params.get("algorithm").unwrap_or_default().to_owned(),
+        });
+    }
+    if let Some(digits) = params.get("digits")
+        && fold_width(digits).trim() != STEAM_DIGITS.to_string()
+    {
+        return Err(out_of_range("digits", digits));
+    }
+    CodeSpec::steam(period_s).map_err(|_| out_of_range("period", &period_s.to_string()))
+}
+
+fn decimal_spec(kind: CodeKind, params: &Params) -> Result<CodeSpec, KeyUriFault> {
+    let digest = read_digest(params.get("algorithm"))?;
+    let range = MIN_DIGITS..=MAX_DIGITS;
+    let digits = read_number("digits", params.get("digits"), DEFAULT_DIGITS, range)?;
+    CodeSpec::new(kind, digest, digits).map_err(|_| out_of_range("digits", &digits.to_string()))
 }
 
 /// An HOTP counter; a link without one starts at 0, as FreeOTP and others do.
@@ -244,5 +282,7 @@ fn decode_query(raw: &str) -> Zeroizing<String> {
 
 #[cfg(test)]
 mod lenient_tests;
+#[cfg(test)]
+mod steam_tests;
 #[cfg(test)]
 mod tests;

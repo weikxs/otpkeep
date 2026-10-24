@@ -130,6 +130,7 @@ fn gp_reason(reason: GpIncompatible) -> &'static str {
         GpIncompatible::Algorithm => "it does not use SHA-1",
         GpIncompatible::Digits => "it does not have 6 digits",
         GpIncompatible::Period => "it does not change every 30 seconds",
+        GpIncompatible::Steam => "it is a Steam Guard code",
     }
 }
 
@@ -184,6 +185,9 @@ fn google_reason(reason: Incompatible) -> String {
         Incompatible::Period(seconds) => format!("its codes change every {seconds} seconds"),
         Incompatible::Digits(digits) => format!("it has {digits} digits"),
         Incompatible::Md5 => "it uses MD5".to_owned(),
+        Incompatible::Steam => {
+            "it is a Steam Guard code, which Google Authenticator cannot show".to_owned()
+        }
     }
 }
 

@@ -224,6 +224,17 @@ mod export {
     }
 
     #[test]
+    fn leaves_out_steam_guard() {
+        let steam = uri(1, CodeSpec::steam(30).unwrap(), "Steam", "alex");
+        let items = [GpExportItem {
+            name: &steam.issuer,
+            uri: &steam,
+        }];
+
+        assert_eq!(write_secrets(&items).skipped, [(0, GpIncompatible::Steam)]);
+    }
+
+    #[test]
     fn leaves_out_what_goldenpassport_would_compute_wrongly() {
         let ok = uri(1, CodeSpec::default(), "a", "a");
         let hotp = uri(
