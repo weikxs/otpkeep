@@ -9,6 +9,7 @@ use std::time::Duration;
 use keep_sync::lan::announce::{Announcement, FoundWindow};
 use keep_sync::lan::interfaces::Eligible;
 use keep_sync::lan::window::WindowKind;
+use keep_sync::transport::Route;
 use keep_vault::Platform;
 
 use crate::{CliError, EXIT_INVALID_INPUT, EXIT_NOT_SYNCED};
@@ -98,8 +99,10 @@ impl Network {
             Self::Loopback(directory) => {
                 let found = FoundWindow {
                     announcement: announcement.clone(),
-                    addrs: addrs.iter().map(|a| (a.addr, None)).collect(),
-                    port,
+                    route: Route::Lan {
+                        addrs: addrs.iter().map(|a| (a.addr, None)).collect(),
+                        port,
+                    },
                 };
                 if let Ok(mut windows) = directory.0.lock() {
                     windows.push(found);
@@ -151,16 +154,16 @@ impl Network {
                 (None, Self::System) => Vec::new(),
             };
             for window in next.into_iter().filter(|w| accept(w)) {
-                if !found
-                    .iter()
-                    .any(|f| f.announcement.window_random == window.announcement.window_random)
-                {
+                if !found.iter().any(|f| {
+                    f.announcement.window_random == window.announcement.window_random
+                        && f.route.via() == window.route.via()
+                }) {
                     found.push(window);
                     settle.get_or_insert(tokio::time::Instant::now() + BROWSE_SETTLE);
                 }
             }
         }
-        Ok(found)
+        Ok(keep_sync::lan::announce::merge_found(found))
     }
 }
 

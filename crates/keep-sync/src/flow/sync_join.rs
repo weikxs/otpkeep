@@ -1,11 +1,9 @@
 //! The joiner's side of a sync (design/06-sync.md §5.3): connect to a found window, enter the code shown on
 //! its screen, wait for the person there to allow, exchange.
 
-use std::net::{IpAddr, SocketAddr, SocketAddrV6};
 use std::time::Duration;
 
 use keep_vault::{DeviceId, VaultDoc};
-use tokio::net::TcpStream;
 use tokio::time::timeout;
 use x25519_dalek::StaticSecret;
 use zeroize::Zeroizing;
@@ -18,6 +16,7 @@ use crate::channel::noise::{Channel, ChannelError, Purpose, connect_noise};
 use crate::lan::announce::FoundWindow;
 use crate::lan::window::Timers;
 use crate::session::exchange::{Exchanged, SessionError, exchange_as_joiner};
+use crate::transport::BoxLink;
 
 /// Extra time allowed beyond the opener's own timer, for the network.
 const GRACE: Duration = Duration::from_secs(5);
@@ -41,7 +40,7 @@ pub enum JoinOutcome {
     Busy,
     /// The code was wrong (`CODE_WRONG`); the opener counts it.
     WrongCode,
-    /// No address of the window could be reached.
+    /// The window could not be reached.
     Unreachable,
     /// The session stopped with this code.
     Stopped(ErrorCode),
@@ -70,7 +69,7 @@ pub async fn join_sync(
     now_ms: impl Fn() -> u64,
 ) -> JoinOutcome {
     let handshake = Duration::from_millis(joiner.timers.handshake_ms);
-    let Some(stream) = connect(window, handshake).await else {
+    let Some(stream) = window.route.connect(handshake).await else {
         return JoinOutcome::Unreachable;
     };
     let connected = timeout(
@@ -124,24 +123,8 @@ pub async fn join_sync(
     }
 }
 
-/// The first address that answers within `limit`.
-async fn connect(window: &FoundWindow, limit: Duration) -> Option<TcpStream> {
-    for (addr, scope) in &window.addrs {
-        let socket = match (addr, scope) {
-            (IpAddr::V6(v6), Some(scope)) => {
-                SocketAddr::V6(SocketAddrV6::new(*v6, window.port, 0, *scope))
-            }
-            _ => SocketAddr::new(*addr, window.port),
-        };
-        if let Ok(Ok(stream)) = timeout(limit, TcpStream::connect(socket)).await {
-            return Some(stream);
-        }
-    }
-    None
-}
-
 async fn wait_for_allow(
-    channel: &mut Channel<TcpStream>,
+    channel: &mut Channel<BoxLink>,
     limit: Duration,
 ) -> Result<(), JoinOutcome> {
     let deadline = tokio::time::Instant::now() + limit;

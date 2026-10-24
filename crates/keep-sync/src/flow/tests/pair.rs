@@ -6,7 +6,7 @@ use keep_vault::{Platform, VaultDoc};
 use tokio::sync::mpsc;
 use zeroize::Zeroizing;
 
-use super::{CODE, loopback, quick};
+use super::{CODE, lan_acceptor, loopback, quick};
 use crate::channel::PROTOCOL_VERSION;
 use crate::channel::code::Secret;
 use crate::channel::hello::Hello;
@@ -73,7 +73,7 @@ async fn open_pairing(confirm: bool) -> (VaultDoc, u16, tokio::task::JoinHandle<
     let current = Arc::new(move || current_doc.clone());
     let task = tokio::spawn(run_pair_window(
         window,
-        listeners,
+        lan_acceptor(listeners),
         (),
         current,
         Arc::new(|| 2 * MINUTE_MS),
@@ -84,8 +84,10 @@ async fn open_pairing(confirm: bool) -> (VaultDoc, u16, tokio::task::JoinHandle<
 
 fn target(port: u16, opener: &VaultDoc, secret: Secret) -> PairTarget {
     PairTarget {
-        addrs: vec![(std::net::IpAddr::from([127, 0, 0, 1]), None)],
-        port,
+        route: crate::transport::Route::Lan {
+            addrs: vec![(std::net::IpAddr::from([127, 0, 0, 1]), None)],
+            port,
+        },
         window_random: RANDOM,
         short_fingerprint: short_fingerprint(identity_of(opener).unwrap().device_id()),
         secret,
@@ -297,7 +299,7 @@ async fn a_paired_device_can_then_sync_with_the_device_that_added_it() {
     let current = Arc::new(move || mac_doc.clone());
     let opened = tokio::spawn(run_sync_window(
         sync_window,
-        listeners,
+        lan_acceptor(listeners),
         (),
         current,
         Arc::new(|| 4 * MINUTE_MS),
@@ -322,8 +324,10 @@ async fn a_paired_device_can_then_sync_with_the_device_that_added_it() {
             window_random: RANDOM,
             group_tag: Some([0; 6]),
         },
-        addrs: vec![(std::net::IpAddr::from([127, 0, 0, 1]), None)],
-        port: sync_port,
+        route: crate::transport::Route::Lan {
+            addrs: vec![(std::net::IpAddr::from([127, 0, 0, 1]), None)],
+            port: sync_port,
+        },
     };
 
     let synced = join_sync(

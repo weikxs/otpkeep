@@ -64,6 +64,8 @@ pub(crate) fn sync_wait(
             group_tag: Some(group_tag(&group.tag_key, &group.group_id, now() / HOUR_MS)),
         };
         let announced = network.announce(&addrs, listeners.port(), &announcement)?;
+        let mut acceptor = keep_sync::transport::Acceptor::new();
+        acceptor.add_lan(listeners);
         let _ = writeln!(
             out,
             "Sync code: {} {}   (waiting up to {} min; enter it on the other device)",
@@ -84,7 +86,7 @@ pub(crate) fn sync_wait(
         let current_doc = doc.clone();
         let session = tokio::spawn(run_sync_window(
             window,
-            listeners,
+            acceptor,
             announced,
             Arc::new(move || current_doc.clone()),
             Arc::new(now),

@@ -74,6 +74,9 @@ pub(crate) fn pair_open(
             group_tag: None,
         };
         let announced = network.announce(&addrs, listeners.port(), &announcement)?;
+        let port = listeners.port();
+        let mut acceptor = keep_sync::transport::Acceptor::new();
+        acceptor.add_lan(listeners);
         let _ = writeln!(
             out,
             "Pairing code: {} {}   (waiting up to {} min; enter it on the new device with 'otpkeep pair join')",
@@ -82,7 +85,7 @@ pub(crate) fn pair_open(
             wait_ms / MINUTE_MS
         );
         if qr {
-            show_invite(out, &addrs, listeners.port(), &announcement, &secret);
+            show_invite(out, &addrs, port, &announcement, &secret);
         }
         let window = PairWindow {
             me: identity.device_id(),
@@ -98,7 +101,7 @@ pub(crate) fn pair_open(
         let current_doc = doc.clone();
         let session = tokio::spawn(run_pair_window(
             window,
-            listeners,
+            acceptor,
             announced,
             Arc::new(move || current_doc.clone()),
             Arc::new(now),
@@ -250,8 +253,7 @@ fn found_target(
     )))
     .ok_or_else(cancelled)?;
     Ok(PairTarget {
-        addrs: window.addrs,
-        port: window.port,
+        route: window.route,
         window_random: window.announcement.window_random,
         short_fingerprint: window.announcement.short_fingerprint,
         secret: Secret::PairCode(Zeroizing::new(
@@ -304,8 +306,10 @@ fn from_invite(text: &str, addrs: &[Eligible]) -> Result<PairTarget, CliError> {
         ));
     }
     Ok(PairTarget {
-        addrs: reachable,
-        port: invite.port,
+        route: keep_sync::transport::Route::Lan {
+            addrs: reachable,
+            port: invite.port,
+        },
         window_random: invite.window_random,
         short_fingerprint: invite.short_fingerprint,
         secret: Secret::PairSecret(invite.secret),

@@ -9,12 +9,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use keep_vault::{DeviceId, VaultDoc};
-use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use x25519_dalek::StaticSecret;
 use zeroize::Zeroizing;
 
-use super::listen::Listeners;
 use super::peer::PeerInfo;
 use super::sync_open::{CurrentDoc, OpenerEvent, WallClock, ask_person};
 use super::window_loop::{Progress, run_window};
@@ -29,6 +27,7 @@ use crate::lan::window::{CloseReason, Timers, WindowKind};
 use crate::membership::membership;
 use crate::session::data::{Data, partial};
 use crate::session::exchange::{Exchanged, SessionError, exchange_as_opener};
+use crate::transport::{Acceptor, BoxLink};
 
 /// How long to wait for the other side to close after the last message.
 pub(crate) const LINGER: Duration = Duration::from_secs(1);
@@ -72,7 +71,7 @@ pub struct PairWindow {
 /// Runs a pairing window until it closes.
 pub async fn run_pair_window<A: Send>(
     window: PairWindow,
-    listeners: Listeners,
+    acceptor: Acceptor,
     announcing: A,
     current: CurrentDoc,
     wall: WallClock,
@@ -80,7 +79,7 @@ pub async fn run_pair_window<A: Send>(
 ) -> PairOutcome {
     let (wait_ms, timers) = (window.wait_ms, window.timers);
     let shared = Arc::new(window);
-    let serve_one = |stream: TcpStream, progress: mpsc::Sender<Progress<PairOutcome>>| {
+    let serve_one = |stream: BoxLink, progress: mpsc::Sender<Progress<PairOutcome>>| {
         tokio::spawn(serve(
             stream,
             Arc::clone(&shared),
@@ -94,7 +93,7 @@ pub async fn run_pair_window<A: Send>(
         WindowKind::Pair,
         wait_ms,
         timers,
-        listeners,
+        acceptor,
         announcing,
         serve_one,
     )
@@ -103,7 +102,7 @@ pub async fn run_pair_window<A: Send>(
 }
 
 async fn serve(
-    stream: TcpStream,
+    stream: BoxLink,
     window: Arc<PairWindow>,
     current: CurrentDoc,
     wall: WallClock,
@@ -172,7 +171,7 @@ async fn serve(
     reason = "one step of one session, split out for length"
 )]
 async fn pair<F: std::future::Future<Output = ()>>(
-    channel: &mut Channel<TcpStream>,
+    channel: &mut Channel<BoxLink>,
     window: &PairWindow,
     peer: &PeerInfo,
     sas: String,
@@ -275,7 +274,7 @@ fn group_error(error: GroupError) -> ErrorCode {
 }
 
 /// The joiner's person decided first; its decision is waiting.
-async fn expect_agreed(channel: &mut Channel<TcpStream>) -> Result<(), ErrorCode> {
+async fn expect_agreed(channel: &mut Channel<BoxLink>) -> Result<(), ErrorCode> {
     loop {
         let bytes = channel.recv().await.map_err(|_| ErrorCode::Cancelled)?;
         match Message::decode(&bytes) {
@@ -287,17 +286,14 @@ async fn expect_agreed(channel: &mut Channel<TcpStream>) -> Result<(), ErrorCode
     }
 }
 
-pub(crate) async fn send_data(
-    channel: &mut Channel<TcpStream>,
-    data: Data,
-) -> Result<(), ErrorCode> {
+pub(crate) async fn send_data(channel: &mut Channel<BoxLink>, data: Data) -> Result<(), ErrorCode> {
     channel
         .send(&Message::Data(data.encode()).encode())
         .await
         .map_err(|_| ErrorCode::Cancelled)
 }
 
-pub(crate) async fn receive_data(channel: &mut Channel<TcpStream>) -> Result<Data, ErrorCode> {
+pub(crate) async fn receive_data(channel: &mut Channel<BoxLink>) -> Result<Data, ErrorCode> {
     loop {
         let bytes = channel.recv().await.map_err(|_| ErrorCode::Cancelled)?;
         match Message::decode(&bytes) {

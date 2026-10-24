@@ -158,8 +158,10 @@ impl Browser {
         addrs.sort();
         (!addrs.is_empty()).then_some(FoundWindow {
             announcement,
-            addrs,
-            port: service.port,
+            route: crate::transport::Route::Lan {
+                addrs,
+                port: service.port,
+            },
         })
     }
 }
@@ -207,7 +209,10 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(found.port, 45_123);
+        assert!(matches!(
+            found.route,
+            crate::transport::Route::Lan { port: 45_123, .. }
+        ));
         drop((advertiser, browser));
     }
 }

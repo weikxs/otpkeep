@@ -11,6 +11,7 @@ pub mod lan;
 pub mod membership;
 pub mod merge;
 pub mod session;
+pub mod transport;
 
 #[cfg(test)]
 mod testing;

@@ -3,16 +3,15 @@
 
 use std::time::Duration;
 
-use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::{Instant, interval, timeout};
 
-use super::listen::{Incoming, Listeners};
 use crate::channel::noise::refuse_busy;
 use crate::lan::window::{
     Accept, CloseReason, ConnectionId, LanWindow, Timers, WindowKind, WindowStatus,
 };
+use crate::transport::{Acceptor, BoxLink, Incoming};
 
 const TICK: Duration = Duration::from_millis(100);
 /// How long a refused connection may take to hear `BUSY`.
@@ -39,14 +38,14 @@ pub(crate) async fn run_window<O: Send + 'static, A>(
     kind: WindowKind,
     wait_ms: u64,
     timers: Timers,
-    listeners: Listeners,
+    acceptor: Acceptor,
     announcing: A,
-    serve: impl Fn(TcpStream, mpsc::Sender<Progress<O>>) -> JoinHandle<()>,
+    serve: impl Fn(BoxLink, mpsc::Sender<Progress<O>>) -> JoinHandle<()>,
 ) -> Result<O, CloseReason> {
     let started = Instant::now();
     let now = || u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
     let mut state = LanWindow::with_timers(kind, wait_ms, now(), timers);
-    let mut listeners = Some(listeners);
+    let mut acceptor = Some(acceptor);
     let mut announcing = Some(announcing);
     let mut current: Current<O> = None;
     let mut ticker = interval(TICK);
@@ -65,7 +64,7 @@ pub(crate) async fn run_window<O: Send + 'static, A>(
                 match progress {
                     Progress::CodePassed => {
                         state.code_passed(id, now());
-                        listeners = None;
+                        acceptor = None;
                         announcing = None;
                     }
                     Progress::CodeFailed => {
@@ -95,16 +94,16 @@ pub(crate) async fn run_window<O: Send + 'static, A>(
                     abort(&mut current);
                 }
             }
-            incoming = next_incoming(&mut listeners) => {
-                let Some(Incoming { stream, .. }) = incoming else { continue };
+            incoming = next_incoming(&mut acceptor) => {
+                let Some(Incoming { link, .. }) = incoming else { continue };
                 match state.accept(now()) {
                     Accept::Handle(id) => {
                         let (progress, reports) = mpsc::channel(8);
-                        current = Some((id, serve(stream, progress), reports));
+                        current = Some((id, serve(link, progress), reports));
                     }
                     Accept::Busy => {
                         tokio::spawn(async move {
-                            let _ = timeout(BUSY_REPLY, refuse_busy(stream)).await;
+                            let _ = timeout(BUSY_REPLY, refuse_busy(link)).await;
                         });
                     }
                     Accept::Closed => {
@@ -126,9 +125,9 @@ fn abort<O>(current: &mut Current<O>) {
     }
 }
 
-async fn next_incoming(listeners: &mut Option<Listeners>) -> Option<Incoming> {
-    match listeners {
-        Some(listeners) => listeners.next().await,
+async fn next_incoming(acceptor: &mut Option<Acceptor>) -> Option<Incoming> {
+    match acceptor {
+        Some(acceptor) => acceptor.next().await,
         None => std::future::pending().await,
     }
 }

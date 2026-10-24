@@ -1,4 +1,6 @@
-use super::{AnnounceError, Announcement, HOUR_MS, from_txt, group_tag, matches_group, to_txt};
+use super::{
+    AnnounceError, Announcement, HOUR_MS, from_txt, group_tag, matches_group, merge_found, to_txt,
+};
 use crate::lan::window::WindowKind;
 
 const TAG_KEY: [u8; 32] = [3; 32];
@@ -99,4 +101,47 @@ fn group_tags_change_every_hour() {
         group_tag(&TAG_KEY, &GROUP, hour),
         group_tag(&TAG_KEY, &GROUP, hour + 1)
     );
+}
+
+#[test]
+fn a_window_found_on_two_transports_is_listed_once_by_its_faster_route() {
+    use std::sync::Arc;
+
+    use super::FoundWindow;
+    use crate::transport::{Connecting, Connector, Route, Via};
+
+    struct Never;
+    impl Connector for Never {
+        fn connect(&self) -> Connecting<'_> {
+            Box::pin(async { Err(std::io::Error::other("never")) })
+        }
+    }
+    let radio = |random: u8| FoundWindow {
+        announcement: Announcement {
+            window_random: [random; 16],
+            ..sample(WindowKind::Pair)
+        },
+        route: Route::Direct {
+            via: Via::Bluetooth,
+            connector: Arc::new(Never),
+        },
+    };
+    let lan = |random: u8| FoundWindow {
+        announcement: Announcement {
+            window_random: [random; 16],
+            ..sample(WindowKind::Pair)
+        },
+        route: Route::Lan {
+            addrs: vec![],
+            port: 1,
+        },
+    };
+
+    let merged = merge_found(vec![radio(1), radio(2), lan(1)]);
+
+    let vias: Vec<(u8, Via)> = merged
+        .iter()
+        .map(|w| (w.announcement.window_random[0], w.route.via()))
+        .collect();
+    assert_eq!(vias, [(1, Via::Lan), (2, Via::Bluetooth)]);
 }

@@ -9,13 +9,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use keep_vault::{DeviceId, VaultDoc};
-use tokio::net::TcpStream;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::interval;
 use x25519_dalek::StaticSecret;
 use zeroize::Zeroizing;
 
-use super::listen::Listeners;
 use super::pair_open::LINGER;
 use super::peer::{PeerInfo, check_member};
 use super::window_loop::{Progress, run_window};
@@ -25,6 +23,7 @@ use crate::channel::message::{ErrorCode, Message};
 use crate::channel::noise::{Channel, Purpose, accept_noise};
 use crate::lan::window::{CloseReason, Timers, WindowKind};
 use crate::session::exchange::{Exchanged, SessionError, exchange_as_opener};
+use crate::transport::{Acceptor, BoxLink};
 
 /// Reads the vault as it is now; called when a connection needs it.
 pub type CurrentDoc = Arc<dyn Fn() -> VaultDoc + Send + Sync>;
@@ -100,7 +99,7 @@ pub struct SyncWindow {
 /// Runs a sync window until it closes. `announcing` is dropped as soon as no more connections are taken.
 pub async fn run_sync_window<A: Send>(
     window: SyncWindow,
-    listeners: Listeners,
+    acceptor: Acceptor,
     announcing: A,
     current: CurrentDoc,
     wall: WallClock,
@@ -108,7 +107,7 @@ pub async fn run_sync_window<A: Send>(
 ) -> WindowOutcome {
     let (kind, wait_ms, timers) = (WindowKind::Sync, window.wait_ms, window.timers);
     let shared = Arc::new(window);
-    let serve_one = |stream: TcpStream, progress: mpsc::Sender<Progress<WindowOutcome>>| {
+    let serve_one = |stream: BoxLink, progress: mpsc::Sender<Progress<WindowOutcome>>| {
         tokio::spawn(serve(
             stream,
             Arc::clone(&shared),
@@ -118,14 +117,14 @@ pub async fn run_sync_window<A: Send>(
             progress,
         ))
     };
-    run_window(kind, wait_ms, timers, listeners, announcing, serve_one)
+    run_window(kind, wait_ms, timers, acceptor, announcing, serve_one)
         .await
         .unwrap_or_else(WindowOutcome::Closed)
 }
 
 /// One connection, from the handshake to the end of the data phase.
 async fn serve(
-    stream: TcpStream,
+    stream: BoxLink,
     window: Arc<SyncWindow>,
     current: CurrentDoc,
     wall: WallClock,
@@ -206,7 +205,7 @@ async fn serve(
 
 /// Asks the person, sending keepalives meanwhile. The window's timer ends the wait.
 pub(crate) async fn ask_person(
-    channel: &mut Channel<TcpStream>,
+    channel: &mut Channel<BoxLink>,
     event: impl FnOnce(oneshot::Sender<bool>) -> OpenerEvent,
     events: &mpsc::Sender<OpenerEvent>,
     keepalive_ms: u64,

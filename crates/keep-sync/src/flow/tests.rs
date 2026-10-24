@@ -20,7 +20,7 @@ use crate::lan::window::{CloseReason, Timers, WindowKind};
 use crate::testing::{MINUTE_MS, add, founded, identity, member_doc};
 
 pub(super) const CODE: &str = "135790";
-const RANDOM: [u8; 16] = [0x21; 16];
+pub(super) const RANDOM: [u8; 16] = [0x21; 16];
 
 pub(super) fn quick() -> Timers {
     Timers {
@@ -42,7 +42,7 @@ pub(super) fn loopback() -> Eligible {
     }
 }
 
-fn hello(device: &DeviceIdentity, name: &str) -> Hello {
+pub(super) fn hello(device: &DeviceIdentity, name: &str) -> Hello {
     Hello {
         device: device.device_id(),
         dx_cert: Some(device.dx_cert()),
@@ -52,7 +52,7 @@ fn hello(device: &DeviceIdentity, name: &str) -> Hello {
     }
 }
 
-fn joiner(n: u8) -> Joiner {
+pub(super) fn joiner(n: u8) -> Joiner {
     let device = identity(n);
     Joiner {
         me: device.device_id(),
@@ -60,6 +60,13 @@ fn joiner(n: u8) -> Joiner {
         hello: hello(&device, "Phone"),
         timers: quick(),
     }
+}
+
+/// An acceptor for the local network only.
+pub(super) fn lan_acceptor(listeners: Listeners) -> crate::transport::Acceptor {
+    let mut acceptor = crate::transport::Acceptor::new();
+    acceptor.add_lan(listeners);
+    acceptor
 }
 
 fn found(port: u16) -> FoundWindow {
@@ -72,8 +79,10 @@ fn found(port: u16) -> FoundWindow {
             window_random: RANDOM,
             group_tag: Some([0; 6]),
         },
-        addrs: vec![(IpAddr::from([127, 0, 0, 1]), None)],
-        port,
+        route: crate::transport::Route::Lan {
+            addrs: vec![(IpAddr::from([127, 0, 0, 1]), None)],
+            port,
+        },
     }
 }
 
@@ -113,7 +122,7 @@ async fn open(
     let current = Arc::new(move || doc.clone());
     let task = tokio::spawn(run_sync_window(
         window,
-        listeners,
+        lan_acceptor(listeners),
         (),
         current,
         Arc::new(|| 5 * MINUTE_MS),
@@ -122,7 +131,7 @@ async fn open(
     (port, task)
 }
 
-fn group() -> Vec<keep_vault::MemberEvent> {
+pub(super) fn group() -> Vec<keep_vault::MemberEvent> {
     founded(1, &[2, 3])
 }
 
@@ -329,3 +338,5 @@ async fn an_unused_window_expires() {
 }
 
 mod pair;
+
+mod transport;

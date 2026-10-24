@@ -35,14 +35,30 @@ pub struct Announcement {
 }
 
 /// A window someone else opened, as discovery found it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct FoundWindow {
     /// Its announcement.
     pub announcement: Announcement,
-    /// Addresses on this device's links, with the IPv6 scope where it matters.
-    pub addrs: Vec<(std::net::IpAddr, Option<u32>)>,
-    /// Its port.
-    pub port: u16,
+    /// How to reach it.
+    pub route: crate::transport::Route,
+}
+
+/// Found windows as one list: a window found on several transports (the same random value) appears once, by
+/// its fastest route (the local network before Bluetooth). Order is otherwise kept.
+#[must_use]
+pub fn merge_found(found: Vec<FoundWindow>) -> Vec<FoundWindow> {
+    let mut merged: Vec<FoundWindow> = Vec::new();
+    for window in found {
+        match merged
+            .iter_mut()
+            .find(|w| w.announcement.window_random == window.announcement.window_random)
+        {
+            Some(existing) if window.route.via() < existing.route.via() => *existing = window,
+            Some(_) => {}
+            None => merged.push(window),
+        }
+    }
+    merged
 }
 
 /// A record that is not a window this version can join.

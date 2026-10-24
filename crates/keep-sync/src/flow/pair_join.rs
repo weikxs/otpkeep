@@ -3,11 +3,9 @@
 //! merge or replace, receives the group, certifies its new keys for it and runs the data phase.
 
 use std::future::Future;
-use std::net::{IpAddr, SocketAddr, SocketAddrV6};
 use std::time::Duration;
 
 use keep_vault::{SyncGroup, VaultDoc};
-use tokio::net::TcpStream;
 use tokio::time::timeout;
 
 use super::pair_open::{LINGER, receive_data, send_data};
@@ -23,6 +21,7 @@ use crate::lan::window::Timers;
 use crate::membership::membership;
 use crate::session::data::Data;
 use crate::session::exchange::{Exchanged, SessionError, exchange_as_joiner};
+use crate::transport::{BoxLink, Route};
 
 /// Extra time allowed beyond the opener's own timer, for the network.
 const GRACE: Duration = Duration::from_secs(5);
@@ -38,10 +37,8 @@ pub enum JoinMode {
 
 /// Where the window is and what proves the code.
 pub struct PairTarget {
-    /// Addresses on this device's links, with IPv6 scopes.
-    pub addrs: Vec<(IpAddr, Option<u32>)>,
-    /// Port.
-    pub port: u16,
+    /// How to reach the window.
+    pub route: Route,
     /// The window's random value.
     pub window_random: [u8; 16],
     /// The opener's short fingerprint, which must match the device that answers.
@@ -66,7 +63,7 @@ pub enum JoinPairOutcome {
     Busy,
     /// The code was wrong (`CODE_WRONG`).
     WrongCode,
-    /// No address answered.
+    /// The window could not be reached.
     Unreachable,
     /// This device is already in a group (`OTHER_GROUP`).
     InAGroup,
@@ -92,7 +89,7 @@ pub async fn join_pair<D: Future<Output = Option<JoinMode>>>(
         return JoinPairOutcome::InAGroup;
     }
     let handshake = Duration::from_millis(timers.handshake_ms);
-    let Some(stream) = connect(&target.addrs, target.port, handshake).await else {
+    let Some(stream) = target.route.connect(handshake).await else {
         return JoinPairOutcome::Unreachable;
     };
     let connected = timeout(
@@ -200,29 +197,14 @@ fn opener_belongs(group: &SyncGroup, opener: &Hello, remote_static: [u8; 32]) ->
         && verify_dx_cert(opener.device, &group.group_id, &remote_static, &cert)
 }
 
-async fn stop(channel: &mut Channel<TcpStream>, code: ErrorCode) -> JoinPairOutcome {
+async fn stop(channel: &mut Channel<BoxLink>, code: ErrorCode) -> JoinPairOutcome {
     let _ = channel.send(&Message::Error(code).encode()).await;
     channel.close(LINGER).await;
     JoinPairOutcome::Stopped(code)
 }
 
-async fn connect(addrs: &[(IpAddr, Option<u32>)], port: u16, limit: Duration) -> Option<TcpStream> {
-    for (addr, scope) in addrs {
-        let socket = match (addr, scope) {
-            (IpAddr::V6(v6), Some(scope)) => {
-                SocketAddr::V6(SocketAddrV6::new(*v6, port, 0, *scope))
-            }
-            _ => SocketAddr::new(*addr, port),
-        };
-        if let Ok(Ok(stream)) = timeout(limit, TcpStream::connect(socket)).await {
-            return Some(stream);
-        }
-    }
-    None
-}
-
 async fn wait_for_agreed(
-    channel: &mut Channel<TcpStream>,
+    channel: &mut Channel<BoxLink>,
     limit: Duration,
 ) -> Result<(), JoinPairOutcome> {
     let deadline = tokio::time::Instant::now() + limit;
