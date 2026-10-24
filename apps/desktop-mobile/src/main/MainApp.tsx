@@ -6,6 +6,8 @@ import { ENTRY_DRAG_TYPE, EntryRow } from "./EntryRow";
 import { BatchBar } from "./BatchBar";
 import { ExportDialog } from "./ExportDialog";
 import { SettingsDialog } from "./SettingsDialog";
+import { syncStrings } from "./sync/i18n";
+import { SyncDialog } from "./sync/SyncDialog";
 import { TrashDialog } from "./TrashDialog";
 import { type MainStrings, describe } from "./i18n";
 
@@ -38,6 +40,7 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved }:
   const [trashOpen, setTrashOpen] = useState(false);
   const [trashCount, setTrashCount] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
   const [exporting, setExporting] = useState<{ ids: string[] | null; count: number } | null>(null);
   const [allCount, setAllCount] = useState(0);
   const [selecting, setSelecting] = useState(false);
@@ -62,6 +65,7 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved }:
       api.onPage((page) => {
         if (page === "add" || page === "import") setDialog({ tab: page === "add" ? "paste" : "file" });
         if (page === "settings") setSettingsOpen(true);
+        if (page === "sync") setSyncOpen(true);
       }),
     [api],
   );
@@ -181,6 +185,9 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved }:
               {text.trashButton(trashCount)}
             </button>
           )}
+          <button type="button" class="secondary" onClick={() => setSyncOpen(true)}>
+            {text.syncButton}
+          </button>
           {!empty && (
             <button type="button" class="secondary" onClick={() => setExporting({ ids: null, count: allCount })}>
               {text.exportButton}
@@ -316,6 +323,7 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved }:
           onClose={() => setDialog(null)}
         />
       )}
+      {syncOpen && <SyncDialog api={api} text={syncStrings(text.locale)} clock={clock} onClose={() => setSyncOpen(false)} />}
       {settingsOpen && (
         <SettingsDialog
           api={api}

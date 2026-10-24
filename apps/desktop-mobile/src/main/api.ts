@@ -4,6 +4,7 @@
  */
 
 import type { CopyResult, PanelEntry, PanelState } from "../panel/api";
+import type { SyncApi, SyncView } from "./sync/types";
 
 export type { CopyResult };
 export type Entry = PanelEntry;
@@ -152,7 +153,7 @@ export interface GoogleExport {
   checkAfter: string[];
 }
 
-export interface MainApi {
+export interface MainApi extends SyncApi {
   state(query: string): Promise<MainState>;
   copy(id: string): Promise<CopyResult>;
   nextHotp(id: string): Promise<PanelEntry>;
@@ -257,6 +258,19 @@ export async function tauriMainApi(): Promise<MainApi> {
     cancel: (token) => call("cancel_import", { token }),
     openGate: () => call("open_gate"),
     onChange: (listener) => subscribe("vault-changed", () => listener()),
+    syncState: () => call("sync_state"),
+    openSyncWindow: () => call("open_sync_window", { minutes: null }),
+    openPairWindow: (name) => call("open_pair_window", { name, minutes: null }),
+    pairInvite: () => call("pair_invite"),
+    searchWindows: (looking) => call("search_windows", { looking }),
+    joinSync: (index, code) => call("join_sync", { index, code }),
+    joinPair: (withWindow, name, replace) => call("join_pair", { with: withWindow, name, replace }),
+    answerAsk: (id, yes) => call("answer_ask", { id, yes }),
+    closeSession: () => call("close_session"),
+    renameDevice: (name) => call("rename_device", { name }),
+    removeDevice: (fingerprint) => call("remove_device", { fingerprint }),
+    leaveGroup: () => call("leave_group"),
+    onSyncView: (listener) => subscribe<SyncView>("sync-view", listener),
     onPage: (listener) => subscribe<string>("open-page", listener),
   };
 }

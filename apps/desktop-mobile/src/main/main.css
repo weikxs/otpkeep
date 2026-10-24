@@ -1028,3 +1028,148 @@ textarea {
   font-size: 13px;
 }
 .align-start { align-self: flex-start; }
+
+/* Sync */
+.sync-dialog {
+  width: min(620px, 100%);
+}
+
+.sync-home,
+.join,
+.session {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sync-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.sync-actions.three {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.choice:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.me {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.me-name {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.devices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.device-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.window,
+.ask {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.ask {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.big-code {
+  margin: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 34px;
+  letter-spacing: 0.04em;
+}
+
+.session-line {
+  margin: 0;
+  padding: 18px;
+  text-align: center;
+}
+
+.found {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.found-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  text-align: left;
+}
+
+.found-row.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.code-input {
+  font-size: 22px;
+  letter-spacing: 0.1em;
+}
+
+.result {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.result.ok {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.result.failed {
+  background: var(--paper);
+  color: var(--amber);
+}
+
+@media (max-width: 640px) {
+  .sync-actions,
+  .sync-actions.three {
+    grid-template-columns: 1fr;
+  }
+}

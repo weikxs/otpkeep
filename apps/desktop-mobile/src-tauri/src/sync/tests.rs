@@ -241,7 +241,13 @@ async fn a_declined_request_changes_nothing() {
     answer_until_done(&[&a, &b], false).await;
 
     assert_eq!(b.sync.view().last.unwrap().code, "REJECTED");
-    assert!(!a.sync.view().last.unwrap().ok);
+    let mine = a.sync.view().last.unwrap();
+    assert!(!mine.ok);
+    // The page words this one from A's side: "you declined".
+    assert_eq!(
+        (mine.kind, mine.code),
+        (super::SessionKind::SyncWindow, "REJECTED")
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

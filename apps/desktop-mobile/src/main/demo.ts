@@ -1,3 +1,4 @@
+import { type SyncDemo, demoSync } from "./sync/demo";
 import {
   CommandFailure,
   type Entry,
@@ -52,14 +53,17 @@ const START: DemoAccount[] = [
 ];
 
 export interface DemoOptions {
+  /** Whether the device is in a sync group already. */
+  inGroup?: boolean;
   clock?: () => number;
   empty?: boolean;
   needsPassword?: boolean;
 }
 
-export function demoMain({ clock = Date.now, empty = false, needsPassword = false }: DemoOptions = {}): MainApi & {
-  copied: string[];
-} {
+export function demoMain({ clock = Date.now, empty = false, needsPassword = false, inGroup = false }: DemoOptions = {}): MainApi &
+  SyncDemo & {
+    copied: string[];
+  } {
   let accounts = empty ? [] : START.map((a) => ({ ...a }));
   let locked = needsPassword;
   const generated = new Map<string, string>();
@@ -167,6 +171,7 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
   };
 
   return {
+    ...demoSync(clock, inGroup),
     copied,
     state: async (query) => state(query),
     copy: async (id) => {

@@ -138,3 +138,13 @@ test("the export dialog offers the formats and shows Google codes", async ({ pag
   await expect(page.getByText("第 1 / 2 张")).toBeVisible();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/main-google.png` });
 });
+
+test("the sync page shows the devices and a waiting window", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 760 });
+  await page.goto("/index.html");
+
+  await page.getByRole("button", { name: "同步", exact: true }).click();
+  await page.getByText("本机作为同步组的第一台设备，再把其他设备加进来").click();
+  await expect(page.getByTestId("window-code")).toHaveText("7391 5206");
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/main-sync-pair.png` });
+});

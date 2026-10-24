@@ -5,6 +5,8 @@ import type { Place, SkippedPart } from "./api";
 
 const zh = {
   appName: "OTPKeep",
+  locale: "zh" as "zh" | "en",
+  syncButton: "同步",
   sep: "：",
   unavailable: panelStrings("zh").unavailable,
   problems: panelStrings("zh").problems,
@@ -288,6 +290,8 @@ export type MainStrings = typeof zh;
 
 const en: MainStrings = {
   ...zh,
+  locale: "en",
+  syncButton: "Sync",
   sep: ": ",
   unavailable: panelStrings("en").unavailable,
   problems: panelStrings("en").problems,
