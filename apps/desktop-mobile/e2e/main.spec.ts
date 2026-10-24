@@ -50,3 +50,35 @@ test("the manual form explains a mistyped secret", async ({ page }) => {
 
   await expect(dialog.getByRole("alert")).toContainText("第 5 个字符“0”不合法");
 });
+
+test("rows are reordered by dragging in a real browser", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 640 });
+  await page.goto("/index.html");
+  const rows = page.getByTestId("entry");
+  await expect(rows).toHaveCount(4);
+
+  const target = await rows.nth(0).boundingBox();
+  if (!target) throw new Error("no layout");
+  await rows.nth(3).dragTo(rows.nth(0), { targetPosition: { x: 40, y: 4 } });
+
+  await expect(rows.nth(0)).toContainText("Bank token");
+});
+
+test("the editor shows tags, place, history and the trash", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 760 });
+  await page.goto("/index.html");
+  const mail = page.getByTestId("entry").nth(1);
+
+  await mail.getByText("编辑").click();
+  await page.getByRole("textbox", { name: "标签" }).fill("个人");
+  await page.getByRole("textbox", { name: "标签" }).press("Enter");
+  await page.getByText("编辑历史").click();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/main-editor.png` });
+  await page.getByText("移入回收站").click();
+  await page.getByRole("button", { name: "移入回收站" }).last().click();
+
+  await expect(page.getByTestId("entry")).toHaveCount(3);
+  await page.getByText("回收站（1）").click();
+  await expect(page.getByTestId("trash-row")).toHaveCount(1);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/main-trash.png` });
+});

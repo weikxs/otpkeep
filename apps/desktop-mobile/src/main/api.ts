@@ -70,12 +70,44 @@ export interface ManualForm {
   counter: number;
 }
 
+/** Where to move an entry. */
+export type MoveTo = { to: "first" } | { to: "last" } | { to: "before"; other: string } | { to: "after"; other: string };
+
+export interface TrashItem {
+  id: string;
+  title: string;
+  issuer: string;
+  account: string;
+  trashedAtMs: number;
+  /** When it will be deleted for good. */
+  purgeAtMs: number;
+}
+
+export interface Version {
+  value: string;
+  atMs: number;
+}
+
+/** Earlier names and notes, newest first; kept on this device only. */
+export interface History {
+  title: Version[];
+  note: Version[];
+}
+
 export interface MainApi {
   state(query: string): Promise<MainState>;
   copy(id: string): Promise<CopyResult>;
   nextHotp(id: string): Promise<PanelEntry>;
   edit(id: string, change: { title?: string; note?: string }): Promise<void>;
   unlock(password: string): Promise<MainState>;
+  setPinned(id: string, pinned: boolean): Promise<void>;
+  setTags(id: string, tags: string[]): Promise<void>;
+  move(id: string, to: MoveTo): Promise<void>;
+  trash(id: string): Promise<void>;
+  restore(id: string): Promise<void>;
+  purge(id: string): Promise<void>;
+  trashList(): Promise<TrashItem[]>;
+  history(id: string): Promise<History>;
   stageText(text: string): Promise<ImportView>;
   stageFile(bytes: Uint8Array, backupPassword?: string): Promise<ImportView>;
   stageManual(form: ManualForm): Promise<ImportView>;
@@ -120,6 +152,14 @@ export async function tauriMainApi(): Promise<MainApi> {
     nextHotp: (id) => call("next_hotp", { id }),
     edit: (id, change) => call("edit_entry", { id, title: change.title ?? null, note: change.note ?? null }),
     unlock: (password) => call("unlock", { password }),
+    setPinned: (id, pinned) => call("set_pinned", { id, pinned }),
+    setTags: (id, tags) => call("set_tags", { id, tags }),
+    move: (id, to) => call("move_entry", { id, to }),
+    trash: (id) => call("trash_entry", { id }),
+    restore: (id) => call("restore_entry", { id }),
+    purge: (id) => call("purge_entry", { id }),
+    trashList: () => call("trash_list"),
+    history: (id) => call("entry_history", { id }),
     stageText: (text) => call("stage_text", { text }),
     stageFile: (bytes, backupPassword) =>
       // Raw bytes; the password may hold any character, so it is percent-encoded for the header.

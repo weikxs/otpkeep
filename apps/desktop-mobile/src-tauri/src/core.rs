@@ -20,9 +20,11 @@ use crate::staging::Staging;
 
 mod import;
 mod import_view;
+mod manage;
 
 pub use import::{ImportProblem, ManualForm};
 pub use import_view::ImportView;
+pub use manage::{History, MoveTo, TrashItem};
 
 /// The panel lists at most this many entries without a search (design/12 §3).
 pub const PANEL_LIMIT: usize = 20;
@@ -42,6 +44,7 @@ pub struct PanelEntry {
     pub issuer: String,
     pub account: String,
     pub note: String,
+    pub tags: Vec<String>,
     pub kind: EntryKind,
     pub pinned: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -151,6 +154,8 @@ impl From<ServiceError> for CoreError {
             ServiceError::Edit(EditError::TitleEmpty) => Self::Invalid("TITLE_EMPTY"),
             ServiceError::Edit(EditError::TitleTooLong) => Self::Invalid("TITLE_TOO_LONG"),
             ServiceError::Edit(EditError::NoteTooLong) => Self::Invalid("NOTE_TOO_LONG"),
+            ServiceError::Edit(EditError::TagTooLong) => Self::Invalid("TAG_TOO_LONG"),
+            ServiceError::Edit(EditError::TooManyTags) => Self::Invalid("TOO_MANY_TAGS"),
             _ => Self::Save,
         }
     }
@@ -216,6 +221,7 @@ impl Core {
             }
             Startup::Stopped(reason) => Vault::Unavailable(problem(reason)),
         };
+        self.tidy();
     }
 
     fn opened(&self, open: keep_vault::open::OpenVault, read_only: bool) -> Vault {
@@ -350,7 +356,10 @@ impl Core {
             return self.state("");
         };
         match unlock_with_password(paths, password, self.lock_wait) {
-            Ok(open) => self.vault = self.opened(open, false),
+            Ok(open) => {
+                self.vault = self.opened(open, false);
+                self.tidy();
+            }
             Err(UnlockError::WrongPassword) => {}
             Err(UnlockError::Stopped(reason)) => self.vault = Vault::Unavailable(problem(reason)),
         }
@@ -368,6 +377,17 @@ impl Core {
 fn find(service: &VaultService, id: &str) -> Result<EntryId, CoreError> {
     service
         .ordered()
+        .iter()
+        .find(|e| e.id.to_string() == id)
+        .map(|e| e.id)
+        .ok_or(CoreError::NotFound)
+}
+
+/// Any entry, also one in the trash.
+fn find_any(service: &VaultService, id: &str) -> Result<EntryId, CoreError> {
+    service
+        .doc()
+        .entries
         .iter()
         .find(|e| e.id.to_string() == id)
         .map(|e| e.id)
@@ -455,6 +475,7 @@ fn row(service: &VaultService, entry: &Entry, now_ms: u64) -> PanelEntry {
         issuer: entry.issuer.value.clone(),
         account: entry.account.value.clone(),
         note: entry.note.value.clone(),
+        tags: entry.tags.value.clone(),
         kind,
         pinned: entry.pinned.value,
         code: passcode.as_ref().map(|p| p.code().to_owned()),

@@ -1,10 +1,22 @@
-import { CommandFailure, type Entry, type ImportRow, type ImportView, type MainApi, type MainState } from "./api";
+import {
+  CommandFailure,
+  type Entry,
+  type History,
+  type ImportRow,
+  type ImportView,
+  type MainApi,
+  type MainState,
+  type TrashItem,
+} from "./api";
 
 /** Made-up accounts and a pretend import, for the browser preview and tests. Codes come from the clock. */
 
 const BASE32 = /^[A-Z2-7]+$/u;
 const PERIOD_MS = 30_000;
 const NEXT_WINDOW_MS = 5_000;
+const TRASH_KEEP_MS = 30 * 24 * 60 * 60 * 1000;
+const TAG_MAX = 30;
+const TAGS_MAX = 20;
 
 function fakeCode(seed: string, step: number, steam = false): string {
   let hash = step >>> 0;
@@ -22,11 +34,14 @@ interface DemoAccount {
   note: string;
   kind: Entry["kind"];
   secret: string;
+  pinned?: boolean;
+  tags?: string[];
+  trashedAt?: number;
 }
 
 const START: DemoAccount[] = [
   { id: "a1", title: "GitHub", issuer: "GitHub", account: "demo-user", note: "", kind: "totp", secret: "GH" },
-  { id: "a2", title: "邮箱", issuer: "示例邮箱", account: "demo@example.com", note: "备用码在抽屉里", kind: "totp", secret: "MAIL" },
+  { id: "a2", title: "邮箱", issuer: "示例邮箱", account: "demo@example.com", note: "备用码在抽屉里", kind: "totp", secret: "MAIL", tags: ["工作"] },
   { id: "a3", title: "Steam", issuer: "Steam", account: "player", note: "", kind: "steam", secret: "STEAM" },
   { id: "a4", title: "Bank token", issuer: "Example Bank", account: "0000", note: "", kind: "hotp", secret: "BANK" },
 ];
@@ -45,19 +60,29 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
   const generated = new Map<string, string>();
   const staged = new Map<string, { rows: ImportRow[]; accounts: DemoAccount[] }>();
   const copied: string[] = [];
+  const history = new Map<string, History>();
   let tokens = 0;
+  const live = () => {
+    const kept = accounts.filter((a) => a.trashedAt === undefined);
+    return [...kept.filter((a) => a.pinned), ...kept.filter((a) => !a.pinned)];
+  };
+  const change = (id: string, update: (a: DemoAccount) => DemoAccount) => {
+    if (!accounts.some((a) => a.id === id)) throw new CommandFailure("NOT_FOUND");
+    accounts = accounts.map((a) => (a.id === id ? update(a) : a));
+  };
 
   const entry = (a: DemoAccount, now: number): Entry => {
     if (a.kind === "hotp") {
       const code = generated.get(a.id);
-      return { ...a, pinned: false, ...(code === undefined ? {} : { code }) };
+      return { ...a, tags: a.tags ?? [], pinned: a.pinned ?? false, ...(code === undefined ? {} : { code }) };
     }
     const step = Math.floor(now / PERIOD_MS);
     const validUntilMs = (step + 1) * PERIOD_MS;
     const steam = a.kind === "steam";
     return {
       ...a,
-      pinned: false,
+      tags: a.tags ?? [],
+      pinned: a.pinned ?? false,
       code: fakeCode(a.secret, step, steam),
       periodS: 30,
       validUntilMs,
@@ -68,7 +93,9 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
   const state = (query: string): MainState => {
     const now = clock();
     const q = query.trim().toLowerCase();
-    const found = accounts.filter((a) => q === "" || `${a.title} ${a.issuer} ${a.account} ${a.note}`.toLowerCase().includes(q));
+    const found = live().filter(
+      (a) => q === "" || `${a.title} ${a.issuer} ${a.account} ${a.note} ${(a.tags ?? []).join(" ")}`.toLowerCase().includes(q),
+    );
     return {
       status: locked ? "needsPassword" : "ready",
       entries: locked ? [] : found.map((a) => entry(a, now)),
@@ -124,10 +151,50 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
       if (!account) throw new CommandFailure("NOT_FOUND");
       return entry(account, clock());
     },
-    edit: async (id, change) => {
-      if (change.title !== undefined && change.title.trim() === "") throw new CommandFailure("INVALID", "TITLE_EMPTY");
-      accounts = accounts.map((a) => (a.id === id ? { ...a, ...change } : a));
+    edit: async (id, edit) => {
+      if (edit.title !== undefined && edit.title.trim() === "") throw new CommandFailure("INVALID", "TITLE_EMPTY");
+      const before = accounts.find((a) => a.id === id);
+      if (before) {
+        const old = history.get(id) ?? { title: [], note: [] };
+        history.set(id, {
+          title: edit.title !== undefined ? [{ value: before.title, atMs: clock() }, ...old.title] : old.title,
+          note: edit.note !== undefined ? [{ value: before.note, atMs: clock() }, ...old.note] : old.note,
+        });
+      }
+      change(id, (a) => ({ ...a, ...edit }));
     },
+    setPinned: async (id, pinned) => change(id, (a) => ({ ...a, pinned })),
+    setTags: async (id, tags) => {
+      const clean = [...new Set(tags.map((t) => t.trim()).filter((t) => t !== ""))];
+      if (clean.some((t) => t.length > TAG_MAX)) throw new CommandFailure("INVALID", "TAG_TOO_LONG");
+      if (clean.length > TAGS_MAX) throw new CommandFailure("INVALID", "TOO_MANY_TAGS");
+      change(id, (a) => ({ ...a, tags: clean }));
+    },
+    move: async (id, to) => {
+      const moving = accounts.find((a) => a.id === id);
+      if (!moving) throw new CommandFailure("NOT_FOUND");
+      const rest = accounts.filter((a) => a.id !== id);
+      const at =
+        to.to === "first" ? 0 : to.to === "last" ? rest.length : rest.findIndex((a) => a.id === to.other) + (to.to === "after" ? 1 : 0);
+      accounts = [...rest.slice(0, at), moving, ...rest.slice(at)];
+    },
+    trash: async (id) => change(id, (a) => ({ ...a, trashedAt: clock() })),
+    restore: async (id) => change(id, ({ trashedAt: _gone, ...a }) => a),
+    purge: async (id) => {
+      accounts = accounts.filter((a) => a.id !== id);
+    },
+    trashList: async (): Promise<TrashItem[]> =>
+      accounts
+        .filter((a) => a.trashedAt !== undefined)
+        .map((a) => ({
+          id: a.id,
+          title: a.title,
+          issuer: a.issuer,
+          account: a.account,
+          trashedAtMs: a.trashedAt ?? 0,
+          purgeAtMs: (a.trashedAt ?? 0) + TRASH_KEEP_MS,
+        })),
+    history: async (id) => history.get(id) ?? { title: [], note: [] },
     unlock: async (password) => {
       if (password === "demo") locked = false;
       return state("");

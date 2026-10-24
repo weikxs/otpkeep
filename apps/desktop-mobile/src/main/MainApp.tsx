@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { type AddTab, AddDialog } from "./AddDialog";
 import { CommandFailure, type Entry, type MainApi, type MainState } from "./api";
-import { EntryRow } from "./EntryRow";
+import { ENTRY_DRAG_TYPE, EntryRow } from "./EntryRow";
+import { TrashDialog } from "./TrashDialog";
 import { type MainStrings, describe } from "./i18n";
 
 const TICK_MS = 250;
@@ -27,6 +28,9 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
   const [toast, setToast] = useState<string | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [dragging, setDragging] = useState(false);
+  const [tag, setTag] = useState<string | null>(null);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trashCount, setTrashCount] = useState(0);
 
   const load = useCallback(
     async (q: string) => {
@@ -34,6 +38,7 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
       setOffset(next.nowMs - clock());
       setNow(clock());
       setState(next);
+      if (next.status === "ready") setTrashCount((await api.trashList()).length);
     },
     [api, clock],
   );
@@ -83,13 +88,29 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
     }
   };
 
-  const save = async (id: string, change: { title?: string; note?: string }) => {
-    await api.edit(id, change);
+  const save = async (id: string, change: { title?: string; note?: string; tags?: string[]; pinned?: boolean }) => {
+    const { tags, pinned, ...names } = change;
+    if (names.title !== undefined || names.note !== undefined) await api.edit(id, names);
+    if (tags !== undefined) await api.setTags(id, tags);
+    if (pinned !== undefined) await api.setPinned(id, pinned);
     setToast(text.saved);
     await load(query);
   };
 
+  const after = async (action: Promise<void>, message?: string) => {
+    try {
+      await action;
+      if (message) setToast(message);
+    } catch (thrown) {
+      show(thrown);
+    }
+    await load(query);
+  };
+
+  const isEntryDrag = (event: DragEvent) => event.dataTransfer?.types.includes(ENTRY_DRAG_TYPE) ?? false;
+
   const onDrop = async (event: DragEvent) => {
+    if (isEntryDrag(event)) return;
     event.preventDefault();
     setDragging(false);
     const file = event.dataTransfer?.files?.[0];
@@ -107,11 +128,16 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
     );
   }
 
-  const empty = state.entries.length === 0 && query === "";
+  const empty = state.entries.length === 0 && query === "" && trashCount === 0;
+  const allTags = [...new Set(state.entries.flatMap((e) => e.tags))].sort((a, b) => a.localeCompare(b));
+  const shown = tag === null ? state.entries : state.entries.filter((e) => e.tags.includes(tag));
+  const sortable = query === "" && tag === null;
+  const grouped = sortable && shown.some((e) => e.pinned);
   return (
     <div
       class={`main${dragging ? " dragging" : ""}`}
       onDragOver={(e) => {
+        if (isEntryDrag(e)) return;
         e.preventDefault();
         setDragging(true);
       }}
@@ -131,6 +157,11 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
           />
         )}
         <span class="topbar-actions">
+          {!empty && (
+            <button type="button" class="secondary" onClick={() => setTrashOpen(true)}>
+              {text.trashButton(trashCount)}
+            </button>
+          )}
           <button type="button" class="secondary" onClick={() => void api.openGate()}>
             {text.manage}
           </button>
@@ -143,21 +174,62 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
         <Welcome text={text} onChoose={(tab) => setDialog({ tab })} />
       ) : (
         <main class="list">
-          <p class="muted list-count">{text.count(state.entries.length)}</p>
-          {state.entries.length === 0 && <p class="empty-search">{text.noMatch}</p>}
+          <div class="list-head">
+            <span class="muted">{text.count(shown.length)}</span>
+            {allTags.length > 0 && (
+              <span class="tag-filter" role="group" aria-label={text.tags}>
+                {[null, ...allTags].map((t) => (
+                  <button
+                    key={t ?? ""}
+                    type="button"
+                    class={`tag-chip${tag === t ? " active" : ""}`}
+                    aria-pressed={tag === t}
+                    onClick={() => setTag(t)}
+                  >
+                    {t ?? text.allTags}
+                  </button>
+                ))}
+              </span>
+            )}
+          </div>
+          {shown.length === 0 && <p class="empty-search">{text.noMatch}</p>}
           <ul class="entries-list">
-            {state.entries.map((entry) => (
-              <EntryRow
-                key={entry.id}
-                entry={entry}
-                coreNow={coreNow}
-                copied={copiedId === entry.id}
-                text={text}
-                isMac={isMac}
-                onCopy={(e) => void copy(e)}
-                onSave={(change) => save(entry.id, change)}
-              />
-            ))}
+            {shown.flatMap((entry, index) => {
+              // A flat list of keyed rows: headings are their own items, so moving a row keeps its element.
+              const heading =
+                grouped && index === 0
+                  ? text.pinned
+                  : grouped && !entry.pinned && shown[index - 1]?.pinned
+                    ? text.others
+                    : null;
+              const row = (
+                <EntryRow
+                  key={entry.id}
+                  entry={entry}
+                  coreNow={coreNow}
+                  copied={copiedId === entry.id}
+                  text={text}
+                  isMac={isMac}
+                  sortable={sortable}
+                  previous={shown[index - 1]?.id}
+                  next={shown[index + 1]?.id}
+                  onCopy={(e) => void copy(e)}
+                  onSave={(change) => save(entry.id, change)}
+                  onMove={(to) => after(api.move(entry.id, to))}
+                  onTrash={() => after(api.trash(entry.id), text.trashed)}
+                  loadHistory={() => api.history(entry.id)}
+                  onDropRow={(moved, place) => void after(api.move(moved, { to: place, other: entry.id }))}
+                />
+              );
+              return heading === null
+                ? [row]
+                : [
+                    <li key={`heading-${heading}`} class="group-title">
+                      {heading}
+                    </li>,
+                    row,
+                  ];
+            })}
           </ul>
         </main>
       )}
@@ -174,6 +246,18 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
             void load(query);
           }}
           onClose={() => setDialog(null)}
+        />
+      )}
+      {trashOpen && (
+        <TrashDialog
+          api={api}
+          text={text}
+          now={coreNow}
+          onChanged={(message) => {
+            setToast(message);
+            void load(query);
+          }}
+          onClose={() => setTrashOpen(false)}
         />
       )}
       {toast && (

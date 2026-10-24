@@ -1,7 +1,7 @@
 import type { CopyResult, PanelApi, PanelEntry, PanelState } from "./api";
 
 /** Made-up accounts for the browser preview and tests; the codes are derived from the clock, not secrets. */
-const DEMO_ENTRIES: Omit<PanelEntry, "code" | "nextCode" | "validUntilMs" | "shortcut" | "note">[] = [
+const DEMO_ENTRIES: Omit<PanelEntry, "code" | "nextCode" | "validUntilMs" | "shortcut" | "note" | "tags">[] = [
   { id: "d1", title: "GitHub", issuer: "GitHub", account: "demo-user", kind: "totp", pinned: true, periodS: 30 },
   { id: "d2", title: "邮箱", issuer: "示例邮箱", account: "demo@example.com", kind: "totp", pinned: true, periodS: 30 },
   { id: "d3", title: "Cloud Console", issuer: "Example Cloud", account: "ops@example.com", kind: "totp", pinned: false, periodS: 30 },
@@ -40,7 +40,7 @@ export function demoApi({ clock = Date.now, status = "ready", empty = false }: D
     const matched = source.filter((e) => q === "" || `${e.title} ${e.issuer} ${e.account}`.toLowerCase().includes(q));
     const ordered = q === "" ? [...matched.filter((e) => e.pinned), ...matched.filter((e) => !e.pinned)] : matched;
     return ordered.map((base, index) => {
-      const e = { ...base, note: "" };
+      const e = { ...base, note: "", tags: [] as string[] };
       const shortcut = index < 10 ? { shortcut: `control+alt+super+Digit${(index + 1) % 10}` } : {};
       if (e.kind === "hotp") {
         const code = hotpCodes.get(e.id);

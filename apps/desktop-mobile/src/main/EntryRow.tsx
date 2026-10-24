@@ -2,8 +2,12 @@ import { useState } from "preact/hooks";
 import { groupCode, monogram, tileColor } from "../panel/format";
 import { Ring } from "../shared/Ring";
 import { formatShortcut } from "../shared/shortcut";
-import { CommandFailure, type Entry } from "./api";
-import { type MainStrings, describe } from "./i18n";
+import type { Entry, History, MoveTo } from "./api";
+import { EntryEditor } from "./EntryEditor";
+import type { MainStrings } from "./i18n";
+
+/** What a dragged row carries, so a drop on the window is not mistaken for a file. */
+export const ENTRY_DRAG_TYPE = "application/x-otpkeep-entry";
 
 /** Codes ending within this many seconds also show the next one (PRD FR-1.4). */
 const NEXT_CODE_WINDOW_S = 5;
@@ -14,13 +18,24 @@ export interface EntryRowProps {
   copied: boolean;
   text: MainStrings;
   isMac: boolean;
+  previous: string | undefined;
+  next: string | undefined;
+  /** Rows can be dragged into another place (not while searching or filtering). */
+  sortable: boolean;
   onCopy: (entry: Entry) => void;
-  onSave: (change: { title?: string; note?: string }) => Promise<void>;
+  onSave: (change: { title?: string; note?: string; tags?: string[]; pinned?: boolean }) => Promise<void>;
+  onMove: (to: MoveTo) => Promise<void>;
+  onTrash: () => Promise<void>;
+  loadHistory: () => Promise<History>;
+  /** Another row was dropped on this one. */
+  onDropRow: (moved: string, place: "before" | "after") => void;
 }
 
 /** One account in the main window: click to copy; names and the note are edited in place. */
-export function EntryRow({ entry, coreNow, copied, text, isMac, onCopy, onSave }: EntryRowProps) {
+export function EntryRow(props: EntryRowProps) {
+  const { entry, coreNow, copied, text, isMac, sortable, onCopy, onDropRow } = props;
   const [editing, setEditing] = useState(false);
+  const [dropAt, setDropAt] = useState<"before" | "after" | null>(null);
   const subtitle = [entry.issuer, entry.account].filter((s) => s !== "" && s !== entry.title).join(" · ");
   const remainingS =
     entry.validUntilMs === undefined ? undefined : Math.max(0, Math.ceil((entry.validUntilMs - coreNow) / 1000));
@@ -29,20 +44,73 @@ export function EntryRow({ entry, coreNow, copied, text, isMac, onCopy, onSave }
   if (editing) {
     return (
       <li class="entry-row editing" data-testid="entry">
-        <EditForm entry={entry} text={text} onSave={onSave} onDone={() => setEditing(false)} />
+        <EntryEditor
+          entry={entry}
+          text={text}
+          previous={props.previous}
+          next={props.next}
+          onSave={props.onSave}
+          onMove={props.onMove}
+          onTrash={props.onTrash}
+          loadHistory={props.loadHistory}
+          onDone={() => setEditing(false)}
+        />
       </li>
     );
   }
 
   return (
-    <li class="entry-row" data-testid="entry">
+    <li
+      class={`entry-row${dropAt ? ` drop-${dropAt}` : ""}`}
+      data-testid="entry"
+      draggable={sortable}
+      onDragStart={(e) => e.dataTransfer?.setData(ENTRY_DRAG_TYPE, entry.id)}
+      onDragOver={(e) => {
+        if (!sortable || !e.dataTransfer?.types.includes(ENTRY_DRAG_TYPE)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        setDropAt(e.clientY < box.top + box.height / 2 ? "before" : "after");
+      }}
+      onDragLeave={() => setDropAt(null)}
+      onDrop={(e) => {
+        const moved = e.dataTransfer?.getData(ENTRY_DRAG_TYPE);
+        if (!moved) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const place = dropAt ?? "before";
+        setDropAt(null);
+        if (moved !== entry.id) onDropRow(moved, place);
+      }}
+    >
+      {sortable && (
+        <span class="drag-handle" title={text.dragHint} aria-hidden="true">
+          ⋮⋮
+        </span>
+      )}
       <button type="button" class="entry-main" onClick={() => onCopy(entry)} aria-label={`${entry.title} ${text.copied}`}>
         <span class={`tile tile-${tileColor(entry.issuer || entry.title)}`} aria-hidden="true">
           {monogram(entry.issuer, entry.title)}
         </span>
         <span class="entry-names">
-          <span class="entry-title">{entry.title}</span>
+          <span class="entry-title">
+            {entry.pinned && (
+              <span class="pin-mark" title={text.pinned} aria-label={text.pinned}>
+                ●
+              </span>
+            )}
+            {entry.title}
+          </span>
           {subtitle !== "" && <span class="entry-subtitle">{subtitle}</span>}
+          {entry.tags.length > 0 && (
+            <span class="entry-tags">
+              {entry.tags.map((tag) => (
+                <span key={tag} class="tag small">
+                  {tag}
+                </span>
+              ))}
+            </span>
+          )}
           {entry.note !== "" && <span class="entry-note">{entry.note}</span>}
         </span>
         <span class="entry-code">
@@ -78,70 +146,5 @@ export function EntryRow({ entry, coreNow, copied, text, isMac, onCopy, onSave }
         </button>
       </span>
     </li>
-  );
-}
-
-interface EditFormProps {
-  entry: Entry;
-  text: MainStrings;
-  onSave: (change: { title?: string; note?: string }) => Promise<void>;
-  onDone: () => void;
-}
-
-function EditForm({ entry, text, onSave, onDone }: EditFormProps) {
-  const [title, setTitle] = useState(entry.title);
-  const [note, setNote] = useState(entry.note);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (event: Event) => {
-    event.preventDefault();
-    const change = {
-      ...(title !== entry.title ? { title } : {}),
-      ...(note !== entry.note ? { note } : {}),
-    };
-    if (Object.keys(change).length === 0) return onDone();
-    setBusy(true);
-    try {
-      await onSave(change);
-      onDone();
-    } catch (thrown) {
-      const failure = thrown instanceof CommandFailure ? thrown : new CommandFailure("UNKNOWN");
-      setError(describe(text, failure.code, failure.detail));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <form class="edit-form" onSubmit={(e) => void submit(e)}>
-      <label>
-        <span class="field-label">{text.name}</span>
-        <input value={title} maxLength={100} autoFocus onInput={(e) => setTitle((e.target as HTMLInputElement).value)} />
-      </label>
-      <label>
-        <span class="field-label">{text.note}</span>
-        <textarea
-          value={note}
-          rows={3}
-          maxLength={2000}
-          placeholder={text.notePlaceholder}
-          onInput={(e) => setNote((e.target as HTMLTextAreaElement).value)}
-        />
-      </label>
-      {error && (
-        <p class="field-error" role="alert">
-          {error}
-        </p>
-      )}
-      <div class="form-actions">
-        <button type="submit" class="primary" disabled={busy}>
-          {text.save}
-        </button>
-        <button type="button" class="secondary" onClick={onDone}>
-          {text.cancel}
-        </button>
-      </div>
-    </form>
   );
 }

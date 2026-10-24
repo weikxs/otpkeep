@@ -12,6 +12,7 @@ export interface PanelEntry {
   account: string;
   /** Shown in the main window; the panel leaves it out. */
   note: string;
+  tags: string[];
   kind: EntryKind;
   pinned: boolean;
   /** Current code; for HOTP only after "generate". */
