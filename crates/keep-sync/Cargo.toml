@@ -12,8 +12,14 @@ blake3 = "1.8"
 ciborium = "0.2"
 ed25519-dalek = "3.0"
 getrandom = "0.4"
+hkdf = "0.12"
+hmac = "0.12"
 keep-vault = { path = "../keep-vault" }
+sha2 = "0.10"
+snow = "0.10"
+spake2 = "=0.4.0"
 thiserror = "2"
+tokio = { version = "1", features = ["io-util", "net", "time", "rt", "macros", "sync"] }
 tracing = "0.1"
 x25519-dalek = { version = "3.0", features = ["static_secrets"] }
 zeroize = "1.9"

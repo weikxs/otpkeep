@@ -1,5 +1,6 @@
 //! LAN pairing and sync: device identity, membership and merging (design/06-sync.md).
 
+pub mod channel;
 pub mod digest;
 pub mod housekeeping;
 pub mod identity;
