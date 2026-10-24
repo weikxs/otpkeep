@@ -198,7 +198,7 @@ impl Core {
     }
 
     /// Creates a vault whose key is kept in the system keychain.
-    fn create(&mut self) -> Result<(), CoreError> {
+    pub(super) fn create(&mut self) -> Result<(), CoreError> {
         let paths = self.paths.as_ref().ok_or(CoreError::Save)?;
         let open = create_vault(paths, self.keystore.as_ref(), self.lock_wait).map_err(
             |error| match error {

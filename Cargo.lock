@@ -3245,8 +3245,10 @@ dependencies = [
  "keep-find",
  "keep-gate",
  "keep-keyuri",
+ "keep-link",
  "keep-passcode",
  "keep-platform",
+ "keep-sync",
  "keep-transfer",
  "keep-vault",
  "percent-encoding",
@@ -3259,6 +3261,7 @@ dependencies = [
  "tauri-plugin-global-shortcut",
  "tempfile",
  "thiserror 2.0.21",
+ "tokio",
  "tracing",
  "zeroize",
 ]

@@ -21,6 +21,7 @@ keep-gate = { path = "../../../crates/keep-gate" }
 keep-keyuri = { path = "../../../crates/keep-keyuri" }
 keep-passcode = { path = "../../../crates/keep-passcode" }
 keep-platform = { path = "../../../crates/keep-platform" }
+keep-sync = { path = "../../../crates/keep-sync" }
 keep-transfer = { path = "../../../crates/keep-transfer" }
 keep-vault = { path = "../../../crates/keep-vault" }
 percent-encoding = "2.3"
@@ -28,11 +29,13 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 tauri = { version = "2.9", features = ["tray-icon"] }
 thiserror = "2"
+tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
 tracing = "0.1"
 zeroize = "1.9"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 arboard = { version = "3", default-features = false }
+keep-link = { path = "../../../crates/keep-link" }
 sys-locale = "0.3"
 tauri-plugin-dialog = "2"
 tauri-plugin-global-shortcut = "2"

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>OTPKeep uses Bluetooth only while you pair or sync with another of your devices.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>OTPKeep looks for your other devices on the local network only while you pair or sync.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_otpkeep._tcp</string>
+	</array>
+</dict>
+</plist>

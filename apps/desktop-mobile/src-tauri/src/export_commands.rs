@@ -5,13 +5,13 @@ use std::io::Write;
 use std::path::Path;
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State};
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use tauri::{AppHandle, State};
+use tauri_plugin_dialog::DialogExt;
 use zeroize::Zeroizing;
 
 use crate::commands::{AppCore, CommandError};
 use crate::core::{ExportFormat, GoogleExport, LeftOut, QrImage};
-use crate::hotkeys::Hotkeys;
+use crate::native::{PLAIN_FILE, SHOW_CODES, confirm};
 
 type Result<T> = std::result::Result<T, CommandError>;
 
@@ -35,7 +35,7 @@ pub async fn export_file(
     vault: State<'_, AppCore>,
 ) -> Result<ExportDone> {
     let password = password.map(Zeroizing::new);
-    if format.is_plaintext() && !confirm(&app, Ask::PlainFile) {
+    if format.is_plaintext() && !confirm(&app, &PLAIN_FILE) {
         return Err(CommandError::code("CANCELLED"));
     }
     let file = vault.get().export_file(
@@ -70,7 +70,7 @@ pub async fn export_google(
     app: AppHandle,
     vault: State<'_, AppCore>,
 ) -> Result<GoogleExport> {
-    if !confirm(&app, Ask::Codes) {
+    if !confirm(&app, &SHOW_CODES) {
         return Err(CommandError::code("CANCELLED"));
     }
     Ok(vault.get().export_google(ids.as_deref())?)
@@ -79,66 +79,10 @@ pub async fn export_google(
 /// One entry's QR code to show, after the person confirms natively.
 #[tauri::command]
 pub async fn entry_qr(id: String, app: AppHandle, vault: State<'_, AppCore>) -> Result<QrImage> {
-    if !confirm(&app, Ask::Codes) {
+    if !confirm(&app, &SHOW_CODES) {
         return Err(CommandError::code("CANCELLED"));
     }
     Ok(vault.get().entry_qr(&id)?)
-}
-
-#[derive(Clone, Copy)]
-enum Ask {
-    PlainFile,
-    Codes,
-}
-
-/// A native warning with Continue / Cancel; true when the person continues.
-fn confirm(app: &AppHandle, ask: Ask) -> bool {
-    let chinese = chinese(app);
-    let (title, body, go, stop) = match (ask, chinese) {
-        (Ask::PlainFile, true) => (
-            "导出未加密的文件",
-            "这个文件包含密钥，没有加密。任何能读到它的人都能生成你的验证码。请只在需要时导出，用完删除。",
-            "继续导出",
-            "取消",
-        ),
-        (Ask::PlainFile, false) => (
-            "Export an unencrypted file",
-            "This file holds your secrets unencrypted. Anyone who can read it can make your codes. Export it only when needed and delete it afterwards.",
-            "Export",
-            "Cancel",
-        ),
-        (Ask::Codes, true) => (
-            "在屏幕上显示二维码",
-            "二维码包含密钥。请确认周围没有人或摄像头能看到屏幕，也没有在录屏。",
-            "显示",
-            "取消",
-        ),
-        (Ask::Codes, false) => (
-            "Show QR codes on the screen",
-            "The QR codes hold your secrets. Make sure nobody and no camera can see the screen, and that nothing is recording it.",
-            "Show",
-            "Cancel",
-        ),
-    };
-    app.dialog()
-        .message(body)
-        .title(title)
-        .kind(MessageDialogKind::Warning)
-        .buttons(MessageDialogButtons::OkCancelCustom(
-            go.to_owned(),
-            stop.to_owned(),
-        ))
-        .blocking_show()
-}
-
-/// Whether the person reads Chinese: their setting, or the system's language.
-fn chinese(app: &AppHandle) -> bool {
-    let chosen = app
-        .try_state::<Hotkeys>()
-        .and_then(|h| h.settings().language);
-    chosen
-        .or_else(sys_locale::get_locale)
-        .is_some_and(|language| language.to_lowercase().starts_with("zh"))
 }
 
 /// Writes the file readable by its owner only, where the system allows it.

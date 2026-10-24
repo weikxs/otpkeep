@@ -23,6 +23,8 @@ mod key_commands;
 #[cfg(desktop)]
 mod manage_commands;
 #[cfg(desktop)]
+mod native;
+#[cfg(desktop)]
 mod preferences;
 #[cfg(desktop)]
 mod settings;
@@ -32,6 +34,10 @@ mod settings_commands;
 mod shortcuts;
 #[cfg(desktop)]
 mod staging;
+#[cfg(desktop)]
+mod sync;
+#[cfg(desktop)]
+mod sync_commands;
 
 /// Starts the app and blocks until it exits.
 ///
@@ -64,16 +70,17 @@ fn builder() -> tauri::Builder<tauri::Wry> {
     };
     let dir = data_dir();
     let hotkeys = hotkeys::Hotkeys::load(settings::SettingsFile::new(dir.as_deref()));
-    let core = core::Core::start(
+    let core = Arc::new(Mutex::new(core::Core::start(
         dir.map(|dir| VaultPaths::new(&dir)),
         keystore,
         Arc::new(system_now_ms),
         LOCK_WAIT,
-    );
+    )));
+    let session_core = Arc::clone(&core);
     tauri::Builder::default()
         .plugin(hotkeys::plugin())
         .plugin(tauri_plugin_dialog::init())
-        .manage(commands::AppCore(Mutex::new(core)))
+        .manage(commands::AppCore(core))
         .manage(hotkeys)
         .manage(gate::GateServer::default())
         .invoke_handler(tauri::generate_handler![
@@ -110,9 +117,29 @@ fn builder() -> tauri::Builder<tauri::Wry> {
             export_commands::export_file,
             export_commands::export_google,
             export_commands::entry_qr,
+            sync_commands::sync_state,
+            sync_commands::open_sync_window,
+            sync_commands::open_pair_window,
+            sync_commands::pair_invite,
+            sync_commands::search_windows,
+            sync_commands::join_sync,
+            sync_commands::join_pair,
+            sync_commands::answer_ask,
+            sync_commands::close_session,
+            sync_commands::rename_device,
+            sync_commands::remove_device,
+            sync_commands::leave_group,
             commands::hide_panel,
         ])
-        .setup(|app| {
+        .setup(move |app| {
+            use tauri::Manager;
+            let notify = Arc::new(sync_commands::AppNotify(app.handle().clone()));
+            app.manage(sync::Syncer::new(
+                session_core,
+                keep_link::Network::System,
+                notify,
+                Arc::new(system_now_ms),
+            ));
             desktop::setup(app.handle())?;
             hotkeys::register_all(app.handle());
             Ok(())

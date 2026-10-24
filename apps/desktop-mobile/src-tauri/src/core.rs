@@ -21,9 +21,11 @@ use crate::staging::Staging;
 mod batch;
 mod export;
 mod import;
-mod import_view;
+pub mod import_view;
 mod key;
 mod manage;
+#[cfg(desktop)]
+pub mod sync;
 
 pub use batch::BatchAction;
 pub use export::{ExportFormat, GoogleExport, LeftOut, QrImage};

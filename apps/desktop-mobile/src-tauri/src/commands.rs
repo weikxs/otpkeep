@@ -7,7 +7,7 @@
 )]
 
 use std::collections::HashMap;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::MutexGuard;
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State, WebviewWindow};
@@ -21,7 +21,7 @@ use crate::hotkeys::Hotkeys;
 use crate::shortcuts::ShortcutMap;
 
 /// The vault, shared by the commands.
-pub struct AppCore(pub Mutex<Core>);
+pub struct AppCore(pub crate::sync::SharedCore);
 
 impl AppCore {
     pub(crate) fn get(&self) -> MutexGuard<'_, Core> {
