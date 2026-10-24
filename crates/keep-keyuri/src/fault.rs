@@ -45,14 +45,32 @@ pub enum KeyUriFault {
         /// The value that was found.
         value: String,
     },
-    /// An HOTP link without a counter.
-    #[error("an hotp link needs a counter")]
-    CounterMissing,
+    /// A Google Authenticator export (`otpauth-migration://`): it holds several accounts and is imported, not
+    /// added.
+    #[error("this is a Google Authenticator export; import it instead of adding it")]
+    GoogleExport,
+    /// A Microsoft Authenticator sign-in approval code (`phonefactor://`). It carries no secret; on the Microsoft
+    /// set-up page, choose to use a different authenticator app to get an ordinary code.
+    #[error(
+        "this is a Microsoft Authenticator approval code, which only that app can use; choose 'use a different authenticator app' when setting up to get an ordinary code"
+    )]
+    MicrosoftPush,
+    /// An Oracle Mobile Authenticator enrolment code (`oraclemobileauthenticator://`). Its secret can only be
+    /// unlocked by Oracle's server; an administrator can provide an ordinary TOTP code instead.
+    #[error(
+        "this is an Oracle Mobile Authenticator enrolment code, which only that app can use; ask for an ordinary TOTP code instead"
+    )]
+    OracleEnrolment,
+    /// Only a secret, without a link around it; add it with the form, which asks for the other details.
+    #[error("this looks like a secret on its own; add it with the form instead")]
+    BareSecret,
 }
 
 /// Things worth telling the user about a link that did parse.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyUriNote {
+    /// An HOTP link without a counter; counting starts at 0, as other apps do.
+    CounterAssumedZero,
     /// The secret is shorter than 10 bytes, which is weak.
     ShortSecret,
     /// A parameter appeared more than once; the first value was used.

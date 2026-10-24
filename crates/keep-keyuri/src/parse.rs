@@ -8,6 +8,7 @@ use keep_passcode::{
 use percent_encoding::percent_decode_str;
 use zeroize::Zeroizing;
 
+use crate::clean::{fold_width, locate, without_invisible};
 use crate::{KeyUri, KeyUriFault, KeyUriNote};
 
 const SCHEME: &str = "otpauth";
@@ -25,14 +26,16 @@ pub struct ParsedKeyUri {
 
 /// Parses an `otpauth://` link.
 ///
-/// Surrounding whitespace is ignored, names are percent-decoded, unknown parameters are ignored and the
-/// first of repeated parameters wins.
+/// Lenient about how links arrive: invisible characters, words, quotes or brackets around the link and
+/// full-width digits in values are tolerated; names are percent-decoded, unknown parameters are ignored and
+/// the first of repeated parameters wins.
 ///
 /// # Errors
 ///
 /// Returns the [`KeyUriFault`] that makes the link unusable.
 pub fn parse_key_uri(text: &str) -> Result<ParsedKeyUri, KeyUriFault> {
-    let (kind_text, label, query) = split_link(text.trim())?;
+    let visible = without_invisible(text);
+    let (kind_text, label, query) = split_link(locate(&visible)?)?;
     let mut notes = Vec::new();
     let params = Params::read(query, &mut notes);
     let (label_issuer, account) = split_label(label);
@@ -52,14 +55,10 @@ pub fn parse_key_uri(text: &str) -> Result<ParsedKeyUri, KeyUriFault> {
             let period_s = read_number("period", params.get("period"), DEFAULT_PERIOD_S, range)?;
             (CodeKind::TimeBased { period_s }, 0)
         }
-        "hotp" => {
-            let value = params.get("counter").ok_or(KeyUriFault::CounterMissing)?;
-            let counter = value
-                .trim()
-                .parse::<u64>()
-                .map_err(|_| out_of_range("counter", value))?;
-            (CodeKind::CounterBased, counter)
-        }
+        "hotp" => (
+            CodeKind::CounterBased,
+            read_counter(params.get("counter"), &mut notes)?,
+        ),
         _ => {
             return Err(KeyUriFault::UnsupportedKind {
                 found: kind_text.to_owned(),
@@ -138,20 +137,34 @@ fn choose_issuer(param: Option<&str>, in_label: String, notes: &mut Vec<KeyUriNo
 }
 
 fn read_secret(value: Option<&str>) -> Result<SecretKey, KeyUriFault> {
-    let bytes =
-        base32::decode(value.ok_or(KeyUriFault::SecretMissing)?).map_err(|fault| match fault {
-            Base32Fault::Empty => KeyUriFault::SecretMissing,
-            Base32Fault::InvalidChar { at, found } => KeyUriFault::SecretInvalid { at, found },
-            Base32Fault::MisplacedPadding { at } => KeyUriFault::SecretInvalid { at, found: '=' },
-        })?;
+    let folded = fold_width(value.ok_or(KeyUriFault::SecretMissing)?);
+    let bytes = base32::decode(&folded).map_err(|fault| match fault {
+        Base32Fault::Empty => KeyUriFault::SecretMissing,
+        Base32Fault::InvalidChar { at, found } => KeyUriFault::SecretInvalid { at, found },
+        Base32Fault::MisplacedPadding { at } => KeyUriFault::SecretInvalid { at, found: '=' },
+    })?;
     SecretKey::from_bytes(bytes.to_vec()).map_err(|_| KeyUriFault::SecretMissing)
+}
+
+/// An HOTP counter; a link without one starts at 0, as FreeOTP and others do.
+fn read_counter(value: Option<&str>, notes: &mut Vec<KeyUriNote>) -> Result<u64, KeyUriFault> {
+    let Some(value) = value else {
+        notes.push(KeyUriNote::CounterAssumedZero);
+        return Ok(0);
+    };
+    fold_width(value)
+        .trim()
+        .parse::<u64>()
+        .map_err(|_| out_of_range("counter", value))
 }
 
 fn read_digest(value: Option<&str>) -> Result<Digest, KeyUriFault> {
     let Some(value) = value else {
         return Ok(Digest::Sha1);
     };
-    match value.trim().to_ascii_uppercase().replace('-', "").as_str() {
+    let mut name = fold_width(value).trim().to_ascii_uppercase();
+    name.retain(|c| !matches!(c, '-' | '_' | ' '));
+    match name.strip_prefix("HMAC").unwrap_or(&name) {
         "SHA1" => Ok(Digest::Sha1),
         "SHA256" => Ok(Digest::Sha256),
         "SHA512" => Ok(Digest::Sha512),
@@ -174,7 +187,7 @@ where
     let Some(value) = value else {
         return Ok(default);
     };
-    match value.trim().parse::<T>() {
+    match fold_width(value).trim().parse::<T>() {
         Ok(number) if range.contains(&number) => Ok(number),
         _ => Err(out_of_range(name, value)),
     }
@@ -229,5 +242,7 @@ fn decode_query(raw: &str) -> Zeroizing<String> {
     Zeroizing::new(percent_decode_str(&spaced).decode_utf8_lossy().into_owned())
 }
 
+#[cfg(test)]
+mod lenient_tests;
 #[cfg(test)]
 mod tests;

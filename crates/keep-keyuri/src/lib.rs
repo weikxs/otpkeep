@@ -2,6 +2,7 @@
 
 use keep_passcode::{CodeSpec, SecretKey};
 
+mod clean;
 mod fault;
 mod parse;
 mod sheet;

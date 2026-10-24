@@ -56,11 +56,7 @@ fn reads_hotp_with_its_counter() {
 }
 
 #[test]
-fn hotp_needs_a_counter_and_totp_ignores_it() {
-    assert_eq!(
-        fault(&format!("otpauth://hotp/alex?secret={DEMO}")),
-        KeyUriFault::CounterMissing
-    );
+fn totp_ignores_a_counter() {
     assert_eq!(
         parse(&format!("otpauth://totp/alex?secret={DEMO}&counter=9"))
             .uri
