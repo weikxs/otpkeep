@@ -121,3 +121,127 @@ fn a_joining_device_takes_the_group_and_names_itself() {
         Some(GroupError::AlreadyInGroup)
     );
 }
+
+mod management {
+    use keep_vault::{DeviceId, Hlc, Platform};
+
+    use super::super::{
+        DeviceRow, GroupError, PEER_STALE_REMOVE_HINT_MS, PEER_STALE_WARN_MS, Staleness, admit,
+        device_rows, found_group, identity_of, leave_group, remove_member, rename_self,
+    };
+    use crate::identity::NewDevice;
+    use crate::membership::membership;
+    use crate::testing::{DAY_MS, MINUTE_MS, add, device_doc};
+
+    fn alone(n: u8) -> keep_vault::VaultDoc {
+        let mut doc = device_doc(n);
+        doc.group = None;
+        doc
+    }
+
+    /// Device 1's group with a second device added.
+    fn two() -> (keep_vault::VaultDoc, DeviceId) {
+        let a = found_group(&alone(1), Platform::MacOs, "Study Mac", MINUTE_MS).unwrap();
+        let group_id = a.group.as_ref().unwrap().group_id;
+        let new = NewDevice::generate().unwrap();
+        let key = x25519_dalek::PublicKey::from(new.exchange_secret()).to_bytes();
+        let b = new.into_identity(&group_id);
+        let a = admit(
+            &a,
+            b.device_id(),
+            key,
+            &b.dx_cert(),
+            Platform::Ios,
+            2 * MINUTE_MS,
+        )
+        .unwrap();
+        (a, b.device_id())
+    }
+
+    #[test]
+    fn removing_a_member_signs_a_removal() {
+        let (a, b) = two();
+
+        let removed = remove_member(&a, b, 3 * MINUTE_MS).unwrap();
+
+        assert!(membership(removed.group.as_ref().unwrap()).is_removed(b));
+        assert_eq!(
+            remove_member(&removed, b, 4 * MINUTE_MS).err(),
+            Some(GroupError::Removed)
+        );
+        assert_eq!(
+            remove_member(&alone(3), b, 0).err(),
+            Some(GroupError::NotInGroup)
+        );
+        assert_eq!(
+            remove_member(&a, DeviceId([7; 32]), 0).err(),
+            Some(GroupError::NotAMember)
+        );
+    }
+
+    #[test]
+    fn leaving_keeps_the_entries_and_forgets_the_group_and_identity() {
+        let (a, _) = two();
+        let (a, _) = add(&a, "Kept", 1, 3 * MINUTE_MS);
+        let old_tag = a.device_tag;
+
+        let left = leave_group(&a).unwrap();
+
+        assert!(left.group.is_none() && left.device.is_none() && left.tombstones.is_empty());
+        assert_eq!(left.entries, a.entries);
+        assert_ne!(
+            left.device_tag, old_tag,
+            "a new device tag: the old identity is gone"
+        );
+    }
+
+    #[test]
+    fn renaming_this_device_signs_its_new_name() {
+        let (a, _) = two();
+        let me = identity_of(&a).unwrap().device_id();
+
+        let renamed = rename_self(&a, "Office Mac", 3 * MINUTE_MS).unwrap();
+
+        let members = membership(renamed.group.as_ref().unwrap());
+        assert_eq!(members.members[&me].lan_name.as_deref(), Some("Office Mac"));
+        assert_eq!(rename_self(&a, " ", 0).err(), Some(GroupError::BadName));
+        assert_eq!(
+            rename_self(&alone(4), "x", 0).err(),
+            Some(GroupError::NotInGroup)
+        );
+    }
+
+    #[test]
+    fn the_device_list_shows_last_syncs_and_who_may_be_behind() {
+        let (mut a, b) = two();
+        let me = identity_of(&a).unwrap().device_id();
+        let now = 200 * DAY_MS;
+        let seen = |days: u64| Hlc {
+            wall_ms: now - days * DAY_MS,
+            logical: 0,
+            device: keep_vault::DeviceTag([0; 8]),
+        };
+        let group = a.group.as_mut().unwrap();
+        group.presence.insert(b, seen(31));
+
+        let rows = device_rows(&a, now).unwrap();
+        let row = |d: DeviceId| rows.iter().find(|r| r.device == d).unwrap().clone();
+
+        assert_eq!(rows.len(), 2);
+        assert!(row(me).is_this_device);
+        assert_eq!(row(b).staleness, Staleness::MayBeBehind);
+        assert_eq!(row(b).last_sync_ms, Some(seen(31).wall_ms));
+        assert_eq!(row(b).platform, Platform::Ios);
+        let group = a.group.as_mut().unwrap();
+        group.presence.insert(b, seen(91));
+        assert_eq!(
+            row_of(&device_rows(&a, now).unwrap(), b).staleness,
+            Staleness::ConsiderRemoving
+        );
+        assert!(PEER_STALE_WARN_MS < PEER_STALE_REMOVE_HINT_MS);
+    }
+
+    fn row_of(rows: &[DeviceRow], device: DeviceId) -> DeviceRow {
+        rows.iter().find(|r| r.device == device).unwrap().clone()
+    }
+}

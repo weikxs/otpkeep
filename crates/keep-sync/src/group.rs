@@ -29,6 +29,12 @@ pub enum GroupError {
     /// No random bytes.
     #[error("the system random number generator is unavailable")]
     Random,
+    /// The device is not a member.
+    #[error("the device is not in the sync group")]
+    NotAMember,
+    /// The LAN name breaks the rules (1–32 characters, no surrounding spaces or control characters).
+    #[error("the name must have 1 to 32 characters")]
+    BadName,
 }
 
 impl From<IdentityError> for GroupError {
@@ -183,7 +189,7 @@ pub fn join_group(
     Ok(joined)
 }
 
-fn rename_event(
+pub(crate) fn rename_event(
     identity: &DeviceIdentity,
     group_id: &[u8; 16],
     lan_name: &str,
@@ -201,11 +207,18 @@ fn rename_event(
 }
 
 /// A timestamp later than anything in `doc`, which then counts as seen.
-fn tick(doc: &mut VaultDoc, now_ms: u64) -> Hlc {
+pub(crate) fn tick(doc: &mut VaultDoc, now_ms: u64) -> Hlc {
     let stamp = crate::session::next_stamp(doc, now_ms);
     doc.clock = stamp;
     stamp
 }
+
+mod manage;
+
+pub use manage::{
+    DeviceRow, PEER_STALE_REMOVE_HINT_MS, PEER_STALE_WARN_MS, Staleness, device_rows, leave_group,
+    remove_member, rename_self,
+};
 
 #[cfg(test)]
 mod tests;

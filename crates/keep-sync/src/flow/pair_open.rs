@@ -270,7 +270,7 @@ fn group_error(error: GroupError) -> ErrorCode {
         GroupError::Removed => ErrorCode::Removed,
         GroupError::AlreadyInGroup => ErrorCode::OtherGroup,
         GroupError::NotInGroup | GroupError::BadCertificate => ErrorCode::NotInGroup,
-        GroupError::Random => ErrorCode::Cancelled,
+        GroupError::Random | GroupError::NotAMember | GroupError::BadName => ErrorCode::Cancelled,
     }
 }
 
