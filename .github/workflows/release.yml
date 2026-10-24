@@ -96,7 +96,7 @@ jobs:
           fi
       - name: Name them as released
         run: scripts/release/rename-bundles.sh "${{ needs.prepare.outputs.version }}" "${{ matrix.os }}" "${{ matrix.arch }}" dist ${{ matrix.kinds }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: packages-${{ matrix.os }}-${{ matrix.arch }}
           path: dist/*
