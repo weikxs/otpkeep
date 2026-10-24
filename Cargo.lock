@@ -986,7 +986,7 @@ dependencies = [
  "cbc",
  "dbus",
  "fastrand",
- "hkdf",
+ "hkdf 0.12.4",
  "num",
  "once_cell",
  "sha2 0.10.9",
@@ -1897,6 +1897,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hkdf"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4aaa26c720c68b866f2c96ef5c1264b3e6f473fe5d4ce61cd44bbe913e553018"
+dependencies = [
+ "hmac 0.13.0",
+]
+
+[[package]]
 name = "hmac"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2519,7 +2528,7 @@ dependencies = [
  "ciborium",
  "ed25519-dalek",
  "getrandom 0.4.3",
- "hkdf",
+ "hkdf 0.13.0",
  "hmac 0.12.1",
  "keep-passcode",
  "keep-vault",
@@ -4438,7 +4447,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c5482afe85a0b6ce956c945401598dbc527593c77ba51d0a87a586938b1b893a"
 dependencies = [
  "curve25519-dalek 4.1.3",
- "hkdf",
+ "hkdf 0.12.4",
  "rand_core 0.6.4",
  "sha2 0.10.9",
 ]
