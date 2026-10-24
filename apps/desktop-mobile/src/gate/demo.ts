@@ -1,3 +1,4 @@
+import { fakeCode } from "../panel/demo";
 import { previewCopy } from "../shared/previewClipboard";
 import { type EntryEdit, GateFailure, type GateApi, type GateEntry } from "./api";
 
@@ -9,9 +10,25 @@ const DEMO: GateEntry[] = [
 ];
 
 const TITLE_MAX = 100;
+const PERIOD_MS = 30_000;
+const NEXT_WINDOW_MS = 5000;
+
+/** An entry with its made-up current code, as OTPKeep would send it. */
+function withCode(entry: GateEntry, now: number): GateEntry {
+  if (entry.kind === "hotp") return entry;
+  const step = Math.floor(now / PERIOD_MS);
+  const validUntilMs = (step + 1) * PERIOD_MS;
+  return {
+    ...entry,
+    code: fakeCode(entry.id, step),
+    periodS: PERIOD_MS / 1000,
+    validUntilMs,
+    ...(validUntilMs - now <= NEXT_WINDOW_MS ? { nextCode: fakeCode(entry.id, step + 1) } : {}),
+  };
+}
 
 /** A GateApi over demo data, with the core's main rules. */
-export function demoGate(): GateApi & { ended: boolean } {
+export function demoGate(clock: () => number = Date.now): GateApi & { ended: boolean } {
   let entries = DEMO.map((e) => ({ ...e }));
   const state = { ended: false };
   const find = (id: string) => {
@@ -21,7 +38,7 @@ export function demoGate(): GateApi & { ended: boolean } {
   };
   const replace = (updated: GateEntry) => {
     entries = entries.map((e) => (e.id === updated.id ? updated : e));
-    return updated;
+    return withCode(updated, clock());
   };
   return {
     get ended() {
@@ -29,7 +46,13 @@ export function demoGate(): GateApi & { ended: boolean } {
     },
     entries: async (query) => {
       const q = query.trim().toLowerCase();
-      return entries.filter((e) => q === "" || `${e.title} ${e.issuer} ${e.account} ${e.note}`.toLowerCase().includes(q));
+      const now = clock();
+      return {
+        entries: entries
+          .filter((e) => q === "" || `${e.title} ${e.issuer} ${e.account} ${e.note}`.toLowerCase().includes(q))
+          .map((e) => withCode(e, now)),
+        nowMs: now,
+      };
     },
     edit: async (id, edit: EntryEdit) => {
       const entry = find(id);
@@ -52,9 +75,10 @@ export function demoGate(): GateApi & { ended: boolean } {
     },
     copy: async (id) => {
       const entry = find(id);
-      if (entry.kind === "hotp") throw new GateFailure("NO_CODE_YET");
+      const code = withCode(entry, clock()).code;
+      if (code === undefined) throw new GateFailure("NO_CODE_YET");
       // A made-up code: the preview has no secrets.
-      await previewCopy(String(Math.floor(Date.now() / 30_000) % 1_000_000).padStart(6, "0")).catch(() => {
+      await previewCopy(code).catch(() => {
         throw new GateFailure("COPY_FAILED");
       });
       return { clearsInS: 30 };

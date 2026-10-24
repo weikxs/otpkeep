@@ -18,7 +18,7 @@ function show(api: MainApi = demoMain({ clock: () => STEADY })) {
 function titles() {
   return screen.getAllByTestId("entry").map((row) => {
     const field = row.querySelector<HTMLInputElement>("input[maxlength='100']");
-    return field ? field.value : (row.querySelector(".entry-title")?.textContent?.replace("●", "") ?? "");
+    return field ? field.value : (row.querySelector(".entry-title-text")?.textContent ?? "");
   });
 }
 

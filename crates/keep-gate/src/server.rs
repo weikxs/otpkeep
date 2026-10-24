@@ -293,10 +293,12 @@ async fn list_entries(
         return response;
     }
     let backend = Arc::clone(&shared.backend);
+    let now_ms = shared.now();
+    // The app's clock goes along, so the page's countdowns match the codes.
     blocking(move || {
         backend
             .entries(&query.q)
-            .map(|entries| json!({ "entries": entries }))
+            .map(|entries| json!({ "entries": entries, "nowMs": now_ms }))
     })
     .await
 }

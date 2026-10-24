@@ -17,6 +17,9 @@ for (const scheme of ["light", "dark"] as const) {
     await page.goto("/index.html");
 
     await expect(page.getByTestId("entry")).toHaveCount(4);
+    // Tags and a note do not make a row taller.
+    const heights = await page.getByTestId("entry").evaluateAll((rows) => rows.map((r) => r.getBoundingClientRect().height));
+    expect(new Set(heights).size).toBe(1);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/main-${scheme}.png` });
 
     await page.getByText("+ 添加").click();

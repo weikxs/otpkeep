@@ -30,6 +30,10 @@ fn demo_entry(id: &str, title: &str) -> GateEntry {
         kind: "totp".to_owned(),
         shortcut: None,
         default_shortcut: None,
+        code: Some("123456".to_owned()),
+        next_code: None,
+        period_s: Some(30),
+        valid_until_ms: Some(1_020_000),
     }
 }
 
@@ -278,6 +282,10 @@ async fn lists_and_searches_entries() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["entries"].as_array().unwrap().len(), 1);
     assert_eq!(body["entries"][0]["title"], "GitHub");
+    // Codes are shown with the app's clock, so countdowns line up.
+    assert_eq!(body["entries"][0]["code"], "123456");
+    assert_eq!(body["entries"][0]["validUntilMs"], 1_020_000);
+    assert_eq!(body["nowMs"], 1_000_000);
 }
 
 #[tokio::test]

@@ -33,7 +33,11 @@ async function fakeOtpkeep(page: Page) {
       return route.fulfill(ok ? { json: { session: "s1" } } : { status: 401, json: { error: { code: "LINK_USED" } } });
     }
     seen.bearers.add(request.headers().authorization ?? "");
-    if (url.pathname === "/api/entries") return route.fulfill({ json: { entries } });
+    if (url.pathname === "/api/entries") {
+      const nowMs = Date.now();
+      const withCodes = entries.map((e, i) => ({ ...e, code: `${i + 1}${i + 1}${i + 1}456`, periodS: 30, validUntilMs: nowMs + 20_000 }));
+      return route.fulfill({ json: { entries: withCodes, nowMs } });
+    }
     // OTPKeep writes the clipboard itself; the page only learns when it clears.
     if (url.pathname.endsWith("/copy")) {
       seen.copied.push(url.pathname.split("/")[3] ?? "");
@@ -62,6 +66,10 @@ for (const scheme of ["light", "dark"] as const) {
 
     await expect(page.getByTestId("card")).toHaveCount(3);
     expect(new URL(page.url()).hash).toBe("");
+    await expect(page.getByTestId("code").first()).toHaveText("111 456");
+    // A note does not make a row taller.
+    const heights = await page.getByTestId("card").evaluateAll((cards) => cards.map((c) => c.getBoundingClientRect().height));
+    expect(new Set(heights).size).toBe(1);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/gate-${scheme}.png` });
 
     // By position: while editing, the title is an input, so the card has no matching text.
@@ -77,7 +85,7 @@ for (const scheme of ["light", "dark"] as const) {
     await expect(cloud.locator("kbd")).toHaveText("⌃⌥⌘P");
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/gate-${scheme}-edited.png` });
 
-    await page.getByTestId("card").first().getByText("复制验证码").click();
+    await page.getByTestId("card").first().getByText("复制").click();
     await expect(page.getByRole("status")).toHaveText("已复制 · 30 秒后从剪贴板清除");
     expect(seen.copied).toEqual(["e1"]);
 

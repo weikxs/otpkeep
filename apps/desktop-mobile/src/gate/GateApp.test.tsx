@@ -24,7 +24,7 @@ describe("GateApp", () => {
 
     expect(await screen.findAllByTestId("card")).toHaveLength(3);
     expect(screen.getByText("3 个账号")).toBeTruthy();
-    expect(screen.getByText("备用码在抽屉里")).toBeTruthy();
+    expect(screen.getByText(/备用码在抽屉里/u)).toBeTruthy();
     expect(screen.getByText("⌃⌥⌘M")).toBeTruthy();
     expect(screen.getByText("默认 ⌃⌥⌘1（按列表位置）")).toBeTruthy();
   });
@@ -48,7 +48,7 @@ describe("GateApp", () => {
     fireEvent.click(github.getByText("保存"));
 
     expect(await screen.findByText("GitHub 工作")).toBeTruthy();
-    expect(screen.getByText("公司账号")).toBeTruthy();
+    expect(screen.getByText(/公司账号/u)).toBeTruthy();
     expect(screen.getByRole("status").textContent).toBe("已保存");
   });
 
@@ -178,7 +178,7 @@ describe("copying from the management page", () => {
     const copy = vi.spyOn(api, "copy");
     show(api);
 
-    fireEvent.click((await card("GitHub")).getByText("复制验证码"));
+    fireEvent.click((await card("GitHub")).getByText("复制"));
 
     expect(await screen.findByText("已复制 · 30 秒后从剪贴板清除")).toBeTruthy();
     expect(copy).toHaveBeenCalledWith("d1");
@@ -188,8 +188,34 @@ describe("copying from the management page", () => {
   it("explains that an HOTP code is generated in OTPKeep first", async () => {
     show(demoGate());
 
-    fireEvent.click((await card("Bank token")).getByText("复制验证码"));
+    fireEvent.click((await card("Bank token")).getByText("复制"));
 
     expect(await screen.findByText("计数器型（HOTP）账号需要先在 OTPKeep 面板中生成验证码")).toBeTruthy();
+  });
+});
+
+describe("codes on the management page", () => {
+  it("shows each account's code with its countdown, and the note on the second line", async () => {
+    show(demoGate());
+
+    const github = await card("GitHub");
+    expect(github.getByTestId("code").textContent).toMatch(/^\d{3} \d{3}$/u);
+    expect(github.getByLabelText(/^\d+ 秒$/u)).toBeTruthy();
+    expect((await card("邮箱")).getByTitle("示例邮箱 · demo@example.com · 备用码在抽屉里")).toBeTruthy();
+    expect((await card("Bank token")).getByText("在 OTPKeep 中生成")).toBeTruthy();
+  });
+
+  it("fetches new codes once the shown ones end", async () => {
+    // One second before the 30-second step ends (steps start at multiples of 30 000 ms).
+    let now = 1_700_000_039_000;
+    const api = demoGate(() => now);
+    const entries = vi.spyOn(api, "entries");
+    show(api);
+    await card("GitHub");
+    const before = entries.mock.calls.length;
+
+    now += 2000;
+
+    await waitFor(() => expect(entries.mock.calls.length).toBeGreaterThan(before), { timeout: 2000 });
   });
 });

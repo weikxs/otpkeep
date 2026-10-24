@@ -1,7 +1,7 @@
 //! What the page can ask for, and what the app behind the page provides.
 //!
-//! Requests and replies carry display fields only: never secrets, and no codes (design/07-platform.md §2.5).
-//! Copying happens inside the app, so a code never travels to the page.
+//! Requests and replies carry display fields and the current codes, never secrets (design/07-platform.md
+//! §2.5). Copying happens inside the app, which writes this computer's clipboard.
 
 use serde::{Deserialize, Serialize};
 
@@ -29,6 +29,18 @@ pub struct GateEntry {
     /// The default shortcut its place in the list gives it, when it has no own one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_shortcut: Option<String>,
+    /// The current code; for HOTP only after one was generated in the app.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    /// The code after this one, when the current one ends within five seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_code: Option<String>,
+    /// TOTP period in seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub period_s: Option<u16>,
+    /// When the current code ends, in the app's clock (Unix milliseconds).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub valid_until_ms: Option<u64>,
 }
 
 /// A change to an entry's names; absent fields stay as they are.

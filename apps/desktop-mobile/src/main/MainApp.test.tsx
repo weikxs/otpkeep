@@ -25,7 +25,7 @@ describe("MainApp", () => {
     const rows = await screen.findAllByTestId("entry");
     expect(rows).toHaveLength(4);
     expect(screen.getByText("4 个账号")).toBeTruthy();
-    expect(screen.getByText("备用码在抽屉里")).toBeTruthy();
+    expect(screen.getByText(/备用码在抽屉里/u)).toBeTruthy();
     const codes = screen.getAllByTestId("code").map((c) => c.textContent);
     expect(codes[0]).toMatch(/^\d{3} \d{3}$/u);
     expect(codes).toContainEqual(expect.stringMatching(/^[2-9B-Y]{5}$/u));
@@ -54,7 +54,7 @@ describe("MainApp", () => {
     fireEvent.click(screen.getByText("保存"));
 
     expect(await screen.findByText("GitHub 工作")).toBeTruthy();
-    expect(screen.getByText("公司账号")).toBeTruthy();
+    expect(screen.getByText(/公司账号/u)).toBeTruthy();
   });
 
   it("explains a refused name", async () => {

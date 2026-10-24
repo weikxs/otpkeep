@@ -24,7 +24,7 @@ button {
 }
 
 .gate {
-  max-width: 760px;
+  max-width: 980px;
   margin: 0 auto;
   padding: 24px 16px 64px;
 }
@@ -83,60 +83,108 @@ button {
   list-style: none;
 }
 
+/* Every row is the same height; only the editor makes one taller. */
 .card {
   display: grid;
-  grid-template-columns: 36px 1fr;
+  grid-template-columns: 36px minmax(0, 1fr) auto 18px 260px auto;
+  align-items: center;
   gap: 14px;
-  padding: 14px 16px;
+  height: 64px;
+  box-sizing: border-box;
+  padding: 0 16px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--card);
 }
 
-.card-body {
+.card.editing {
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: start;
+  height: auto;
+  padding: 14px 16px;
+}
+
+.card-names {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
   min-width: 0;
 }
 
-.card-head {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.card-actions {
-  display: flex;
-  gap: 12px;
+.card-title,
+.card-subtitle,
+.card-error {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-title {
   font-size: 15px;
   font-weight: 600;
-  overflow-wrap: anywhere;
 }
 
 .card-subtitle {
   font-size: 12px;
   color: var(--muted);
-  overflow-wrap: anywhere;
 }
 
-.card-note {
-  margin: 2px 0 0;
-  font-size: 13px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+.card-error {
+  font-size: 12px;
+  color: var(--amber);
+}
+
+.card-code {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+.code.ending {
+  color: var(--amber);
+}
+
+.next-code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.ring-space {
+  width: 18px;
 }
 
 .card-shortcut {
+  min-width: 0;
+}
+
+.card-shortcut .shortcut-field {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.card-actions {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 4px;
+  gap: 8px;
+}
+
+/* Narrow windows: the shortcut moves out of the way rather than squeezing the names. */
+@media (max-width: 760px) {
+  .card {
+    grid-template-columns: 36px minmax(0, 1fr) auto 18px auto;
+  }
+
+  .card-shortcut {
+    display: none;
+  }
 }
 
 .field-label {

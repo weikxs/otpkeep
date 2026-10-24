@@ -6,6 +6,7 @@ import { type GateStrings, describeFailure } from "./i18n";
 /** The page sends a heartbeat this often; the session ends 45 seconds after the last one. */
 export const HEARTBEAT_MS = 15_000;
 const NOTICE_MS = 2400;
+const TICK_MS = 250;
 
 type Connection =
   | { kind: "connecting" }
@@ -67,6 +68,8 @@ function Entries({ api, text, isMac, onLost }: EntriesProps) {
   const [entries, setEntries] = useState<GateEntry[] | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [now, setNow] = useState(Date.now());
 
   const handle = useCallback(
     (failure: unknown) => {
@@ -81,7 +84,9 @@ function Entries({ api, text, isMac, onLost }: EntriesProps) {
     (q: string) =>
       api.entries(q).then(
         (found) => {
-          setEntries(found);
+          setOffset(found.nowMs - Date.now());
+          setNow(Date.now());
+          setEntries(found.entries);
           setProblem(null);
         },
         handle,
@@ -92,6 +97,17 @@ function Entries({ api, text, isMac, onLost }: EntriesProps) {
   useEffect(() => {
     void load(query);
   }, [query, load]);
+
+  // Countdowns tick; a code that ended is fetched again.
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), TICK_MS);
+    return () => clearInterval(timer);
+  }, []);
+  const coreNow = now + offset;
+  const expired = entries?.some((e) => e.validUntilMs !== undefined && e.validUntilMs <= coreNow) ?? false;
+  useEffect(() => {
+    if (expired) void load(query);
+  }, [expired, load, query]);
 
   useEffect(() => {
     const timer = setInterval(() => void api.heartbeat().catch(handle), HEARTBEAT_MS);
@@ -147,6 +163,7 @@ function Entries({ api, text, isMac, onLost }: EntriesProps) {
             <EntryCard
               key={entry.id}
               entry={entry}
+              coreNow={coreNow}
               text={text}
               isMac={isMac}
               onEdit={(edit) => guarded(() => api.edit(entry.id, edit))}

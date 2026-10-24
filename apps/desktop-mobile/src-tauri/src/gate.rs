@@ -7,7 +7,7 @@ use keep_vault::service::system_now_ms;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::commands::{AppCore, list_places};
-use crate::core::{CoreError, EntryInfo, EntryKind};
+use crate::core::{CoreError, EntryInfo, EntryKind, PanelEntry};
 use crate::hotkeys::{Hotkeys, SetError, set_entry_shortcut, taken_detail};
 
 /// The page server, while it runs.
@@ -24,7 +24,16 @@ impl AppBackend {
     }
 
     fn shown(&self, infos: Vec<EntryInfo>) -> Result<Vec<GateEntry>, GateError> {
-        let places = list_places(&self.core()?.get());
+        let vault = self.core()?;
+        let places = list_places(&vault.get());
+        // The same codes as the panel and the main window.
+        let mut rows: std::collections::HashMap<String, PanelEntry> = vault
+            .get()
+            .state_all("")
+            .entries
+            .into_iter()
+            .map(|row| (row.id.clone(), row))
+            .collect();
         let map = self
             .app
             .try_state::<Hotkeys>()
@@ -35,6 +44,11 @@ impl AppBackend {
             .map(|info| {
                 let shortcut = map.own(&info.id).map(str::to_owned);
                 let default_shortcut = places.get(&info.id).and_then(|&p| map.default_for(p));
+                let row = rows.remove(&info.id);
+                let (code, next_code, period_s, valid_until_ms) = row
+                    .map_or((None, None, None, None), |r| {
+                        (r.code, r.next_code, r.period_s, r.valid_until_ms)
+                    });
                 GateEntry {
                     id: info.id,
                     title: info.title,
@@ -50,6 +64,10 @@ impl AppBackend {
                     .to_owned(),
                     shortcut,
                     default_shortcut,
+                    code,
+                    next_code,
+                    period_s,
+                    valid_until_ms,
                 }
             })
             .collect())

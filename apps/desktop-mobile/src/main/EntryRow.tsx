@@ -53,7 +53,8 @@ export function EntryRow(props: EntryRowProps) {
   useEffect(() => {
     if (editing) row.current?.scrollIntoView?.({ block: "nearest" });
   }, [editing]);
-  const subtitle = [entry.issuer, entry.account].filter((s) => s !== "" && s !== entry.title).join(" · ");
+  // One line under the name: service, account and the note, cut short with "…" (rows keep one height).
+  const details = [entry.issuer, entry.account, entry.note].filter((s) => s !== "" && s !== entry.title).join(" · ");
   const remainingS =
     entry.validUntilMs === undefined ? undefined : Math.max(0, Math.ceil((entry.validUntilMs - coreNow) / 1000));
   const ending = remainingS !== undefined && remainingS <= NEXT_CODE_WINDOW_S;
@@ -133,19 +134,18 @@ export function EntryRow(props: EntryRowProps) {
                 ●
               </span>
             )}
-            {entry.title}
+            <span class="entry-title-text">{entry.title}</span>
+            {entry.tags.map((tag) => (
+              <span key={tag} class="tag small">
+                {tag}
+              </span>
+            ))}
           </span>
-          {subtitle !== "" && <span class="entry-subtitle">{subtitle}</span>}
-          {entry.tags.length > 0 && (
-            <span class="entry-tags">
-              {entry.tags.map((tag) => (
-                <span key={tag} class="tag small">
-                  {tag}
-                </span>
-              ))}
+          {details !== "" && (
+            <span class="entry-subtitle" title={details}>
+              {details}
             </span>
           )}
-          {entry.note !== "" && <span class="entry-note">{entry.note}</span>}
         </span>
         <span class="entry-code">
           {copied ? (

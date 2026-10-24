@@ -14,7 +14,7 @@ const DEMO_ENTRIES: Omit<PanelEntry, "code" | "nextCode" | "validUntilMs" | "sho
 const CLEARS_IN_S = 30;
 const NEXT_WINDOW_MS = 5000;
 
-function fakeCode(id: string, step: number): string {
+export function fakeCode(id: string, step: number): string {
   let hash = step >>> 0;
   for (const char of id) hash = Math.imul(hash ^ (char.codePointAt(0) ?? 0), 2654435761) >>> 0;
   return String(hash % 1_000_000).padStart(6, "0");

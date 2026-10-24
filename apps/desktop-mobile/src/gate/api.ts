@@ -1,7 +1,7 @@
 /**
  * The management page's connection to OTPKeep (design/07-platform.md §2.5): the one-time link token after
- * `#k=` is traded for a session token, which every request carries. Replies never contain secrets or codes:
- * copying happens inside OTPKeep, which writes this computer's clipboard.
+ * `#k=` is traded for a session token, which every request carries. Replies carry the current codes, never
+ * secrets; copying happens inside OTPKeep, which writes this computer's clipboard.
  */
 
 export interface GateEntry {
@@ -11,11 +11,25 @@ export interface GateEntry {
   account: string;
   note: string;
   pinned: boolean;
-  kind: "totp" | "hotp";
+  kind: "totp" | "hotp" | "steam";
   /** Its own global shortcut, canonical (`control+alt+super+KeyG`). */
   shortcut?: string;
   /** The default its place in the list gives it. */
   defaultShortcut?: string;
+  /** Current code; for HOTP only after one was generated in OTPKeep. */
+  code?: string;
+  /** The code after this one, when the current one ends within five seconds. */
+  nextCode?: string;
+  /** TOTP period in seconds. */
+  periodS?: number;
+  /** When the current code ends, in OTPKeep's clock (Unix milliseconds). */
+  validUntilMs?: number;
+}
+
+export interface EntryList {
+  entries: GateEntry[];
+  /** OTPKeep's clock when the list was made, to align countdowns. */
+  nowMs: number;
 }
 
 export interface EntryEdit {
@@ -34,7 +48,7 @@ export class GateFailure extends Error {
 }
 
 export interface GateApi {
-  entries(query: string): Promise<GateEntry[]>;
+  entries(query: string): Promise<EntryList>;
   edit(id: string, edit: EntryEdit): Promise<GateEntry>;
   setShortcut(id: string, shortcut: string | null): Promise<GateEntry>;
   /** OTPKeep copies the entry's current code; returns seconds until the clipboard is cleared (0: never). */
@@ -125,8 +139,7 @@ function client(session: string, fetchFn: Fetch): GateApi {
     return parsed;
   };
   return {
-    entries: async (query) =>
-      ((await call("GET", `/api/entries?q=${encodeURIComponent(query)}`)) as { entries: GateEntry[] }).entries,
+    entries: async (query) => (await call("GET", `/api/entries?q=${encodeURIComponent(query)}`)) as EntryList,
     edit: async (id, edit) =>
       ((await call("PATCH", `/api/entries/${encodeURIComponent(id)}`, edit)) as { entry: GateEntry }).entry,
     setShortcut: async (id, shortcut) =>

@@ -179,14 +179,17 @@ button {
   padding: 16px;
 }
 
+/* Every row is the same height; tags and the note stay on the two text lines. */
 .entry-main {
   flex: 1;
   display: grid;
-  grid-template-columns: 36px 1fr auto 18px;
+  grid-template-columns: 36px minmax(0, 1fr) auto 18px;
   align-items: center;
   gap: 14px;
   min-width: 0;
-  padding: 12px 8px 12px 16px;
+  height: 64px;
+  box-sizing: border-box;
+  padding: 0 8px 0 16px;
   border: 0;
   border-radius: 12px 0 0 12px;
   background: transparent;
@@ -212,24 +215,32 @@ button {
 }
 
 .entry-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   font-size: 15px;
   font-weight: 600;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.entry-subtitle,
-.entry-note {
+.entry-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entry-title .tag {
+  flex: none;
+  font-weight: 400;
+}
+
+.entry-subtitle {
   font-size: 12px;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.entry-note {
-  font-style: italic;
 }
 
 .entry-code {
@@ -617,13 +628,6 @@ textarea {
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--muted);
-}
-
-.entry-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 2px;
 }
 
 .tag {
