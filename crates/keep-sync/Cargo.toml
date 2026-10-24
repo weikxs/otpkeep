@@ -23,3 +23,6 @@ workspace = true
 
 [dev-dependencies]
 keep-passcode = { path = "../keep-passcode" }
+
+[target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
+netdev = "0.46"

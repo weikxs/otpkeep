@@ -3,6 +3,7 @@
 pub mod digest;
 pub mod housekeeping;
 pub mod identity;
+pub mod lan;
 pub mod membership;
 pub mod merge;
 pub mod session;
