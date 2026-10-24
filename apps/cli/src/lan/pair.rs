@@ -4,16 +4,15 @@ use std::io::Write;
 use std::sync::Arc;
 
 use keep_sync::channel::PROTOCOL_VERSION;
-use keep_sync::channel::code::Secret;
-use keep_sync::channel::hello::{Hello, is_valid_lan_name};
+use keep_sync::channel::hello::Hello;
 use keep_sync::flow::pair_join::{JoinMode, JoinPairOutcome, PairTarget, join_pair};
 use keep_sync::flow::pair_open::{PairOutcome, PairWindow, run_pair_window};
 use keep_sync::flow::sync_open::OpenerEvent;
 use keep_sync::group::{found_group, identity_of};
 use keep_sync::identity::{NewDevice, short_fingerprint};
-use keep_sync::invite::{PairInvite, new_code, new_random};
+use keep_sync::invite::{new_code, new_random};
 use keep_sync::lan::announce::Announcement;
-use keep_sync::lan::interfaces::{Eligible, peer_is_on_link};
+use keep_sync::lan::interfaces::Eligible;
 use keep_sync::lan::window::{Timers, WINDOW_WAIT_DEFAULT_MS, WindowKind};
 use keep_sync::membership::membership;
 use tokio::sync::mpsc;
@@ -70,7 +69,7 @@ pub(crate) fn pair_open(
             group_tag: None,
         };
         let opened = network.open(via, &announcement).await?;
-        for note in &opened.notes {
+        for note in &super::skipped_notes(&opened) {
             let _ = writeln!(out, "{note}");
         }
         let _ = writeln!(
@@ -170,7 +169,7 @@ pub(crate) fn pair_join(
     let network = context.network.clone();
     let rt = runtime()?;
     let target = if let Some(text) = flags.invite {
-        from_invite(text, &network.addresses()?)?
+        keep_link::device::target_from_invite(text, &network.addresses()?)?
     } else {
         let _ = writeln!(out, "Searching for devices waiting to add one …");
         let windows =
@@ -258,20 +257,15 @@ fn found_target(
     windows: &[keep_sync::lan::announce::FoundWindow],
     to: Option<&str>,
 ) -> Result<PairTarget, CliError> {
-    let window = pick(context, windows, to)?.clone();
-    let typed = (context.prompt)(Prompt::Text(format!(
-        "Pairing code shown on {} · {}:",
-        window.announcement.lan_name, window.announcement.short_fingerprint
-    )))
-    .ok_or_else(cancelled)?;
-    Ok(PairTarget {
-        route: window.route,
-        window_random: window.announcement.window_random,
-        short_fingerprint: window.announcement.short_fingerprint,
-        secret: Secret::PairCode(Zeroizing::new(
-            typed.chars().filter(char::is_ascii_digit).collect(),
-        )),
-    })
+    let window = pick(context, windows, to)?;
+    let typed = Zeroizing::new(
+        (context.prompt)(Prompt::Text(format!(
+            "Pairing code shown on {} · {}:",
+            window.announcement.lan_name, window.announcement.short_fingerprint
+        )))
+        .ok_or_else(cancelled)?,
+    );
+    Ok(keep_link::device::target_with_code(window, &typed))
 }
 
 fn yes(answer: Option<String>) -> bool {
@@ -283,48 +277,9 @@ fn yes(answer: Option<String>) -> bool {
 
 /// The name given, or `OTPKeep-` and four random hex digits.
 fn lan_name(name: Option<&str>) -> Result<String, CliError> {
-    match name {
-        Some(name) if is_valid_lan_name(name) => Ok(name.to_owned()),
-        Some(_) => Err(CliError::new(
-            EXIT_INVALID_INPUT,
-            "INVALID_INPUT",
-            "the name must have 1 to 32 characters without surrounding spaces",
-        )),
-        None => {
-            let random = new_random().map_err(|_| random_failed())?;
-            Ok(format!("OTPKeep-{:02X}{:02X}", random[0], random[1]))
-        }
-    }
-}
-
-/// The invite, kept to addresses on this device's links.
-fn from_invite(text: &str, addrs: &[Eligible]) -> Result<PairTarget, CliError> {
-    let invite = PairInvite::parse(text)
-        .map_err(|error| CliError::new(EXIT_INVALID_INPUT, "INVALID_INPUT", &error.to_string()))?;
-    let reachable: Vec<_> = invite
-        .addrs
-        .iter()
-        .filter(|addr| {
-            addrs
-                .iter()
-                .any(|local| peer_is_on_link(local, **addr, None))
-        })
-        .map(|addr| (*addr, None))
-        .collect();
-    if reachable.is_empty() {
-        return Err(not_synced(
-            "NOT_SAME_NETWORK",
-            "the pairing code points to another network",
-        ));
-    }
-    Ok(PairTarget {
-        route: keep_sync::transport::Route::Lan {
-            addrs: reachable,
-            port: invite.port,
-        },
-        window_random: invite.window_random,
-        short_fingerprint: invite.short_fingerprint,
-        secret: Secret::PairSecret(invite.secret),
+    keep_link::device::lan_name(name).map_err(|error| match error.code {
+        "INVALID_NAME" => CliError::new(EXIT_INVALID_INPUT, "INVALID_INPUT", &error.message),
+        _ => random_failed(),
     })
 }
 
@@ -336,18 +291,7 @@ fn show_invite(
     announcement: &Announcement,
     secret: &[u8; 16],
 ) {
-    let invite = PairInvite {
-        addrs: addrs
-            .iter()
-            .map(|a| a.addr)
-            .filter(std::net::IpAddr::is_ipv4)
-            .collect(),
-        port,
-        short_fingerprint: announcement.short_fingerprint.clone(),
-        window_random: announcement.window_random,
-        secret: *secret,
-    };
-    let text = invite.encode();
+    let text = keep_link::device::invite_text(addrs, port, announcement, secret);
     let _ = writeln!(
         out,
         "Invite (it pairs without the code: keep it private):\n  otpkeep pair join --invite '{}'",

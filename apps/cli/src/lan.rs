@@ -3,15 +3,10 @@
 //! The sessions run on a Tokio runtime; questions to the person (allow, check code, codes to type) are asked
 //! on the calling thread while the session keeps running, so keepalives and timers continue meanwhile.
 
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-
-use keep_sync::lan::announce::{Announcement, FoundWindow};
-use keep_sync::lan::interfaces::Eligible;
-use keep_sync::lan::window::WindowKind;
-use keep_sync::transport::{Acceptor, Route, Via};
-
-use crate::args::Transport;
+use keep_link::LinkError;
+use keep_link::network::Opened;
+use keep_sync::lan::announce::FoundWindow;
+use keep_sync::transport::Via;
 use keep_vault::Platform;
 
 use crate::{CliError, EXIT_INVALID_INPUT, EXIT_NOT_SYNCED};
@@ -21,278 +16,31 @@ mod pair;
 mod sync;
 
 pub(crate) use devices::{devices, leave, remove_device, rename};
+pub use keep_link::{Network, WindowDirectory};
 pub(crate) use pair::{JoinFlags, pair_join, pair_open};
 pub(crate) use sync::{sync_join, sync_wait};
 
-/// `JOIN_BROWSE`: how long to search for windows.
-const BROWSE: Duration = Duration::from_secs(30);
-/// After the first window appears, how long to keep collecting others.
-const BROWSE_SETTLE: Duration = Duration::from_secs(2);
-const POLL: Duration = Duration::from_millis(50);
-
-/// Where sessions run: the real local network, or loopback with an in-process directory of windows (tests).
-#[derive(Clone)]
-pub enum Network {
-    /// Eligible cards and mDNS.
-    System,
-    /// 127.0.0.1 only; windows are announced in this directory.
-    Loopback(WindowDirectory),
-}
-
-/// The loopback stand-in for discovery, shared by the devices of one test.
-#[derive(Clone, Default)]
-pub struct WindowDirectory(Arc<Mutex<Vec<FoundWindow>>>);
-
-/// Keeps a window announced while alive.
-pub(crate) enum Announced {
-    /// Held only to keep announcing until dropped.
-    System {
-        _advertiser: keep_sync::lan::mdns::Advertiser,
-    },
-    Loopback(WindowDirectory, [u8; 16]),
-}
-
-impl Drop for Announced {
-    fn drop(&mut self) {
-        if let Self::Loopback(directory, random) = self
-            && let Ok(mut windows) = directory.0.lock()
-        {
-            windows.retain(|w| w.announcement.window_random != *random);
-        }
+impl From<LinkError> for CliError {
+    fn from(error: LinkError) -> Self {
+        not_synced(error.code, &error.message)
     }
 }
 
-/// A window's transports, ready to take connections.
-pub(crate) struct Opened {
-    /// Every transport's connections.
-    pub(crate) acceptor: Acceptor,
-    /// The local network's addresses and port, when it is used.
-    pub(crate) lan: Option<(Vec<Eligible>, u16)>,
-    /// Transports that could not be used, for the person.
-    pub(crate) notes: Vec<String>,
-}
-
-impl Network {
-    /// Opens a window on the chosen transports (both when `via` is `Any`): listening and announcing on the local
-    /// network, advertising over Bluetooth. A transport that cannot be used is noted, unless it was the one asked
-    /// for; at least one must work.
-    pub(crate) async fn open(
-        &self,
-        via: Transport,
-        announcement: &Announcement,
-    ) -> Result<Opened, CliError> {
-        let mut opened = Opened {
-            acceptor: Acceptor::new(),
-            lan: None,
-            notes: Vec::new(),
-        };
-        if via != Transport::Bluetooth {
-            match self.open_lan(&mut opened.acceptor, announcement).await {
-                Ok(lan) => opened.lan = Some(lan),
-                Err(error) if via == Transport::Any => opened
-                    .notes
-                    .push(format!("Local network not used: {}", error.message)),
-                Err(error) => return Err(error),
-            }
-        }
-        if via != Transport::Lan && matches!(self, Self::System) {
-            match keep_ble::BleWindow::open(announcement, opened.acceptor.sender()).await {
-                Ok(window) => opened.acceptor.hold(window),
-                Err(error) if via == Transport::Any => {
-                    opened.notes.push(format!("Bluetooth not used: {error}"));
-                }
-                Err(error) => return Err(not_synced(error.code(), &error.to_string())),
-            }
-        } else if via == Transport::Bluetooth {
-            return Err(not_synced(
-                "BLUETOOTH_UNSUPPORTED",
-                "Bluetooth is not available here",
-            ));
-        }
-        if opened.lan.is_none() && via == Transport::Any && opened.notes.len() == 2 {
-            return Err(not_synced(
-                "NO_ELIGIBLE_INTERFACE",
-                &opened.notes.join("; "),
-            ));
-        }
-        Ok(opened)
-    }
-
-    async fn open_lan(
-        &self,
-        acceptor: &mut Acceptor,
-        announcement: &Announcement,
-    ) -> Result<(Vec<Eligible>, u16), CliError> {
-        let addrs = self.addresses()?;
-        let listeners = keep_sync::flow::listen::Listeners::bind(&addrs)
-            .await
-            .map_err(|_| {
-                not_synced(
-                    "NO_ELIGIBLE_INTERFACE",
-                    "the window could not start listening",
-                )
-            })?;
-        let port = listeners.port();
-        let announced = self.announce(&addrs, port, announcement)?;
-        acceptor.add_lan(listeners);
-        acceptor.hold(announced);
-        Ok((addrs, port))
-    }
-
-    /// The addresses to listen on.
-    pub(crate) fn addresses(&self) -> Result<Vec<Eligible>, CliError> {
-        let addrs = match self {
-            Self::System => {
-                keep_sync::lan::interfaces::eligible(&keep_sync::lan::system::system_interfaces())
-            }
-            Self::Loopback(_) => vec![Eligible {
-                interface: "lo0".to_owned(),
-                index: 1,
-                addr: std::net::IpAddr::from([127, 0, 0, 1]),
-                prefix: 8,
-            }],
-        };
-        if addrs.is_empty() {
-            return Err(not_synced(
-                "NO_ELIGIBLE_INTERFACE",
-                "there is no usable local network connection (VPN and cellular are not used)",
-            ));
-        }
-        Ok(addrs)
-    }
-
-    /// Announces a window listening on `port`.
-    pub(crate) fn announce(
-        &self,
-        addrs: &[Eligible],
-        port: u16,
-        announcement: &Announcement,
-    ) -> Result<Announced, CliError> {
-        match self {
-            Self::System => keep_sync::lan::mdns::Advertiser::start(addrs, port, announcement)
-                .map(|advertiser| Announced::System {
-                    _advertiser: advertiser,
-                })
-                .map_err(|error| not_synced("NO_ELIGIBLE_INTERFACE", &error.to_string())),
-            Self::Loopback(directory) => {
-                let found = FoundWindow {
-                    announcement: announcement.clone(),
-                    route: Route::Lan {
-                        addrs: addrs.iter().map(|a| (a.addr, None)).collect(),
-                        port,
-                    },
-                };
-                if let Ok(mut windows) = directory.0.lock() {
-                    windows.push(found);
-                }
-                Ok(Announced::Loopback(
-                    directory.clone(),
-                    announcement.window_random,
-                ))
-            }
-        }
-    }
-
-    /// Windows of `kind` that `wanted` accepts, found on the chosen transports within [`BROWSE`].
-    pub(crate) async fn browse(
-        &self,
-        via: Transport,
-        kind: WindowKind,
-        wanted: impl Fn(&Announcement) -> bool + Copy,
-    ) -> Result<Vec<FoundWindow>, CliError> {
-        let bluetooth = async {
-            if via == Transport::Lan || !matches!(self, Self::System) {
-                return Ok(Vec::new());
-            }
-            keep_ble::browse(BROWSE, BROWSE_SETTLE).await
-        };
-        let lan = async {
-            if via == Transport::Bluetooth {
-                return Ok(Vec::new());
-            }
-            self.browse_lan(kind, wanted).await
-        };
-        let (lan, bluetooth) = tokio::join!(lan, bluetooth);
-        let bluetooth = match (bluetooth, via) {
-            (Ok(found), _) => found,
-            (Err(error), Transport::Bluetooth) => {
-                return Err(not_synced(error.code(), &error.to_string()));
-            }
-            (Err(_), _) => Vec::new(),
-        };
-        let lan = match (lan, via) {
-            (Ok(found), _) => found,
-            (Err(error), Transport::Lan) => return Err(error),
-            (Err(_), _) => Vec::new(),
-        };
-        let accepted = bluetooth
-            .into_iter()
-            .filter(|w| w.announcement.kind == kind && wanted(&w.announcement));
-        Ok(keep_sync::lan::announce::merge_found(
-            lan.into_iter().chain(accepted).collect(),
-        ))
-    }
-
-    async fn browse_lan(
-        &self,
-        kind: WindowKind,
-        wanted: impl Fn(&Announcement) -> bool,
-    ) -> Result<Vec<FoundWindow>, CliError> {
-        let accept = |w: &FoundWindow| w.announcement.kind == kind && wanted(&w.announcement);
-        let mut found: Vec<FoundWindow> = Vec::new();
-        let deadline = tokio::time::Instant::now() + BROWSE;
-        let mut settle: Option<tokio::time::Instant> = None;
-        let browser = match self {
-            Self::System => {
-                let addrs = self.addresses()?;
-                Some(
-                    keep_sync::lan::mdns::Browser::start(&addrs)
-                        .map_err(|error| not_synced("NO_ELIGIBLE_INTERFACE", &error.to_string()))?,
-                )
-            }
-            Self::Loopback(_) => None,
-        };
-        loop {
-            let now = tokio::time::Instant::now();
-            if now >= deadline || settle.is_some_and(|s| now >= s) {
-                break;
-            }
-            let next = match (&browser, self) {
-                (Some(browser), _) => tokio::time::timeout(POLL, browser.next())
-                    .await
-                    .ok()
-                    .flatten()
-                    .into_iter()
-                    .collect(),
-                (None, Self::Loopback(directory)) => {
-                    tokio::time::sleep(POLL).await;
-                    directory.0.lock().map(|w| w.clone()).unwrap_or_default()
-                }
-                (None, Self::System) => Vec::new(),
-            };
-            for window in next.into_iter().filter(|w| accept(w)) {
-                if !found.iter().any(|f| {
-                    f.announcement.window_random == window.announcement.window_random
-                        && f.route.via() == window.route.via()
-                }) {
-                    found.push(window);
-                    settle.get_or_insert(tokio::time::Instant::now() + BROWSE_SETTLE);
-                }
-            }
-        }
-        Ok(found)
-    }
+/// What the person is told about transports a window does without.
+pub(crate) fn skipped_notes(opened: &Opened) -> Vec<String> {
+    opened
+        .skipped
+        .iter()
+        .map(|s| match s.via {
+            Via::Lan => format!("Local network not used: {}", s.error.message),
+            Via::Bluetooth => format!("Bluetooth not used: {}", s.error.message),
+        })
+        .collect()
 }
 
 /// This device's platform, as other devices will show it.
-pub(crate) fn this_platform() -> Platform {
-    if cfg!(target_os = "macos") {
-        Platform::MacOs
-    } else if cfg!(target_os = "windows") {
-        Platform::Windows
-    } else {
-        Platform::Linux
-    }
+pub(crate) const fn this_platform() -> Platform {
+    keep_link::device::this_platform()
 }
 
 /// A platform's name as people know it.

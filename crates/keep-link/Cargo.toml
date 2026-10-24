@@ -1,0 +1,22 @@
+[package]
+name = "keep-link"
+description = "Reaching another device: opening and finding pairing and sync windows over the local network and Bluetooth."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+keep-ble = { path = "../keep-ble" }
+keep-sync = { path = "../keep-sync" }
+keep-vault = { path = "../keep-vault" }
+thiserror = "2"
+zeroize = "1.9"
+tokio = { version = "1", features = ["rt", "time", "macros"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true

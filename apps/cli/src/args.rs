@@ -38,16 +38,7 @@ pub(crate) enum Command {
 }
 
 /// Which transports a pairing or sync may use.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum Transport {
-    /// Both the local network and Bluetooth.
-    #[default]
-    Any,
-    /// The local network only.
-    Lan,
-    /// Bluetooth only.
-    Bluetooth,
-}
+pub use keep_link::Transport;
 
 /// Pairing, sync and device commands.
 #[derive(Debug, Clone, PartialEq, Eq)]

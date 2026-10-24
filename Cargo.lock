@@ -2455,6 +2455,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "keep-link"
+version = "0.0.1"
+dependencies = [
+ "keep-ble",
+ "keep-sync",
+ "keep-vault",
+ "thiserror 2.0.21",
+ "tokio",
+ "zeroize",
+]
+
+[[package]]
 name = "keep-passcode"
 version = "0.0.1"
 dependencies = [
@@ -3258,6 +3270,7 @@ dependencies = [
  "keep-ble",
  "keep-find",
  "keep-keyuri",
+ "keep-link",
  "keep-passcode",
  "keep-platform",
  "keep-sync",

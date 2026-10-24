@@ -3,7 +3,6 @@
 use std::io::Write;
 use std::sync::Arc;
 
-use keep_sync::channel::PROTOCOL_VERSION;
 use keep_sync::channel::hello::Hello;
 use keep_sync::flow::peer::PeerInfo;
 use keep_sync::flow::sync_join::{JoinOutcome, Joiner, join_sync};
@@ -13,14 +12,13 @@ use keep_sync::identity::{DeviceIdentity, short_fingerprint};
 use keep_sync::invite::{new_code, new_random};
 use keep_sync::lan::announce::{Announcement, HOUR_MS, group_tag, matches_group};
 use keep_sync::lan::window::{CloseReason, Timers, WINDOW_WAIT_DEFAULT_MS, WindowKind};
-use keep_sync::membership::membership;
 use keep_vault::VaultDoc;
 use keep_vault::service::VaultService;
 use serde_json::json;
 use tokio::sync::mpsc;
 use zeroize::Zeroizing;
 
-use super::{not_synced, pick, runtime, stopped, this_platform};
+use super::{not_synced, pick, runtime, stopped};
 use crate::args::{Options, Transport};
 use crate::commands::{Printed, service_error};
 use crate::open::open_service;
@@ -57,7 +55,7 @@ pub(crate) fn sync_wait(
             group_tag: Some(group_tag(&group.tag_key, &group.group_id, now() / HOUR_MS)),
         };
         let opened = network.open(via, &announcement).await?;
-        for note in &opened.notes {
+        for note in &super::skipped_notes(&opened) {
             let _ = writeln!(out, "{note}");
         }
         let _ = writeln!(
@@ -249,26 +247,12 @@ pub(super) fn closed(reason: CloseReason) -> CliError {
 
 /// This device's introduction.
 pub(super) fn hello(identity: &DeviceIdentity, doc: &VaultDoc) -> Hello {
-    Hello {
-        device: identity.device_id(),
-        dx_cert: Some(identity.dx_cert()),
-        platform: this_platform(),
-        lan_name: own_name(doc, identity),
-        versions: vec![PROTOCOL_VERSION],
-    }
+    keep_link::device::hello(identity, doc)
 }
 
 /// This device's LAN name in its group.
 fn own_name(doc: &VaultDoc, identity: &DeviceIdentity) -> String {
-    doc.group
-        .as_ref()
-        .and_then(|g| {
-            membership(g)
-                .members
-                .get(&identity.device_id())
-                .and_then(|m| m.lan_name.clone())
-        })
-        .unwrap_or_else(|| format!("OTPKeep-{}", short_fingerprint(identity.device_id())))
+    keep_link::device::own_name(doc, identity)
 }
 
 pub(super) fn describe(peer: &PeerInfo) -> String {
