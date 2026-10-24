@@ -46,6 +46,35 @@ const zh = {
   useVersion: "用这个",
   emptyValue: "（空）",
   when: (ms: number) => new Date(ms).toLocaleString("zh-CN", { hour12: false }),
+  advancedEdit: "服务商、账号、验证码设置与快捷键",
+  shortcut: "快捷键",
+  shortcutTexts: {
+    defaultShortcut: (label: string) => `默认 ${label}（按列表位置）`,
+    noShortcut: "未设置",
+    record: "设置",
+    change: "更改",
+    clear: "清除",
+    recording: "请按下组合键…（Esc 取消）",
+    needsModifier: "需要包含 ⌃ Control、⌥ Option / Alt 或 ⌘ Command / Win 中的至少一个",
+  },
+  shortcutSaved: "快捷键已设置",
+  takenBy: (holder: string) => {
+    if (holder === "SEARCH_PANEL") return "这个组合留给搜索面板使用，请换一个";
+    if (holder.startsWith("ROW:")) return `这个组合是列表第 ${holder.slice(4)} 个账号的默认快捷键，请换一个`;
+    if (holder.startsWith("ENTRY:")) return `这个组合已被“${holder.slice(6)}”使用`;
+    return "这个组合已被使用";
+  },
+  codeSettings: "验证码设置",
+  changeKey: "修改",
+  keySummary: (kind: string, algorithm: string, digits: number, periodS?: number, counter?: number) =>
+    [kind, algorithm, `${digits} 位`, periodS !== undefined ? `${periodS} 秒` : `计数器 ${counter ?? 0}`].join(" · "),
+  shortSecret: "密钥较短（少于 10 字节），安全性偏弱",
+  newSecret: "新密钥",
+  newSecretPlaceholder: "留空则保留现有密钥",
+  keyPreview: (code: string) => `按新设置，现在的验证码是 ${code}，请到网站上核对`,
+  keyPreviewCounter: "计数器型验证码不预览，以免计数器前进",
+  replaceWarning: "保存后旧密钥不再生成验证码；请确认网站上也已经更换",
+  keySaved: "验证码设置已保存",
   trash: "移入回收站",
   confirmTrash: "移入回收站？30 天内可以恢复",
   trashTitle: "回收站",
@@ -151,6 +180,8 @@ const zh = {
     IMPORT_GONE: "预览已过期，请重新读取",
     IMPORT_CHANGED: "数据在预览后有变化，已重新预览，请再确认一次",
     NO_KEYSTORE: "系统钥匙串不可用，无法创建加密数据",
+    SHORTCUT_INVALID: "需要包含 ⌃、⌥ 或 ⌘ 中的至少一个",
+    SHORTCUT_REJECTED: "系统没有接受这个组合，可能已被其他程序占用，请换一个",
     UNKNOWN: "出错了，请重试",
   } as Record<string, string>,
   invalid: {
@@ -165,6 +196,8 @@ const zh = {
     NOTE_TOO_LONG: "备注不能超过 2000 个字符",
     TAG_TOO_LONG: "每个标签不能超过 30 个字符",
     TOO_MANY_TAGS: "最多 20 个标签",
+    ISSUER_TOO_LONG: "服务商名称太长",
+    ACCOUNT_TOO_LONG: "账号名称太长",
     CHOICE_MISMATCH: "选择与预览不符，请重新读取",
   } as Record<string, string>,
   secretInvalid: (position: string, found: string) =>
@@ -210,6 +243,8 @@ const en: MainStrings = {
     IMPORT_GONE: "The preview expired; read it again",
     IMPORT_CHANGED: "The data changed after the preview; it was previewed again, please check once more",
     NO_KEYSTORE: "The system keychain is unavailable, so the encrypted data cannot be created",
+    SHORTCUT_INVALID: "Include at least one of Control, Alt / Option or Command / Win",
+    SHORTCUT_REJECTED: "The system did not accept this combination; another app may use it. Try another",
     UNKNOWN: "Something went wrong; try again",
   },
   invalid: {
@@ -224,6 +259,8 @@ const en: MainStrings = {
     NOTE_TOO_LONG: "The note cannot be longer than 2000 characters",
     TAG_TOO_LONG: "A tag cannot be longer than 30 characters",
     TOO_MANY_TAGS: "At most 20 tags",
+    ISSUER_TOO_LONG: "The service name is too long",
+    ACCOUNT_TOO_LONG: "The account name is too long",
     CHOICE_MISMATCH: "The selection does not match the preview; read it again",
   },
   search: "Search names, accounts, notes or tags",
@@ -264,6 +301,35 @@ const en: MainStrings = {
   useVersion: "Use this",
   emptyValue: "(empty)",
   when: (ms) => new Date(ms).toLocaleString("en-GB"),
+  advancedEdit: "Service, account, code settings and shortcut",
+  shortcut: "Shortcut",
+  shortcutTexts: {
+    defaultShortcut: (label) => `Default ${label} (by list position)`,
+    noShortcut: "None",
+    record: "Set",
+    change: "Change",
+    clear: "Clear",
+    recording: "Press the key combination… (Esc cancels)",
+    needsModifier: "Include at least one of Control, Alt / Option or Command / Win",
+  },
+  shortcutSaved: "Shortcut set",
+  takenBy: (holder) => {
+    if (holder === "SEARCH_PANEL") return "This combination is kept for the search panel; try another";
+    if (holder.startsWith("ROW:")) return `This is the default shortcut of account ${holder.slice(4)} in the list; try another`;
+    if (holder.startsWith("ENTRY:")) return `“${holder.slice(6)}” already uses this combination`;
+    return "This combination is already used";
+  },
+  codeSettings: "Code settings",
+  changeKey: "Change",
+  keySummary: (kind, algorithm, digits, periodS, counter) =>
+    [kind, algorithm, `${digits} digits`, periodS !== undefined ? `${periodS}s` : `counter ${counter ?? 0}`].join(" · "),
+  shortSecret: "The secret is short (under 10 bytes), which is weak",
+  newSecret: "New secret",
+  newSecretPlaceholder: "Leave empty to keep the current secret",
+  keyPreview: (code) => `With the new settings the code is now ${code}; compare it with the website`,
+  keyPreviewCounter: "Counter codes are not previewed, so the counter does not move",
+  replaceWarning: "After saving, the old secret no longer gives codes; make sure the website was changed too",
+  keySaved: "Code settings saved",
   trash: "Move to the trash",
   confirmTrash: "Move to the trash? It can be restored for 30 days",
   trashTitle: "Trash",
@@ -345,6 +411,7 @@ export function mainStrings(language: string): MainStrings {
 
 /** The message for a refusal. */
 export function describe(text: MainStrings, code: string, detail?: string): string {
+  if (code === "SHORTCUT_TAKEN") return text.takenBy(detail ?? "");
   if (code === "INVALID" && detail) return text.invalid[detail] ?? text.errors.UNKNOWN ?? code;
   if (code === "SECRET_INVALID" && detail) {
     const [position = "?", found = "?"] = detail.split(":");

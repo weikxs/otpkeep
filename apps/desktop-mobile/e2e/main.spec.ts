@@ -82,3 +82,17 @@ test("the editor shows tags, place, history and the trash", async ({ page }) => 
   await expect(page.getByTestId("trash-row")).toHaveCount(1);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/main-trash.png` });
 });
+
+test("the advanced part shows the shortcut and code settings", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 900 });
+  await page.goto("/index.html");
+
+  await page.getByTestId("entry").nth(0).getByText("编辑").click();
+  await page.getByText("服务商、账号、验证码设置与快捷键").click();
+  await page.getByText("修改").click();
+  await page.getByLabel("新密钥").fill("JBSW Y3DP");
+  await page.getByRole("button", { name: "预览" }).click();
+
+  await expect(page.getByText(/按新设置，现在的验证码是/u)).toBeVisible();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/main-advanced.png`, fullPage: true });
+});

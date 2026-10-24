@@ -17,6 +17,8 @@ mod icon;
 #[cfg(desktop)]
 mod import_commands;
 #[cfg(desktop)]
+mod key_commands;
+#[cfg(desktop)]
 mod manage_commands;
 #[cfg(desktop)]
 mod settings;
@@ -90,6 +92,11 @@ fn builder() -> tauri::Builder<tauri::Wry> {
             manage_commands::purge_entry,
             manage_commands::trash_list,
             manage_commands::entry_history,
+            key_commands::key_info,
+            key_commands::preview_key,
+            key_commands::replace_key,
+            key_commands::rename_entry,
+            key_commands::set_shortcut,
             commands::hide_panel,
         ])
         .setup(|app| {

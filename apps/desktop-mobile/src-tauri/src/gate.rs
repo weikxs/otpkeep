@@ -8,8 +8,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::commands::{AppCore, list_places};
 use crate::core::{CoreError, EntryInfo, EntryKind};
-use crate::hotkeys::{Hotkeys, SetError, set_entry_shortcut};
-use crate::shortcuts::Holder;
+use crate::hotkeys::{Hotkeys, SetError, set_entry_shortcut, taken_detail};
 
 /// The page server, while it runs.
 #[derive(Default)]
@@ -111,22 +110,12 @@ impl Backend for AppBackend {
 }
 
 impl AppBackend {
-    /// Names who holds a taken shortcut, as the page shows it.
     fn set_error(&self, error: SetError) -> GateError {
         match error {
             SetError::Invalid => GateError::ShortcutInvalid,
             SetError::Rejected => GateError::ShortcutRejected,
             SetError::Save => GateError::Save,
-            SetError::Taken(Holder::SearchPanel) => {
-                GateError::ShortcutTaken("SEARCH_PANEL".to_owned())
-            }
-            SetError::Taken(Holder::Row(row)) => {
-                GateError::ShortcutTaken(format!("ROW:{}", row + 1))
-            }
-            SetError::Taken(Holder::Entry(entry)) => {
-                let title = self.one(&entry).map_or_else(|_| entry.clone(), |e| e.title);
-                GateError::ShortcutTaken(format!("ENTRY:{title}"))
-            }
+            SetError::Taken(holder) => GateError::ShortcutTaken(taken_detail(&self.app, &holder)),
         }
     }
 }

@@ -94,6 +94,26 @@ export interface History {
   note: Version[];
 }
 
+/** An entry's code parameters, never its secret. */
+export interface KeyInfo {
+  kind: "totp" | "hotp" | "steam";
+  algorithm: string;
+  digits: number;
+  periodS?: number;
+  counter?: number;
+  shortSecret: boolean;
+}
+
+/** New parameters; a typed secret replaces the current one, an empty one keeps it. */
+export interface KeyForm {
+  secret: string;
+  kind: "totp" | "hotp" | "steam";
+  algorithm: "SHA1" | "SHA256" | "SHA512";
+  digits: number;
+  periodS: number;
+  counter: number;
+}
+
 export interface MainApi {
   state(query: string): Promise<MainState>;
   copy(id: string): Promise<CopyResult>;
@@ -108,6 +128,11 @@ export interface MainApi {
   purge(id: string): Promise<void>;
   trashList(): Promise<TrashItem[]>;
   history(id: string): Promise<History>;
+  rename(id: string, change: { issuer?: string; account?: string }): Promise<void>;
+  keyInfo(id: string): Promise<KeyInfo>;
+  previewKey(id: string, form: KeyForm): Promise<string | null>;
+  replaceKey(id: string, form: KeyForm): Promise<void>;
+  setShortcut(id: string, shortcut: string | null): Promise<void>;
   stageText(text: string): Promise<ImportView>;
   stageFile(bytes: Uint8Array, backupPassword?: string): Promise<ImportView>;
   stageManual(form: ManualForm): Promise<ImportView>;
@@ -160,6 +185,11 @@ export async function tauriMainApi(): Promise<MainApi> {
     purge: (id) => call("purge_entry", { id }),
     trashList: () => call("trash_list"),
     history: (id) => call("entry_history", { id }),
+    rename: (id, change) => call("rename_entry", { id, issuer: change.issuer ?? null, account: change.account ?? null }),
+    keyInfo: (id) => call("key_info", { id }),
+    previewKey: (id, form) => call("preview_key", { id, form }),
+    replaceKey: (id, form) => call("replace_key", { id, form }),
+    setShortcut: (id, shortcut) => call("set_shortcut", { id, shortcut }),
     stageText: (text) => call("stage_text", { text }),
     stageFile: (bytes, backupPassword) =>
       // Raw bytes; the password may hold any character, so it is percent-encoded for the header.

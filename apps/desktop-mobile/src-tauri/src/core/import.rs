@@ -1,8 +1,6 @@
 //! Adding accounts: pasted text, files and pictures, and the manual form all become a staged import that
 //! the person reviews and commits (PRD FR-2.1–2.3, FR-6.6). A first commit creates the vault.
 
-use keep_keyuri::{KeyUriFault, parse_secret};
-use keep_passcode::{CodeKind, CodeSpec, Digest};
 use keep_transfer::backup::BackupError;
 use keep_transfer::import::{Candidate, Choice, ImportError, Origin, commit_import, preview};
 use keep_transfer::source::{Source, SourceError, read_source, read_text};
@@ -12,6 +10,7 @@ use serde::Deserialize;
 use zeroize::Zeroize;
 
 use super::import_view::{ImportView, view};
+use super::key::{read_spec, read_typed_secret};
 use super::{Core, CoreError, Vault};
 use crate::staging::Staged;
 
@@ -226,29 +225,8 @@ fn source_problem(error: SourceError) -> ImportProblem {
 }
 
 fn manual_candidate(form: &ManualForm) -> Result<Candidate, CoreError> {
-    let secret = parse_secret(&form.secret).map_err(|fault| match fault {
-        KeyUriFault::SecretInvalid { at, found } => CoreError::SecretInvalid { at, found },
-        _ => CoreError::Invalid("SECRET_MISSING"),
-    })?;
-    let digest = match form.algorithm.trim().to_ascii_uppercase().as_str() {
-        "SHA1" => Digest::Sha1,
-        "SHA256" => Digest::Sha256,
-        "SHA512" => Digest::Sha512,
-        _ => return Err(CoreError::Invalid("ALGORITHM")),
-    };
-    let period = CodeKind::TimeBased {
-        period_s: form.period_s,
-    };
-    let spec = match form.kind.as_str() {
-        "totp" => CodeSpec::new(period, digest, form.digits),
-        "hotp" => CodeSpec::new(CodeKind::CounterBased, digest, form.digits),
-        "steam" => CodeSpec::steam(form.period_s),
-        _ => return Err(CoreError::Invalid("KIND")),
-    }
-    .map_err(|error| match error {
-        keep_passcode::SpecError::DigitsOutOfRange(_) => CoreError::Invalid("DIGITS"),
-        keep_passcode::SpecError::PeriodOutOfRange(_) => CoreError::Invalid("PERIOD"),
-    })?;
+    let secret = read_typed_secret(&form.secret)?;
+    let spec = read_spec(&form.kind, &form.algorithm, form.digits, form.period_s)?;
     if form.issuer.trim().is_empty()
         && form.account.trim().is_empty()
         && form.title.trim().is_empty()

@@ -2,7 +2,7 @@ import { useState } from "preact/hooks";
 import { monogram, tileColor } from "../panel/format";
 import { type EntryEdit, GateFailure, type GateEntry } from "./api";
 import { type GateStrings, describeFailure } from "./i18n";
-import { ShortcutField } from "./ShortcutField";
+import { ShortcutField } from "../shared/ShortcutField";
 
 export interface EntryCardProps {
   entry: GateEntry;
@@ -119,7 +119,7 @@ export function EntryCard({ entry, text, isMac, onEdit, onShortcut, onNotice }: 
             {...(entry.shortcut === undefined ? {} : { shortcut: entry.shortcut })}
             {...(entry.defaultShortcut === undefined ? {} : { defaultShortcut: entry.defaultShortcut })}
             isMac={isMac}
-            text={text}
+            text={{ ...text, needsModifier: text.errors.SHORTCUT_INVALID ?? "" }}
             onSave={saveShortcut}
           />
         </div>

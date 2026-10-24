@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { type AddTab, AddDialog } from "./AddDialog";
 import { CommandFailure, type Entry, type MainApi, type MainState } from "./api";
+import type { EntryChange } from "./EntryEditor";
 import { ENTRY_DRAG_TYPE, EntryRow } from "./EntryRow";
 import { TrashDialog } from "./TrashDialog";
 import { type MainStrings, describe } from "./i18n";
@@ -88,9 +89,12 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
     }
   };
 
-  const save = async (id: string, change: { title?: string; note?: string; tags?: string[]; pinned?: boolean }) => {
-    const { tags, pinned, ...names } = change;
+  const save = async (id: string, change: EntryChange) => {
+    const { tags, pinned, issuer, account, ...names } = change;
     if (names.title !== undefined || names.note !== undefined) await api.edit(id, names);
+    if (issuer !== undefined || account !== undefined) {
+      await api.rename(id, { ...(issuer === undefined ? {} : { issuer }), ...(account === undefined ? {} : { account }) });
+    }
     if (tags !== undefined) await api.setTags(id, tags);
     if (pinned !== undefined) await api.setPinned(id, pinned);
     setToast(text.saved);
@@ -215,6 +219,11 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
                   next={shown[index + 1]?.id}
                   onCopy={(e) => void copy(e)}
                   onSave={(change) => save(entry.id, change)}
+                  keyApi={api}
+                  onChanged={(message) => {
+                    setToast(message);
+                    void load(query);
+                  }}
                   onMove={(to) => after(api.move(entry.id, to))}
                   onTrash={() => after(api.trash(entry.id), text.trashed)}
                   loadHistory={() => api.history(entry.id)}

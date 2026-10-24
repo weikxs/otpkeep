@@ -1,15 +1,29 @@
 import { useState } from "preact/hooks";
-import { CommandFailure, type Entry, type History, type MoveTo } from "./api";
+import { AdvancedSection } from "./AdvancedSection";
+import { CommandFailure, type Entry, type History, type MainApi, type MoveTo } from "./api";
 import { type MainStrings, describe } from "./i18n";
 import { TagInput } from "./TagInput";
+
+/** The changes the editor's Save button makes. */
+export interface EntryChange {
+  title?: string;
+  note?: string;
+  issuer?: string;
+  account?: string;
+  tags?: string[];
+  pinned?: boolean;
+}
 
 export interface EntryEditorProps {
   entry: Entry;
   text: MainStrings;
+  isMac: boolean;
+  keyApi: Pick<MainApi, "keyInfo" | "previewKey" | "replaceKey" | "setShortcut">;
+  onChanged: (message: string) => void;
   /** The entries just above and below, for moving one place. */
   previous: string | undefined;
   next: string | undefined;
-  onSave: (change: { title?: string; note?: string; tags?: string[]; pinned?: boolean }) => Promise<void>;
+  onSave: (change: EntryChange) => Promise<void>;
   onMove: (to: MoveTo) => Promise<void>;
   onTrash: () => Promise<void>;
   loadHistory: () => Promise<History>;
@@ -17,8 +31,11 @@ export interface EntryEditorProps {
 }
 
 /** Everything about one entry that is not its secret: names, note, tags, pin, place, history, trash. */
-export function EntryEditor({ entry, text, previous, next, onSave, onMove, onTrash, loadHistory, onDone }: EntryEditorProps) {
+export function EntryEditor(props: EntryEditorProps) {
+  const { entry, text, previous, next, onSave, onMove, onTrash, loadHistory, onDone } = props;
   const [title, setTitle] = useState(entry.title);
+  const [issuer, setIssuer] = useState(entry.issuer);
+  const [account, setAccount] = useState(entry.account);
   const [note, setNote] = useState(entry.note);
   const [tags, setTags] = useState(entry.tags);
   const [pinned, setPinned] = useState(entry.pinned);
@@ -46,6 +63,8 @@ export function EntryEditor({ entry, text, previous, next, onSave, onMove, onTra
     const change = {
       ...(title !== entry.title ? { title } : {}),
       ...(note !== entry.note ? { note } : {}),
+      ...(issuer !== entry.issuer ? { issuer } : {}),
+      ...(account !== entry.account ? { account } : {}),
       ...(tags.join("\n") !== entry.tags.join("\n") ? { tags } : {}),
       ...(pinned !== entry.pinned ? { pinned } : {}),
     };
@@ -104,6 +123,20 @@ export function EntryEditor({ entry, text, previous, next, onSave, onMove, onTra
           </button>
         </div>
       </div>
+      <details class="history">
+        <summary>{text.advancedEdit}</summary>
+        <div class="advanced-grid two">
+          <label>
+            <span class="field-label">{text.issuer}</span>
+            <input value={issuer} maxLength={256} onInput={(e) => setIssuer((e.target as HTMLInputElement).value)} />
+          </label>
+          <label>
+            <span class="field-label">{text.account}</span>
+            <input value={account} maxLength={256} onInput={(e) => setAccount((e.target as HTMLInputElement).value)} />
+          </label>
+        </div>
+        <AdvancedSection entry={entry} text={text} isMac={props.isMac} api={props.keyApi} onChanged={props.onChanged} />
+      </details>
       <details
         class="history"
         onToggle={(e) => {

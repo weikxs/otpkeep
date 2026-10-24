@@ -51,7 +51,7 @@ impl CommandError {
         Self { code, detail: None }
     }
 
-    fn with(code: &'static str, detail: String) -> Self {
+    pub(crate) fn with(code: &'static str, detail: String) -> Self {
         Self {
             code,
             detail: Some(detail),
@@ -129,7 +129,12 @@ fn with_shortcuts(
             let shortcut = places
                 .get(&entry.id)
                 .and_then(|&place| map.shown_for(&entry.id, place));
-            PanelEntry { shortcut, ..entry }
+            let own_shortcut = map.own(&entry.id).map(str::to_owned);
+            PanelEntry {
+                shortcut,
+                own_shortcut,
+                ..entry
+            }
         })
         .collect();
     PanelState { entries, ..state }

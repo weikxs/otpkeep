@@ -2,8 +2,8 @@ import { useState } from "preact/hooks";
 import { groupCode, monogram, tileColor } from "../panel/format";
 import { Ring } from "../shared/Ring";
 import { formatShortcut } from "../shared/shortcut";
-import type { Entry, History, MoveTo } from "./api";
-import { EntryEditor } from "./EntryEditor";
+import type { Entry, History, MainApi, MoveTo } from "./api";
+import { type EntryChange, EntryEditor } from "./EntryEditor";
 import type { MainStrings } from "./i18n";
 
 /** What a dragged row carries, so a drop on the window is not mistaken for a file. */
@@ -23,7 +23,9 @@ export interface EntryRowProps {
   /** Rows can be dragged into another place (not while searching or filtering). */
   sortable: boolean;
   onCopy: (entry: Entry) => void;
-  onSave: (change: { title?: string; note?: string; tags?: string[]; pinned?: boolean }) => Promise<void>;
+  onSave: (change: EntryChange) => Promise<void>;
+  keyApi: Pick<MainApi, "keyInfo" | "previewKey" | "replaceKey" | "setShortcut">;
+  onChanged: (message: string) => void;
   onMove: (to: MoveTo) => Promise<void>;
   onTrash: () => Promise<void>;
   loadHistory: () => Promise<History>;
@@ -47,6 +49,9 @@ export function EntryRow(props: EntryRowProps) {
         <EntryEditor
           entry={entry}
           text={text}
+          isMac={isMac}
+          keyApi={props.keyApi}
+          onChanged={props.onChanged}
           previous={props.previous}
           next={props.next}
           onSave={props.onSave}

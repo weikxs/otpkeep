@@ -1,12 +1,23 @@
 import { useState } from "preact/hooks";
-import { formatShortcut, recordShortcut } from "../shared/shortcut";
-import type { GateStrings } from "./i18n";
+import { formatShortcut, recordShortcut } from "./shortcut";
+
+/** The words the field uses; each page supplies them in its language. */
+export interface ShortcutTexts {
+  defaultShortcut: (label: string) => string;
+  noShortcut: string;
+  record: string;
+  change: string;
+  clear: string;
+  recording: string;
+  /** Shown when only Shift or no modifier was held. */
+  needsModifier: string;
+}
 
 export interface ShortcutFieldProps {
   shortcut?: string;
   defaultShortcut?: string;
   isMac: boolean;
-  text: GateStrings;
+  text: ShortcutTexts;
   /** Saves the recorded shortcut, or removes it with `null`; rejects with the reason shown to the person. */
   onSave: (shortcut: string | null) => Promise<void>;
 }
@@ -27,7 +38,7 @@ export function ShortcutField({ shortcut, defaultShortcut, isMac, text, onSave }
     const recorded = recordShortcut(event);
     if (recorded.kind === "incomplete") return;
     if (recorded.kind === "needsModifier") {
-      setHint(text.errors.SHORTCUT_INVALID ?? null);
+      setHint(text.needsModifier);
       return;
     }
     setRecording(false);

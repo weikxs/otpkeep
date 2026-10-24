@@ -20,10 +20,12 @@ use crate::staging::Staging;
 
 mod import;
 mod import_view;
+mod key;
 mod manage;
 
 pub use import::{ImportProblem, ManualForm};
 pub use import_view::ImportView;
+pub use key::{KeyForm, KeyInfo};
 pub use manage::{History, MoveTo, TrashItem};
 
 /// The panel lists at most this many entries without a search (design/12 §3).
@@ -58,6 +60,9 @@ pub struct PanelEntry {
     /// Its global shortcut in canonical form; filled in by the shortcut layer, not here.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shortcut: Option<String>,
+    /// The entry's own shortcut, when it has one (as opposed to its row's default).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub own_shortcut: Option<String>,
 }
 
 /// One entry's descriptive fields, for the browser management page.
@@ -155,6 +160,8 @@ impl From<ServiceError> for CoreError {
             ServiceError::Edit(EditError::TitleTooLong) => Self::Invalid("TITLE_TOO_LONG"),
             ServiceError::Edit(EditError::NoteTooLong) => Self::Invalid("NOTE_TOO_LONG"),
             ServiceError::Edit(EditError::TagTooLong) => Self::Invalid("TAG_TOO_LONG"),
+            ServiceError::Edit(EditError::IssuerTooLong) => Self::Invalid("ISSUER_TOO_LONG"),
+            ServiceError::Edit(EditError::AccountTooLong) => Self::Invalid("ACCOUNT_TOO_LONG"),
             ServiceError::Edit(EditError::TooManyTags) => Self::Invalid("TOO_MANY_TAGS"),
             _ => Self::Save,
         }
@@ -483,6 +490,7 @@ fn row(service: &VaultService, entry: &Entry, now_ms: u64) -> PanelEntry {
         period_s,
         valid_until_ms,
         shortcut: None,
+        own_shortcut: None,
     }
 }
 

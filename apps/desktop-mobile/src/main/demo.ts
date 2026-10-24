@@ -37,6 +37,7 @@ interface DemoAccount {
   pinned?: boolean;
   tags?: string[];
   trashedAt?: number;
+  shortcut?: string | undefined;
 }
 
 const START: DemoAccount[] = [
@@ -74,13 +75,15 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
   const entry = (a: DemoAccount, now: number): Entry => {
     if (a.kind === "hotp") {
       const code = generated.get(a.id);
-      return { ...a, tags: a.tags ?? [], pinned: a.pinned ?? false, ...(code === undefined ? {} : { code }) };
+      const { shortcut: _own, ...rest } = a;
+      return { ...rest, tags: a.tags ?? [], pinned: a.pinned ?? false, ...(code === undefined ? {} : { code }) };
     }
     const step = Math.floor(now / PERIOD_MS);
     const validUntilMs = (step + 1) * PERIOD_MS;
     const steam = a.kind === "steam";
+    const { shortcut: _own, ...rest } = a;
     return {
-      ...a,
+      ...rest,
       tags: a.tags ?? [],
       pinned: a.pinned ?? false,
       code: fakeCode(a.secret, step, steam),
@@ -98,7 +101,20 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
     );
     return {
       status: locked ? "needsPassword" : "ready",
-      entries: locked ? [] : found.map((a) => entry(a, now)),
+      // As on a Mac: the first ten rows get ⌃⌥⌘1 … ⌃⌥⌘0 unless they have their own shortcut.
+      entries: locked
+        ? []
+        : found.map((a) => {
+            const row = entry(a, now);
+            const place = live().indexOf(a);
+            const fallback = place >= 0 && place < 10 ? `control+alt+super+Digit${(place + 1) % 10}` : undefined;
+            const shown = a.shortcut ?? fallback;
+            return {
+              ...row,
+              ...(shown === undefined ? {} : { shortcut: shown }),
+              ...(a.shortcut === undefined ? {} : { ownShortcut: a.shortcut }),
+            };
+          }),
       nowMs: now,
       usesMasterPassword: needsPassword,
       inGroup: false,
@@ -195,6 +211,28 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
           purgeAtMs: (a.trashedAt ?? 0) + TRASH_KEEP_MS,
         })),
     history: async (id) => history.get(id) ?? { title: [], note: [] },
+    rename: async (id, names) => change(id, (a) => ({ ...a, ...names })),
+    keyInfo: async (id) => {
+      const a = accounts.find((x) => x.id === id);
+      if (!a) throw new CommandFailure("NOT_FOUND");
+      return a.kind === "hotp"
+        ? { kind: "hotp", algorithm: "SHA1", digits: 6, counter: 0, shortSecret: false }
+        : { kind: a.kind, algorithm: "SHA1", digits: a.kind === "steam" ? 5 : 6, periodS: 30, shortSecret: false };
+    },
+    previewKey: async (id, form) => {
+      const bad = [...form.secret.toUpperCase().replace(/[\s-]/gu, "")].findIndex((c) => !BASE32.test(c));
+      if (bad >= 0) throw new CommandFailure("SECRET_INVALID", `${bad + 1}:${form.secret.replace(/[\s-]/gu, "")[bad]}`);
+      if (form.kind === "hotp") return null;
+      return fakeCode(form.secret || id, Math.floor(clock() / PERIOD_MS), form.kind === "steam").slice(0, form.kind === "steam" ? 5 : form.digits);
+    },
+    replaceKey: async (id, form) =>
+      change(id, (a) => ({ ...a, kind: form.kind, secret: form.secret === "" ? a.secret : form.secret })),
+    setShortcut: async (id, shortcut) => {
+      const canonical = shortcut?.toLowerCase().replace("digit", "Digit").replace("key", "Key");
+      const place = live().findIndex((a) => `control+alt+super+Digit${(live().indexOf(a) + 1) % 10}` === canonical);
+      if (place >= 0) throw new CommandFailure("SHORTCUT_TAKEN", `ROW:${place + 1}`);
+      change(id, (a) => ({ ...a, shortcut: canonical }));
+    },
     unlock: async (password) => {
       if (password === "demo") locked = false;
       return state("");

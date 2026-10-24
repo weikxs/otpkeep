@@ -182,6 +182,23 @@ pub fn set_entry_shortcut<R: Runtime>(
     Ok(())
 }
 
+/// Who holds a taken shortcut, as the windows word it: `ENTRY:<name>`, `ROW:<n>` or `SEARCH_PANEL`.
+#[must_use]
+pub fn taken_detail<R: Runtime>(app: &AppHandle<R>, holder: &Holder) -> String {
+    match holder {
+        Holder::SearchPanel => "SEARCH_PANEL".to_owned(),
+        Holder::Row(row) => format!("ROW:{}", row + 1),
+        Holder::Entry(entry) => {
+            let title = app
+                .try_state::<AppCore>()
+                .and_then(|core| core.get().list("").ok())
+                .and_then(|all| all.into_iter().find(|e| &e.id == entry))
+                .map_or_else(|| entry.clone(), |e| e.title);
+            format!("ENTRY:{title}")
+        }
+    }
+}
+
 fn pressed<R: Runtime>(app: &AppHandle<R>, id: u32) {
     let Some(hotkeys) = app.try_state::<Hotkeys>() else {
         return;

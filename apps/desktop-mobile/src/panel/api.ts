@@ -25,6 +25,8 @@ export interface PanelEntry {
   validUntilMs?: number;
   /** Its global shortcut in canonical form (`control+alt+super+Digit1`): its own, or its row's default. */
   shortcut?: string;
+  /** The entry's own shortcut, when it has one. */
+  ownShortcut?: string;
 }
 
 /** There is no app lock (ADR-019): a master password is asked for once per run. */
