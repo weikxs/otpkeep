@@ -13,7 +13,7 @@ ciborium = "0.2"
 ed25519-dalek = "3.0"
 getrandom = "0.4"
 hkdf = "0.12"
-hmac = "0.12"
+hmac = "0.13"
 keep-passcode = { path = "../keep-passcode" }
 keep-vault = { path = "../keep-vault" }
 sha2 = "0.10"
