@@ -106,7 +106,8 @@ jobs:
     name: install and start (${{ matrix.name }})
     needs: [prepare, build]
     strategy:
-      fail-fast: true
+      # Every machine reports, so one failure does not hide the others' results.
+      fail-fast: false
       matrix:
         include:
           - name: macOS

@@ -60,7 +60,9 @@ macos)
 	sh ./install.sh --version "$tag" --dir "$apps"
 	app="$apps/OTPKeep.app"
 	archs=$(lipo -archs "$app/Contents/MacOS/otpkeep-app")
-	case " $archs " in *" x86_64 "*" arm64 "* | *" arm64 "*" x86_64 "*) ;; *) fail "not universal: $archs" ;; esac
+	for want in x86_64 arm64; do
+		case " $archs " in *" $want "*) ;; *) fail "not universal: $archs (no $want)" ;; esac
+	done
 	minos=$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" "$app/Contents/Info.plist")
 	[ "$minos" = 11.0 ] || fail "LSMinimumSystemVersion is $minos, expected 11.0"
 	[ -z "$(xattr -p com.apple.quarantine "$app" 2>/dev/null || true)" ] || fail "the quarantine flag is still set"
