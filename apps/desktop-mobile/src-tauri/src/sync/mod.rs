@@ -167,7 +167,7 @@ impl Syncer {
 
     /// Closes the window or stops the session; nothing is saved from it.
     pub fn close(&self) {
-        let kind = {
+        let cancelled = {
             let mut state = self.state();
             if let Some(task) = state.task.take() {
                 task.abort();
@@ -175,10 +175,15 @@ impl Syncer {
             state.asks.clear();
             state.invite = None;
             state.generation += 1;
-            state.view.session.take().map(|s| s.kind)
+            // Ending the session and recording why happen together: no one sees neither.
+            let ended = state.view.session.take();
+            if let Some(session) = &ended {
+                state.view.last = Some(self.result(session.kind, None, "CANCELLED", false, None));
+            }
+            ended.is_some()
         };
-        if let Some(kind) = kind {
-            self.finish_with(kind, None, "CANCELLED", false, None);
+        if cancelled {
+            self.publish();
         }
     }
 
@@ -288,7 +293,7 @@ impl Syncer {
             if state.generation != generation {
                 return;
             }
-            state.view.session = None;
+            // The session stays shown while the result is saved, so a new one cannot start meanwhile.
             state.task = None;
             state.asks.clear();
             state.invite = None;
@@ -313,27 +318,34 @@ impl Syncer {
             }
             Ended::Stop(code) => (code, false, None),
         };
-        self.finish_with(kind, peer.map(view::PeerView::of), code, ok, entries);
+        let result = self.result(kind, peer.map(view::PeerView::of), code, ok, entries);
+        {
+            let mut state = self.state();
+            // Closed while saving: the data was saved all the same, so the result is still recorded.
+            if state.generation == generation {
+                state.view.session = None;
+            }
+            state.view.last = Some(result);
+        }
+        self.publish();
     }
 
-    fn finish_with(
+    fn result(
         &self,
         kind: SessionKind,
         peer: Option<view::PeerView>,
         code: &'static str,
         ok: bool,
         entries: Option<usize>,
-    ) {
-        let at_ms = self.now();
-        self.state().view.last = Some(ResultView {
+    ) -> ResultView {
+        ResultView {
             kind,
             ok,
             code,
             peer,
             entries,
-            at_ms,
-        });
-        self.publish();
+            at_ms: self.now(),
+        }
     }
 
     /// Passes the window's events to the person: requests to allow (sync windows) and check codes to compare
