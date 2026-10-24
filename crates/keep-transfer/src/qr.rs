@@ -110,4 +110,4 @@ pub fn qr_svg(text: &str, ecc: QrEcc) -> Result<Zeroizing<String>, QrError> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

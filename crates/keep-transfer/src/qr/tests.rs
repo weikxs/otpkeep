@@ -31,7 +31,7 @@ fn draw(canvas: &mut GrayImage, text: &str, scale: u32, x_offset: u32) {
     }
 }
 
-fn picture(texts: &[&str], scale: u32) -> GrayImage {
+pub(crate) fn picture(texts: &[&str], scale: u32) -> GrayImage {
     // Each code gets a square slot as wide as its modules plus the 4-module quiet zone on both sides.
     let widths: Vec<u32> = texts
         .iter()
@@ -49,7 +49,7 @@ fn picture(texts: &[&str], scale: u32) -> GrayImage {
     canvas
 }
 
-fn png(image: &GrayImage) -> Vec<u8> {
+pub(crate) fn png(image: &GrayImage) -> Vec<u8> {
     let mut bytes = Vec::new();
     image
         .write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png)

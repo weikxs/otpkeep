@@ -1,6 +1,6 @@
 use keep_passcode::{CodeSpec, SecretKey};
 
-use super::{SheetEntry, SheetProblemKind, read_sheet, write_sheet};
+use super::{SheetEntry, SheetProblem, SheetProblemKind, read_sheet, write_sheet};
 use crate::{KeyUri, KeyUriFault};
 
 const DEMO: &str = "JBSWY3DPEHPK3PXP";
@@ -160,5 +160,24 @@ fn unknown_escapes_in_a_note_are_kept_as_written() {
     assert_eq!(
         read.items[0].note.as_deref(),
         Some("tab\\there and a trailing \\")
+    );
+}
+
+#[test]
+fn explains_a_bare_secret_line() {
+    let read = read_sheet("JBSWY3DPEHPK3PXP\nhello\n");
+
+    assert_eq!(
+        read.problems,
+        [
+            SheetProblem {
+                line: 1,
+                kind: SheetProblemKind::BadLink(KeyUriFault::BareSecret)
+            },
+            SheetProblem {
+                line: 2,
+                kind: SheetProblemKind::NotALink
+            },
+        ]
     );
 }

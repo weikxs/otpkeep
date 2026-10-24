@@ -107,22 +107,20 @@ pub fn read_sheet(text: &str) -> SheetRead {
             continue;
         }
         let (title, note) = (title.take(), note.take());
-        let kind = if line.contains("://") {
-            match parse_key_uri(line) {
-                Ok(parsed) => {
-                    read.items.push(SheetItem {
-                        line: index + 1,
-                        title,
-                        note,
-                        uri: parsed.uri,
-                        notes: parsed.notes,
-                    });
-                    continue;
-                }
-                Err(fault) => SheetProblemKind::BadLink(fault),
+        let kind = match parse_key_uri(line) {
+            Ok(parsed) => {
+                read.items.push(SheetItem {
+                    line: index + 1,
+                    title,
+                    note,
+                    uri: parsed.uri,
+                    notes: parsed.notes,
+                });
+                continue;
             }
-        } else {
-            SheetProblemKind::NotALink
+            // Plain words; a bare secret or another app's code gets its own explanation.
+            Err(KeyUriFault::NotAUri) => SheetProblemKind::NotALink,
+            Err(fault) => SheetProblemKind::BadLink(fault),
         };
         read.problems.push(SheetProblem {
             line: index + 1,
