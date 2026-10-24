@@ -22,6 +22,9 @@ for (const scheme of ["light", "dark"] as const) {
     await page.keyboard.press("ArrowDown");
     await expect(page.locator(".entry.selected")).toContainText("Cloud Console");
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/search-${scheme}.png` });
+    await page.keyboard.press("Shift+Enter");
+    await expect(page.getByRole("status")).toContainText("已改为复制");
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/search-${scheme}-fallback.png` });
     await page.keyboard.press("Escape");
     await expect(page.getByRole("searchbox")).toHaveValue("");
     expect(problems).toEqual([]);

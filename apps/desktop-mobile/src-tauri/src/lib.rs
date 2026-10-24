@@ -38,6 +38,10 @@ mod staging;
 mod sync;
 #[cfg(desktop)]
 mod sync_commands;
+#[cfg(desktop)]
+mod typing;
+#[cfg(desktop)]
+mod typing_commands;
 
 /// Starts the app and blocks until it exits.
 ///
@@ -115,6 +119,9 @@ fn builder() -> tauri::Builder<tauri::Wry> {
             settings_commands::get_settings,
             settings_commands::set_settings,
             settings_commands::set_search_panel_shortcut,
+            typing_commands::type_code,
+            typing_commands::typing_status,
+            typing_commands::ask_typing_permission,
             export_commands::export_file,
             export_commands::export_google,
             export_commands::entry_qr,

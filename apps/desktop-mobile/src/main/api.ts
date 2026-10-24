@@ -5,6 +5,7 @@
 
 import type { CopyResult, PanelEntry, PanelState } from "../panel/api";
 import type { SyncApi, SyncView } from "./sync/types";
+import type { Typing } from "../search/api";
 
 export type { CopyResult };
 export type Entry = PanelEntry;
@@ -177,6 +178,10 @@ export interface MainApi extends SyncApi {
   entryQr(id: string): Promise<QrImage>;
   settings(): Promise<Settings>;
   setSettings(patch: SettingsPatch): Promise<Settings>;
+  /** Whether codes can be typed into other apps here (search panel ⇧Enter). */
+  typingStatus(): Promise<Typing>;
+  /** Shows the system's request for the permission typing needs (macOS). */
+  askTypingPermission(): Promise<Typing>;
   /** Sets the search panel's global shortcut, or turns it off with `null`. */
   setSearchShortcut(shortcut: string | null): Promise<Settings>;
   /** Calls `listener` when the settings changed (here or in another window). */
@@ -245,6 +250,8 @@ export async function tauriMainApi(): Promise<MainApi> {
     entryQr: (id) => call("entry_qr", { id }),
     settings: () => call("get_settings"),
     setSettings: (patch) => call("set_settings", { patch }),
+    typingStatus: () => call("typing_status"),
+    askTypingPermission: () => call("ask_typing_permission"),
     setSearchShortcut: (shortcut) => call("set_search_panel_shortcut", { shortcut }),
     onSettings: (listener) => subscribe<Settings>("settings-changed", listener),
     batch: (ids, action) => call("batch_entries", { ids, action }),

@@ -3,7 +3,7 @@ import type { PanelEntry } from "../panel/api";
 import type { Strings } from "../panel/i18n";
 import { useLiveState } from "../panel/live";
 import { EntryList, PasswordPrompt, SearchIcon, generateIfNeeded } from "../panel/Panel";
-import type { SearchApi } from "./api";
+import type { SearchApi, TypeResult } from "./api";
 import type { SearchStrings } from "./i18n";
 
 export interface SearchAppProps {
@@ -15,6 +15,28 @@ export interface SearchAppProps {
   clock?: () => number;
 }
 
+/** Longest wait for Shift to be let go before typing (design/07 §2.3). */
+const RELEASE_WAIT_MS = 1000;
+
+/**
+ * Resolves once Shift is let go in this window, or after a second. Only this window's own key events are
+ * watched, so the code typed next is not turned into symbols.
+ */
+function shiftReleased(): Promise<void> {
+  return new Promise((resolve) => {
+    const done = () => {
+      window.removeEventListener("keyup", onUp);
+      clearTimeout(timer);
+      resolve();
+    };
+    const onUp = (event: KeyboardEvent) => {
+      if (!event.shiftKey) done();
+    };
+    const timer = setTimeout(done, RELEASE_WAIT_MS);
+    window.addEventListener("keyup", onUp);
+  });
+}
+
 /**
  * The search panel (design/04 §6): opened anywhere with a global shortcut, type to find an account, Enter
  * copies its code and closes, ⌘E edits it in the main window, Esc clears and then closes.
@@ -23,6 +45,7 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now }: SearchA
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
   const [failed, setFailed] = useState(false);
+  const [fallback, setFallback] = useState<TypeResult | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const { state, setState, coreNow } = useLiveState(api, query, clock);
   const entries = state?.entries ?? [];
@@ -35,6 +58,7 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now }: SearchA
         setQuery("");
         setSelected(0);
         setFailed(false);
+        setFallback(null);
         input.current?.focus();
       }),
     [api],
@@ -49,6 +73,22 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now }: SearchA
         await generateIfNeeded(api, entry, setState);
         await api.copy(entry.id);
         await api.hide();
+      } catch {
+        setFailed(true);
+      }
+    },
+    [api, setState],
+  );
+
+  const typeOut = useCallback(
+    async (entry: PanelEntry) => {
+      // Listen before anything else, so a quick release is not missed.
+      const released = shiftReleased();
+      try {
+        await generateIfNeeded(api, entry, setState);
+        await released;
+        const result = await api.typeCode(entry.id);
+        if (!result.typed) setFallback(result);
       } catch {
         setFailed(true);
       }
@@ -83,9 +123,8 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now }: SearchA
       event.preventDefault();
       setSelected((n) => Math.max(n - 1, 0));
     } else if (event.key === "Enter" && entry) {
-      // ⇧Enter will type the code (FR-5.5); until then it copies too.
       event.preventDefault();
-      void copy(entry);
+      void (event.shiftKey ? typeOut(entry) : copy(entry));
     } else if ((isMac ? event.metaKey : event.ctrlKey) && event.key.toLowerCase() === "e" && entry) {
       event.preventDefault();
       void edit(entry);
@@ -111,6 +150,7 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now }: SearchA
               setQuery((e.target as HTMLInputElement).value);
               setSelected(0);
               setFailed(false);
+              setFallback(null);
             }}
           />
         </header>
@@ -146,10 +186,28 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now }: SearchA
           <span class="error" role="alert">
             {text.copyFailed}
           </span>
+        ) : fallback ? (
+          <span class="search-notice" role="status">
+            {fallback.fallback === "UNSUPPORTED"
+              ? words.unsupported(fallback.clearsInS)
+              : words.noPermission(fallback.clearsInS)}
+            {fallback.fallback === "NO_PERMISSION" && (
+              <button
+                type="button"
+                class="link-button"
+                onClick={() => void api.askTypingPermission().then(() => setFallback(null))}
+              >
+                {words.grant}
+              </button>
+            )}
+          </span>
         ) : (
           <>
             <span>
               <kbd>↵</kbd> {words.copy}
+            </span>
+            <span>
+              <kbd>⇧↵</kbd> {words.type}
             </span>
             <span>
               <kbd>{modifier}E</kbd> {words.edit}

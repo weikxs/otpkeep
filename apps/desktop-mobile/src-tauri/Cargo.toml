@@ -35,6 +35,8 @@ zeroize = "1.9"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 arboard = { version = "3", default-features = false }
+# Typing a code into the focused field (FR-5.5); X11 through the pure-Rust x11rb.
+enigo = "0.6"
 keep-link = { path = "../../../crates/keep-link" }
 sys-locale = "0.3"
 tauri-plugin-dialog = "2"

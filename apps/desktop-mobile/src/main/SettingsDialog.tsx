@@ -1,13 +1,14 @@
 import { useEffect, useState } from "preact/hooks";
 import { ShortcutField } from "../shared/ShortcutField";
 import { formatShortcut } from "../shared/shortcut";
+import type { Typing } from "../search/api";
 import { CommandFailure, type MainApi, type Settings, type SettingsPatch } from "./api";
 import { type MainStrings, describe } from "./i18n";
 
 const CLEAR_CHOICES = [0, 10, 20, 30, 45, 60, 90, 120];
 
 export interface SettingsDialogProps {
-  api: Pick<MainApi, "settings" | "setSettings" | "setSearchShortcut">;
+  api: Pick<MainApi, "settings" | "setSettings" | "setSearchShortcut" | "typingStatus" | "askTypingPermission">;
   text: MainStrings;
   isMac: boolean;
   /** Called with the saved settings, so the window can follow the theme and language. */
@@ -19,8 +20,10 @@ export interface SettingsDialogProps {
 export function SettingsDialog({ api, text, isMac, onSaved, onClose }: SettingsDialogProps) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [typing, setTyping] = useState<Typing | null>(null);
 
   useEffect(() => void api.settings().then(setSettings), [api]);
+  useEffect(() => void api.typingStatus().then(setTyping), [api]);
 
   const save = async (saving: Promise<Settings>) => {
     setError(null);
@@ -115,6 +118,22 @@ export function SettingsDialog({ api, text, isMac, onSaved, onClose }: SettingsD
                 )}
               </span>
             </div>
+            {typing && (
+              <div class="setting">
+                <span class="setting-name">
+                  {text.typing}
+                  <span class="muted">{text.typingHint}</span>
+                </span>
+                <span class="setting-value">
+                  <span class={typing === "ready" ? "muted" : "warn"}>{text.typingStatus[typing]}</span>
+                  {typing === "needsPermission" && (
+                    <button type="button" class="link-button" onClick={() => void api.askTypingPermission().then(setTyping)}>
+                      {text.typingGrant}
+                    </button>
+                  )}
+                </span>
+              </div>
+            )}
             <div class="setting about">
               <span class="setting-name">{text.about}</span>
               <span class="muted">{text.version(settings.version)}</span>

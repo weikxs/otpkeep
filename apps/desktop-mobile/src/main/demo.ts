@@ -81,6 +81,7 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
     version: "0.0.1",
   };
   let tokens = 0;
+  let typing: "ready" | "needsPermission" | "unsupported" = "needsPermission";
   const live = () => {
     const kept = accounts.filter((a) => a.trashedAt === undefined);
     return [...kept.filter((a) => a.pinned), ...kept.filter((a) => !a.pinned)];
@@ -254,6 +255,11 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
       }
       settings = { ...settings, ...patch };
       return settings;
+    },
+    typingStatus: async () => typing,
+    askTypingPermission: async () => {
+      typing = "ready";
+      return typing;
     },
     setSearchShortcut: async (shortcut) => {
       if (shortcut?.toLowerCase() === "control+alt+super+digit1") throw new CommandFailure("SHORTCUT_TAKEN", "ROW:1");

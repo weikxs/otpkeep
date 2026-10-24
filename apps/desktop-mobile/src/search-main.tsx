@@ -1,9 +1,9 @@
 import { render } from "preact";
 import type { Settings } from "./main/api";
 import { insideApp } from "./panel/api";
-import { demoApi } from "./panel/demo";
 import { strings } from "./panel/i18n";
 import { type SearchApi, tauriSearchApi } from "./search/api";
+import { demoSearchApi } from "./search/demo";
 import { searchStrings } from "./search/i18n";
 import { SearchApp } from "./search/SearchApp";
 import { applyTheme, languageOf } from "./shared/appearance";
@@ -37,6 +37,6 @@ if (root) {
     );
   } else {
     // Outside the app (a browser preview) it shows made-up accounts.
-    show({ ...demoApi(), onShown: () => () => undefined });
+    show(demoSearchApi());
   }
 }

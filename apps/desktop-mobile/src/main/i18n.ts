@@ -61,6 +61,10 @@ const zh = {
   rowShortcuts: "前 10 个账号的快捷键",
   rowShortcutsHint: (mac: boolean): string =>
     mac ? "⌃⌥⌘1 … ⌃⌥⌘0 复制列表中第 1–10 个账号的验证码" : "Ctrl+Alt+Win+1 … 0 复制列表中第 1–10 个账号的验证码",
+  typing: "自动输入",
+  typingHint: "在搜索面板按 ⇧回车，把验证码直接输入到正在使用的程序",
+  typingStatus: { ready: "可以使用", needsPermission: "需要\"辅助功能\"授权", unsupported: "此桌面环境不支持，按 ⇧回车会改为复制" },
+  typingGrant: "去授权",
   searchShortcut: "搜索面板快捷键",
   searchShortcutHint: "在任何地方打开搜索框，输入名称后回车复制验证码",
   searchShortcutOff: "已关闭",
@@ -410,6 +414,14 @@ const en: MainStrings = {
   rowShortcuts: "Shortcuts for the first 10 accounts",
   rowShortcutsHint: (mac) =>
     mac ? "⌃⌥⌘1 … ⌃⌥⌘0 copy the code of accounts 1–10 in the list" : "Ctrl+Alt+Win+1 … 0 copy the code of accounts 1–10 in the list",
+  typing: "Typing codes",
+  typingHint: "Press ⇧Enter in the search panel to type the code into the app you are using",
+  typingStatus: {
+    ready: "Ready",
+    needsPermission: "Needs Accessibility permission",
+    unsupported: "Not allowed on this desktop; ⇧Enter copies instead",
+  },
+  typingGrant: "Allow",
   searchShortcut: "Search panel shortcut",
   searchShortcutHint: "Opens a search box anywhere; type a name and press Enter to copy its code",
   searchShortcutOff: "Off",

@@ -103,3 +103,18 @@ describe("search panel shortcut", () => {
     await waitFor(async () => expect((await api.settings()).searchShortcut).toBe("control+alt+super+Space"));
   });
 });
+
+describe("typing codes", () => {
+  it("shows that permission is needed and asks for it", async () => {
+    const api = show();
+    const ask = vi.spyOn(api, "askTypingPermission");
+    const dialog = await openSettings();
+
+    expect(await dialog.findByText('需要"辅助功能"授权')).toBeTruthy();
+    fireEvent.click(dialog.getByText("去授权"));
+
+    expect(await dialog.findByText("可以使用")).toBeTruthy();
+    expect(ask).toHaveBeenCalled();
+    expect(dialog.queryByText("去授权")).toBeNull();
+  });
+});

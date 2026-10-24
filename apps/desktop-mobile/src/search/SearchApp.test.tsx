@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
-import { demoApi } from "../panel/demo";
 import { strings } from "../panel/i18n";
 import type { SearchApi } from "./api";
+import { demoSearchApi } from "./demo";
 import { searchStrings } from "./i18n";
 import { SearchApp } from "./SearchApp";
 
@@ -10,7 +10,7 @@ const STEADY = 1_700_000_020_000;
 
 /** A demo search panel whose hiding, opening and showing can be watched. */
 function demoSearch(status: "ready" | "needsPassword" = "ready") {
-  const base = demoApi({ clock: () => STEADY, status });
+  const base = demoSearchApi({ clock: () => STEADY, status });
   let shown = () => {};
   const api = {
     ...base,
@@ -33,6 +33,61 @@ const field = () => screen.findByRole("searchbox", { name: "搜索名称、账�
 function press(key: string, extra: Partial<KeyboardEventInit> = {}) {
   fireEvent.keyDown(screen.getByRole("searchbox"), { key, ...extra });
 }
+
+describe("typing a code with ⇧Enter", () => {
+  it("waits for Shift to be let go, then types and leaves hiding to the core", async () => {
+    const { api } = demoSearch();
+    await api.askTypingPermission();
+    const typeCode = vi.spyOn(api, "typeCode");
+    show(api);
+    await field();
+    await screen.findAllByTestId("entry");
+
+    press("Enter", { shiftKey: true });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(typeCode).not.toHaveBeenCalled();
+    fireEvent.keyUp(window, { key: "Shift", shiftKey: false });
+
+    await waitFor(() => expect(typeCode).toHaveBeenCalledWith("d1"));
+    expect(api.copied).toEqual([]);
+    expect(api.hide).not.toHaveBeenCalled();
+  });
+
+  it("copies instead without permission, says so and offers to ask for it", async () => {
+    const { api } = demoSearch();
+    const ask = vi.spyOn(api, "askTypingPermission");
+    show(api);
+    await field();
+    await screen.findAllByTestId("entry");
+
+    press("Enter", { shiftKey: true });
+    fireEvent.keyUp(window, { key: "Shift", shiftKey: false });
+
+    expect(await screen.findByText(/没有"辅助功能"授权，已改为复制（30 秒后清除）/u)).toBeTruthy();
+    expect(api.copied).toEqual(["d1"]);
+    fireEvent.click(screen.getByText("去授权"));
+    await waitFor(() => expect(ask).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText("去授权")).toBeNull());
+  });
+
+  it("types after a second even if Shift is never seen let go", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { api } = demoSearch();
+      const typeCode = vi.spyOn(api, "typeCode");
+      show(api);
+      await field();
+      await screen.findAllByTestId("entry");
+
+      press("Enter", { shiftKey: true });
+      await vi.advanceTimersByTimeAsync(1000);
+
+      await waitFor(() => expect(typeCode).toHaveBeenCalledWith("d1"));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
 
 describe("search panel", () => {
   it("finds an account as you type, then Enter copies it and closes", async () => {

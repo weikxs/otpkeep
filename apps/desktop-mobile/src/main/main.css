@@ -1180,3 +1180,8 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+.setting-value .warn {
+  color: var(--amber);
+  font-size: 13px;
+}

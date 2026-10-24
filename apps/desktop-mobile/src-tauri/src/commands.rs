@@ -36,7 +36,7 @@ impl AppCore {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopyResult {
-    clears_in_s: u64,
+    pub(crate) clears_in_s: u64,
 }
 
 /// What a command reports when it fails: a code the window words, and sometimes a detail (a rule, a

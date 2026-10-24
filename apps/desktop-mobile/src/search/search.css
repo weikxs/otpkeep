@@ -63,3 +63,19 @@
   border: 1px solid var(--line);
   border-radius: 4px;
 }
+
+.search-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--amber);
+}
+
+.search-notice .link-button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
