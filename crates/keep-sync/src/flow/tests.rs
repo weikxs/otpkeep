@@ -278,7 +278,19 @@ async fn once_a_code_is_verified_the_window_stops_listening() {
         )
         .await
     });
-    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    // Wait for the window to stop listening rather than for a fixed time: slow machines (an emulated CPU, a
+    // busy runner) take longer than a moment to verify the code.
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(20);
+    while tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .is_ok()
+    {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the window kept listening after the code was verified"
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
 
     let second = join_sync(
         &joiner(3),
