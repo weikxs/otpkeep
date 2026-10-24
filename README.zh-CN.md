@@ -1,5 +1,7 @@
 <div align="center">
 
+<img alt="OTPKeep" src="apps/desktop-mobile/src-tauri/icons/128x128@2x.png" width="112">
+
 # OTPKeep
 
 **免费、注重隐私的两步验证器（TOTP / HOTP / Steam），常驻菜单栏。**

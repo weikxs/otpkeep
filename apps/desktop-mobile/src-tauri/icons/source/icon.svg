@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- OTPKeep app icon: a countdown ring around a keyhole, on the app's teal. Source for `pnpm tauri icon`. -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1fc2a8"/>
+      <stop offset="1" stop-color="#0a7466"/>
+    </linearGradient>
+    <radialGradient id="shine" cx="0.3" cy="0.2" r="0.8">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#body)"/>
+  </g>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#shine)"/>
+  <!-- The ring: the track, then the time left (about three quarters), starting at the top. -->
+  <circle cx="512" cy="512" r="250" fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="66"/>
+  <circle cx="512" cy="512" r="250" fill="none" stroke="#ffffff" stroke-width="66" stroke-linecap="round"
+          stroke-dasharray="1178 393" transform="rotate(-90 512 512)"/>
+  <!-- The keyhole. -->
+  <circle cx="512" cy="470" r="66" fill="#ffffff"/>
+  <path d="M478 500 L546 500 L566 630 Q568 646 552 646 L472 646 Q456 646 458 630 Z" fill="#ffffff"/>
+</svg>

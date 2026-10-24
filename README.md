@@ -1,5 +1,7 @@
 <div align="center">
 
+<img alt="OTPKeep" src="apps/desktop-mobile/src-tauri/icons/128x128@2x.png" width="112">
+
 # OTPKeep
 
 **A free, private two-factor authenticator (TOTP / HOTP / Steam) that lives in your menu bar.**
