@@ -1,0 +1,208 @@
+name: Release
+
+# A tag vX.Y.Z publishes a release; vX.Y.Z-rc.N publishes a pre-release for testing. Nothing else runs this
+# workflow: pushing commits or branches never does, and ci.yml only runs for main and pull requests.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  UI_DIR: apps/desktop-mobile
+
+jobs:
+  prepare:
+    name: check the tag, versions and release notes
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v5
+      # The release page is .github/release-notes/<tag>.md, written by a person from TEMPLATE.md; never
+      # commit messages, hashes or emails. The check stops here when it is missing or has TODOs.
+      - id: check
+        run: scripts/release/check-release.sh "$GITHUB_REF_NAME"
+
+  check:
+    name: every check and test
+    needs: prepare
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny,cargo-audit,cargo-llvm-cov
+      - name: make check
+        run: make check
+      - name: Browser tests
+        working-directory: ${{ env.UI_DIR }}
+        run: pnpm e2e
+
+  build:
+    name: build (${{ matrix.name }})
+    needs: [prepare, check]
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: macOS universal
+            runner: macos-latest
+            os: darwin
+            arch: universal
+            target: universal-apple-darwin
+            bundles: dmg
+            kinds: dmg
+          - name: Linux x86_64
+            runner: ubuntu-22.04
+            os: linux
+            arch: amd64
+            target: ""
+            bundles: deb,rpm,appimage
+            kinds: deb rpm appimage
+          - name: Linux arm64
+            runner: ubuntu-22.04-arm
+            os: linux
+            arch: arm64
+            target: ""
+            bundles: deb,appimage
+            kinds: deb appimage
+    runs-on: ${{ matrix.runner }}
+    env:
+      # linuxdeploy is itself an AppImage; this lets it run without FUSE.
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - name: Rust targets for the universal macOS app
+        if: matrix.os == 'darwin'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Build the packages
+        working-directory: ${{ env.UI_DIR }}
+        shell: bash
+        run: |
+          if [ -n "${{ matrix.target }}" ]; then
+            pnpm tauri build --target "${{ matrix.target }}" --bundles "${{ matrix.bundles }}"
+          else
+            pnpm tauri build --bundles "${{ matrix.bundles }}"
+          fi
+      - name: Name them as released
+        run: scripts/release/rename-bundles.sh "${{ needs.prepare.outputs.version }}" "${{ matrix.os }}" "${{ matrix.arch }}" dist ${{ matrix.kinds }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  verify:
+    name: install and start (${{ matrix.name }})
+    needs: [prepare, build]
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: macOS
+            runner: macos-latest
+            artifact: packages-darwin-universal
+            modes: macos
+          - name: Linux x86_64
+            runner: ubuntu-22.04
+            artifact: packages-linux-amd64
+            modes: deb appimage
+          - name: Linux arm64
+            runner: ubuntu-22.04-arm
+            artifact: packages-linux-arm64
+            modes: deb appimage
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist
+      - name: A display for the app on Linux
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb dbus-x11 libfuse2
+      - name: Install with install.sh and start the app
+        shell: bash
+        run: |
+          for mode in ${{ matrix.modes }}; do
+            scripts/release/verify-install.sh "$GITHUB_REF_NAME" dist "$mode"
+          done
+
+  release:
+    name: publish the GitHub release
+    needs: [prepare, verify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: packages-*
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum otpkeep_* > checksums.txt
+          cat checksums.txt
+          set -- otpkeep_*
+          test "$#" -eq 6 || { echo "expected 6 packages, found $#: $*"; exit 1; }
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          flags=""
+          if [ "${{ needs.prepare.outputs.prerelease }}" = true ]; then flags="--prerelease"; else flags="--latest"; fi
+          # shellcheck disable=SC2086
+          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag $flags \
+            --title "OTPKeep $GITHUB_REF_NAME" --notes-file ".github/release-notes/$GITHUB_REF_NAME.md"
+
+  homebrew:
+    name: update the Homebrew cask
+    needs: [prepare, release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages-darwin-universal
+          path: dist
+      - name: Write the cask
+        run: |
+          version="${{ needs.prepare.outputs.version }}"
+          scripts/release/homebrew-cask.sh "$version" "dist/otpkeep_${version}_darwin_universal.dmg" > "$RUNNER_TEMP/otpkeep.rb"
+          cat "$RUNNER_TEMP/otpkeep.rb"
+      - name: Push it to weikxs/homebrew-tap
+        env:
+          TAP_KEY: ${{ secrets.HOMEBREW_TAP_SSH_KEY }}
+        run: |
+          # A pre-release goes to the rc/otpkeep branch, so the key and the cask are tried before a
+          # release without anyone installing it; a release goes to main.
+          if [ "${{ needs.prepare.outputs.prerelease }}" = true ]; then branch=rc/otpkeep; else branch=main; fi
+          key="$RUNNER_TEMP/tap_key"
+          printf '%s\n' "$TAP_KEY" > "$key"
+          chmod 600 "$key"
+          export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone --depth 1 git@github.com:weikxs/homebrew-tap.git "$RUNNER_TEMP/tap"
+          cd "$RUNNER_TEMP/tap"
+          git config user.name "Weikxs"
+          git config user.email "weikxs.dev@gmail.com"
+          git checkout -B "$branch"
+          mkdir -p Casks
+          cp "$RUNNER_TEMP/otpkeep.rb" Casks/otpkeep.rb
+          git add Casks/otpkeep.rb
+          if git diff --cached --quiet; then echo "the cask is already up to date"; exit 0; fi
+          git commit -m "otpkeep ${{ needs.prepare.outputs.version }}"
+          if [ "$branch" = main ]; then git push origin main; else git push --force origin "$branch"; fi
+          rm -f "$key"

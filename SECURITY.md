@@ -40,3 +40,14 @@ We credit reporters in the release notes unless they prefer to stay anonymous.
 - Pairing and sync happen only on the same local network, inside a short window you open, one device at a
   time, and every sync needs a one-time code and your approval on the other device.
 - The local browser page and the optional local HTTP API listen on loopback only and require a token.
+
+## Release packages and macOS
+
+Every release publishes `checksums.txt` with the SHA-256 of each package; the install script refuses a package that
+does not match it.
+
+The macOS app is not yet signed or notarized by Apple. The Homebrew cask and the install script therefore remove the
+quarantine attribute from the installed `OTPKeep.app` (`xattr -dr com.apple.quarantine`); otherwise macOS would
+refuse to open it the first time. If you prefer to keep Gatekeeper's check, download the disk image from the
+releases page, verify it against `checksums.txt`, and choose **Open Anyway** in System Settings → Privacy &
+Security when macOS asks.

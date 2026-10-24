@@ -1,0 +1,26 @@
+# This file is written by OTPKeep's release workflow (scripts/release/homebrew-cask.sh). DO NOT EDIT.
+cask "otpkeep" do
+  version "@VERSION@"
+  sha256 "@SHA256@"
+
+  url "https://github.com/weikxs/otpkeep/releases/download/v#{version}/otpkeep_#{version}_darwin_universal.dmg"
+  name "OTPKeep"
+  desc "Private two-factor authenticator for the menu bar"
+  homepage "https://github.com/weikxs/otpkeep"
+
+  livecheck do
+    url :url
+    strategy :github_latest
+  end
+
+  depends_on macos: ">= :big_sur"
+
+  app "OTPKeep.app"
+
+  # The app is not signed by Apple yet: without this, macOS refuses to open it the first time.
+  postflight do
+    system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{appdir}/OTPKeep.app"]
+  end
+
+  # No zap stanza: the accounts in ~/Library/Application Support/OTPKeep are never removed by Homebrew.
+end

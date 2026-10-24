@@ -131,9 +131,18 @@ OTPKeep stores two-factor secrets, so this rule has no exceptions.
   migration tests and an entry in the changelog.
 - Every user-visible change adds a line under **Unreleased** in `CHANGELOG.md`
   (Added / Changed / Deprecated / Removed / Fixed / Security).
-- Release: move Unreleased entries to a new version section, tag `vX.Y.Z` on `main`, push the tag. The
-  release workflow runs the checks, builds all five platforms, signs and notarizes where possible, and
-  publishes checksums.
+- Release notes are product communication, one file per release in `.github/release-notes/vX.Y.Z.md`, written
+  from `.github/release-notes/TEMPLATE.md` (who it is for, what you can do now, what's new by theme, privacy and
+  security, install, compatibility). Draft one from the changelog with
+  `scripts/release-notes.sh vX.Y.Z > .github/release-notes/vX.Y.Z.md`, then rewrite the TODO parts.
+  `CHANGELOG.md` stays the complete engineering record.
+- Release: move Unreleased entries to a new version section with its date, set the same version in `Cargo.toml`,
+  `apps/desktop-mobile/package.json` and `tauri.conf.json`, write the release notes, tag `vX.Y.Z` and push the
+  tag (`vX.Y.Z-rc.N` for a pre-release, with its own notes file). The release workflow stops when the versions
+  differ or the notes are missing or still have TODOs; then it runs every check, builds the universal macOS disk
+  image and the Linux packages (`.deb`, `.rpm`, AppImage on x86_64; `.deb`, AppImage on arm64), installs and
+  starts each with `install.sh` on its own machine, publishes them with `checksums.txt` and the notes, and
+  updates the Homebrew cask (a pre-release only on the tap's `rc/otpkeep` branch).
 
 ## 9. Documentation
 
