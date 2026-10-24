@@ -17,6 +17,7 @@ const KIND_SUMMARY: u64 = 2;
 const KIND_ENTRIES: u64 = 3;
 const KIND_DONE: u64 = 4;
 const KIND_DIGEST: u64 = 5;
+const KIND_CERTIFICATE: u64 = 6;
 const SUMMARY_ITEM: usize = 16 + 32;
 
 /// One data-phase message.
@@ -32,6 +33,8 @@ pub enum Data {
     Done,
     /// The sender's state digest.
     Digest([u8; 32]),
+    /// Pairing: the joiner's certificate for its exchange key, made once it knows the group.
+    Certificate([u8; 64]),
 }
 
 impl Data {
@@ -52,6 +55,7 @@ impl Data {
             Self::Entries(doc) => (KIND_ENTRIES, Some(Value::Bytes(encode_vault(doc).to_vec()))),
             Self::Done => (KIND_DONE, None),
             Self::Digest(digest) => (KIND_DIGEST, Some(Value::Bytes(digest.to_vec()))),
+            Self::Certificate(cert) => (KIND_CERTIFICATE, Some(Value::Bytes(cert.to_vec()))),
         };
         let mut pairs = vec![(int(KEY_KIND), int(kind))];
         pairs.extend(body.map(|b| (int(KEY_BODY), b)));
@@ -108,6 +112,7 @@ impl Data {
             KIND_ENTRIES => Some(Self::Entries(decode_vault(&body()?).ok()?)),
             KIND_DONE => Some(Self::Done),
             KIND_DIGEST => Some(Self::Digest(body()?.as_slice().try_into().ok()?)),
+            KIND_CERTIFICATE => Some(Self::Certificate(body()?.as_slice().try_into().ok()?)),
             _ => None,
         }
     }

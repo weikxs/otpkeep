@@ -231,6 +231,22 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Channel<S> {
         self.remote_static
     }
 
+    /// Ends the connection after a final message: stops sending, then reads and discards what the other side
+    /// still sends until it closes or `linger` passes. Closing with unread data would make the system reset the
+    /// connection, and the other side could lose the final message.
+    pub async fn close(&mut self, linger: std::time::Duration) {
+        let _ = self.stream.shutdown().await;
+        let mut sink = [0u8; 4096];
+        let drain = async {
+            while let Ok(read) = self.stream.read(&mut sink).await {
+                if read == 0 {
+                    break;
+                }
+            }
+        };
+        let _ = tokio::time::timeout(linger, drain).await;
+    }
+
     /// From now on, a receive that waits longer than `idle` fails with [`ChannelError::TimedOut`].
     pub fn set_idle_timeout(&mut self, idle: Option<std::time::Duration>) {
         self.idle = idle;

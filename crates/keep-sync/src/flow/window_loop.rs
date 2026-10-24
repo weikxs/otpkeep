@@ -52,36 +52,8 @@ pub(crate) async fn run_window<O: Send + 'static, A>(
     let mut ticker = interval(TICK);
     loop {
         tokio::select! {
-            _ = ticker.tick() => {
-                if let Some(reason) = state.tick(now()) {
-                    abort(&mut current);
-                    return Err(reason);
-                }
-                if state.status() == WindowStatus::Waiting && current.is_some() {
-                    abort(&mut current);
-                }
-            }
-            incoming = next_incoming(&mut listeners) => {
-                let Some(Incoming { stream, .. }) = incoming else { continue };
-                match state.accept(now()) {
-                    Accept::Handle(id) => {
-                        let (progress, reports) = mpsc::channel(8);
-                        current = Some((id, serve(stream, progress), reports));
-                    }
-                    Accept::Busy => {
-                        tokio::spawn(async move {
-                            let _ = timeout(BUSY_REPLY, refuse_busy(stream)).await;
-                        });
-                    }
-                    Accept::Closed => {
-                        abort(&mut current);
-                        return Err(match state.status() {
-                            WindowStatus::Closed(reason) => reason,
-                            _ => CloseReason::Cancelled,
-                        });
-                    }
-                }
-            }
+            // Reports first: a connection that just ended must free the window before the next one is judged.
+            biased;
             report = next_report(&mut current) => {
                 let Some((id, progress)) = report else {
                     // The task ended without a report: treat it as dropped.
@@ -111,6 +83,36 @@ pub(crate) async fn run_window<O: Send + 'static, A>(
                         state.finish(now());
                         drop(announcing);
                         return Ok(outcome);
+                    }
+                }
+            }
+            _ = ticker.tick() => {
+                if let Some(reason) = state.tick(now()) {
+                    abort(&mut current);
+                    return Err(reason);
+                }
+                if state.status() == WindowStatus::Waiting && current.is_some() {
+                    abort(&mut current);
+                }
+            }
+            incoming = next_incoming(&mut listeners) => {
+                let Some(Incoming { stream, .. }) = incoming else { continue };
+                match state.accept(now()) {
+                    Accept::Handle(id) => {
+                        let (progress, reports) = mpsc::channel(8);
+                        current = Some((id, serve(stream, progress), reports));
+                    }
+                    Accept::Busy => {
+                        tokio::spawn(async move {
+                            let _ = timeout(BUSY_REPLY, refuse_busy(stream)).await;
+                        });
+                    }
+                    Accept::Closed => {
+                        abort(&mut current);
+                        return Err(match state.status() {
+                            WindowStatus::Closed(reason) => reason,
+                            _ => CloseReason::Cancelled,
+                        });
                     }
                 }
             }

@@ -16,6 +16,7 @@ use x25519_dalek::StaticSecret;
 use zeroize::Zeroizing;
 
 use super::listen::Listeners;
+use super::pair_open::LINGER;
 use super::peer::{PeerInfo, check_member};
 use super::window_loop::{Progress, run_window};
 use crate::channel::code::{CodeCheck, CodeError, Secret, confirm_code};
@@ -37,6 +38,16 @@ pub enum OpenerEvent {
     Request {
         /// Who asks.
         peer: PeerInfo,
+        /// The answer.
+        answer: oneshot::Sender<bool>,
+    },
+    /// Pairing: the code was right; the person compares the check code with the other screen and confirms
+    /// (`true`) or reports a mismatch. No answer within `PAIR_CONFIRM` cancels.
+    CheckCode {
+        /// The device being added.
+        peer: PeerInfo,
+        /// The six-digit check code.
+        sas: String,
         /// The answer.
         answer: oneshot::Sender<bool>,
     },
@@ -142,7 +153,10 @@ async fn serve(
         Ok(peer) => peer,
         Err(code) => {
             let _ = channel.send(&Message::Error(code).encode()).await;
-            return report(Progress::Dropped).await;
+            // Free the window first; finishing the close may take a moment.
+            report(Progress::Dropped).await;
+            channel.close(LINGER).await;
+            return;
         }
     };
     let secret = Secret::SyncCode(window.code.clone());
@@ -151,10 +165,15 @@ async fn serve(
         Err(CodeError::Wrong) => return report(Progress::CodeFailed).await,
         Err(_) => return report(Progress::Dropped).await,
     }
-    if !ask_person(&mut channel, &peer, &events, window.timers.keepalive_ms).await {
+    let request = |answer| OpenerEvent::Request {
+        peer: peer.clone(),
+        answer,
+    };
+    if !ask_person(&mut channel, request, &events, window.timers.keepalive_ms).await {
         let _ = channel
             .send(&Message::Error(ErrorCode::Rejected).encode())
             .await;
+        channel.close(LINGER).await;
         return report(Progress::Finished(WindowOutcome::Stopped(
             ErrorCode::Rejected,
         )))
@@ -181,25 +200,19 @@ async fn serve(
             Err(SessionError::Stopped(code)) => WindowOutcome::Stopped(code),
             Err(SessionError::Lost) => WindowOutcome::Stopped(ErrorCode::Cancelled),
         };
+    channel.close(LINGER).await;
     report(Progress::Finished(outcome)).await;
 }
 
 /// Asks the person, sending keepalives meanwhile. The window's timer ends the wait.
-async fn ask_person(
+pub(crate) async fn ask_person(
     channel: &mut Channel<TcpStream>,
-    peer: &PeerInfo,
+    event: impl FnOnce(oneshot::Sender<bool>) -> OpenerEvent,
     events: &mpsc::Sender<OpenerEvent>,
     keepalive_ms: u64,
 ) -> bool {
     let (answer, mut decision) = oneshot::channel();
-    if events
-        .send(OpenerEvent::Request {
-            peer: peer.clone(),
-            answer,
-        })
-        .await
-        .is_err()
-    {
+    if events.send(event(answer)).await.is_err() {
         return false;
     }
     let mut keepalive = interval(Duration::from_millis(keepalive_ms));

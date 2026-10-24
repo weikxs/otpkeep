@@ -336,3 +336,17 @@ fn every_device_that_ever_joined_must_hold_a_tombstone_before_it_is_cleared() {
         ids(&[&a, &b, &c])
     );
 }
+
+#[test]
+fn a_new_member_may_name_itself_before_its_join_is_stamped() {
+    let (a, b) = (device(1), device(2));
+    // B signs its name with its own clock, which may run behind the clock of the device that adds it.
+    let events = vec![join(&a, &a, 1), rename(&b, &b, "Phone", 5), join(&a, &b, 9)];
+
+    let result = membership(&group(events));
+
+    assert_eq!(
+        result.members[&b.device_id()].lan_name.as_deref(),
+        Some("Phone")
+    );
+}

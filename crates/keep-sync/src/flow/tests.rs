@@ -19,10 +19,10 @@ use crate::lan::interfaces::Eligible;
 use crate::lan::window::{CloseReason, Timers, WindowKind};
 use crate::testing::{MINUTE_MS, add, founded, identity, member_doc};
 
-const CODE: &str = "135790";
+pub(super) const CODE: &str = "135790";
 const RANDOM: [u8; 16] = [0x21; 16];
 
-fn quick() -> Timers {
+pub(super) fn quick() -> Timers {
     Timers {
         handshake_ms: 2_000,
         pair_confirm_ms: 2_000,
@@ -33,7 +33,7 @@ fn quick() -> Timers {
     }
 }
 
-fn loopback() -> Eligible {
+pub(super) fn loopback() -> Eligible {
     Eligible {
         interface: "lo0".to_owned(),
         index: 1,
@@ -327,3 +327,5 @@ async fn an_unused_window_expires() {
         WindowOutcome::Closed(CloseReason::Expired)
     ));
 }
+
+mod pair;

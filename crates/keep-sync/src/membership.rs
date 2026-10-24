@@ -8,7 +8,8 @@
 //! - a join counts when its author is a member at that point and its certificate binds the joining device's
 //!   exchange key; a removed device never joins again;
 //! - any member may remove any member, permanently;
-//! - a device may only rename itself, and its latest name wins;
+//! - a device may only rename itself, and its latest name wins; names are applied after joins and removals,
+//!   since a new device names itself with its own clock, and count only for current members;
 //! - members added by a device that was later removed are marked, so the user can decide about them.
 //!
 //! Events signed by a removed device after its removal can still reach the group through a device that had
@@ -201,8 +202,18 @@ pub fn membership(group: &SyncGroup) -> Membership {
         group.events.iter().map(|e| (sort_key(e), e)).collect();
     events.sort_by(|a, b| a.0.cmp(&b.0));
     let mut state = Membership::default();
-    for (_, event) in events {
+    for (_, event) in &events {
         apply(&mut state, event);
+    }
+    // Names last: a new device signs its name with its own clock, which may sort before the join another
+    // device stamped. Only current members' names count; the latest in the order wins.
+    for (_, event) in &events {
+        if let MemberKind::Rename { device, lan_name } = &event.kind
+            && *device == event.author
+            && let Some(member) = state.members.get_mut(device)
+        {
+            member.lan_name = Some(lan_name.clone());
+        }
     }
     let removed = state.removed.clone();
     for member in state.members.values_mut() {
@@ -250,14 +261,7 @@ fn apply(state: &mut Membership, event: &MemberEvent) {
                 state.removed.insert(*device);
             }
         }
-        MemberKind::Rename { device, lan_name } => {
-            if *device == event.author
-                && let Some(member) = state.members.get_mut(device)
-            {
-                member.lan_name = Some(lan_name.clone());
-            }
-        }
-        MemberKind::Other { .. } => {}
+        MemberKind::Rename { .. } | MemberKind::Other { .. } => {}
     }
 }
 
