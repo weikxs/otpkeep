@@ -166,3 +166,110 @@ async fn a_clock_far_ahead_stops_the_session_on_both_sides() {
         "{on_b:?}"
     );
 }
+
+/// Forwards frames between two pipes until `limit` frames have passed, then cuts both.
+async fn relay_until(
+    mut a: tokio::io::DuplexStream,
+    mut b: tokio::io::DuplexStream,
+    limit: usize,
+) -> usize {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    async fn frame(stream: &mut tokio::io::DuplexStream) -> Option<Vec<u8>> {
+        let len = stream.read_u16().await.ok()?;
+        let mut bytes = vec![0; usize::from(len)];
+        stream.read_exact(&mut bytes).await.ok()?;
+        Some(bytes)
+    }
+    let mut passed = 0;
+    while passed < limit {
+        tokio::select! {
+            next = frame(&mut a) => {
+                let Some(bytes) = next else { break };
+                if b.write_u16(u16::try_from(bytes.len()).unwrap()).await.is_err() || b.write_all(&bytes).await.is_err() { break }
+            }
+            next = frame(&mut b) => {
+                let Some(bytes) = next else { break };
+                if a.write_u16(u16::try_from(bytes.len()).unwrap()).await.is_err() || a.write_all(&bytes).await.is_err() { break }
+            }
+        }
+        passed += 1;
+    }
+    passed
+}
+
+#[tokio::test]
+async fn a_connection_cut_at_any_point_never_leaves_the_joiner_ahead() {
+    use crate::channel::hello::Hello;
+    use crate::channel::noise::{Purpose, accept_noise, connect_noise};
+
+    let (a, b) = pair();
+    let (a, _) = add(&a, "Only A", 1, MINUTE_MS);
+    let (b, _) = add(&b, "Only B", 2, MINUTE_MS);
+    let (a_id, b_id) = (identity(1).device_id(), identity(2).device_id());
+    let hello = |d: &crate::identity::DeviceIdentity| Hello {
+        device: d.device_id(),
+        dx_cert: Some(d.dx_cert()),
+        platform: keep_vault::Platform::Linux,
+        lan_name: "Test".to_owned(),
+        versions: vec![crate::channel::PROTOCOL_VERSION],
+    };
+    let (opener_id, joiner_id) = (identity(1), identity(2));
+    let (opener_hello, joiner_hello) = (hello(&opener_id), hello(&joiner_id));
+    let mut cut_at_end_only = 0;
+    let mut cuts = 0;
+    for limit in 3_usize.. {
+        cuts = limit;
+        let (opener_end, relay_a) = tokio::io::duplex(1 << 20);
+        let (joiner_end, relay_b) = tokio::io::duplex(1 << 20);
+        let relay = tokio::spawn(relay_until(relay_a, relay_b, limit));
+        let session = async {
+            let (open, join) = tokio::join!(
+                accept_noise(
+                    opener_end,
+                    Purpose::Sync,
+                    &[1; 16],
+                    opener_id.exchange_secret(),
+                    &opener_hello
+                ),
+                connect_noise(
+                    joiner_end,
+                    Purpose::Sync,
+                    &[1; 16],
+                    joiner_id.exchange_secret(),
+                    &joiner_hello
+                )
+            );
+            let (mut opener, mut joiner) = (open.unwrap().0, join.unwrap().0);
+            let idle = Some(std::time::Duration::from_millis(200));
+            opener.set_idle_timeout(idle);
+            joiner.set_idle_timeout(idle);
+            tokio::join!(
+                exchange_as_opener(&mut opener, &a, a_id, b_id, 2 * MINUTE_MS),
+                exchange_as_joiner(&mut joiner, &b, b_id, a_id, 2 * MINUTE_MS)
+            )
+        };
+        let (on_a, on_b) = session.await;
+        let passed = relay.await.unwrap();
+        match (&on_a, &on_b) {
+            (Ok(x), Ok(y)) => {
+                assert_eq!(x.digest, y.digest);
+                if passed < limit {
+                    break; // the whole session fit under the limit
+                }
+            }
+            (Ok(_), Err(_)) => cut_at_end_only += 1,
+            (Err(_), Ok(_)) => {
+                panic!("the joiner finished while the opener did not (cut after {limit} frames)")
+            }
+            (Err(_), Err(_)) => {}
+        }
+    }
+    assert!(
+        cut_at_end_only <= 1,
+        "only losing the very last frame may leave one side updated"
+    );
+    assert!(
+        cuts > 10,
+        "every step of the data phase was cut once ({cuts} cuts)"
+    );
+}
