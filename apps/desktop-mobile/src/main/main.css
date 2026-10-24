@@ -1189,3 +1189,14 @@ textarea {
   color: var(--amber);
   font-size: 13px;
 }
+
+.setting-value.opacity {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.setting-value.opacity input {
+  width: 140px;
+  accent-color: var(--accent);
+}

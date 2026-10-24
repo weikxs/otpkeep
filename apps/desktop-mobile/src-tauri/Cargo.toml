@@ -27,7 +27,8 @@ keep-vault = { path = "../../../crates/keep-vault" }
 percent-encoding = "2.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
-tauri = { version = "2.9", features = ["tray-icon"] }
+# macos-private-api: the quick panel is a transparent, rounded window (not allowed in the Mac App Store).
+tauri = { version = "2.9", features = ["macos-private-api", "tray-icon"] }
 thiserror = "2"
 tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
 tracing = "0.1"

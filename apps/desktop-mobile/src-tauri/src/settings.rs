@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 const FILE: &str = "settings.json";
 /// How long a copied code stays on the clipboard when the setting says nothing (design/10-reference.md §2).
 pub const DEFAULT_CLEAR_S: u16 = 30;
+/// The quick panel's opacity in percent when the setting says nothing.
+pub const DEFAULT_PANEL_OPACITY: u8 = 90;
 
 /// The settings this version knows; fields from newer versions are kept as they are.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -33,6 +35,9 @@ pub struct Settings {
     /// The search panel's shortcut; absent is the system's default (`⌃⌥⌘Space` on macOS), empty is off.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub search_shortcut: Option<String>,
+    /// The quick panel's opacity in percent (70–100); absent is [`DEFAULT_PANEL_OPACITY`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub panel_opacity: Option<u8>,
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
 }

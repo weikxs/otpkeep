@@ -25,7 +25,15 @@
         "focus": true,
         "shadow": true,
         "maximizable": false,
-        "minimizable": false
+        "minimizable": false,
+        "transparent": true,
+        "windowEffects": {
+          "effects": [
+            "popover"
+          ],
+          "state": "active",
+          "radius": 12
+        }
       },
       {
         "label": "search",

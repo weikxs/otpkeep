@@ -1,4 +1,10 @@
 /* The search panel (design/04 §6). It reuses the quick panel's rows; colours come from ../shared/tokens.css. */
+/* The search window is not transparent, unlike the quick panel whose styles it shares. */
+html,
+body {
+  background: var(--paper);
+}
+
 #search {
   height: 100%;
 }

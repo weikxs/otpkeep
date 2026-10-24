@@ -14,9 +14,12 @@ import "./panel/panel.css";
 const root = document.getElementById("panel");
 
 /** Draws the panel with the person's theme and language. */
-function show(api: PanelApi, settings?: Pick<Settings, "theme" | "language">) {
+function show(api: PanelApi, settings?: Pick<Settings, "theme" | "language" | "panelOpacity">) {
   if (!root) return;
-  if (settings) applyTheme(settings.theme);
+  if (settings) {
+    applyTheme(settings.theme);
+    document.documentElement.style.setProperty("--panel-opacity", `${settings.panelOpacity}%`);
+  }
   const language = settings ? languageOf(settings.language, navigator.language) : navigator.language;
   render(<Panel api={api} text={strings(language)} isMac={isMacPlatform()} />, root);
 }

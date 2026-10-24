@@ -3,11 +3,17 @@ html,
 body {
   margin: 0;
   height: 100%;
-  background: var(--paper);
+  /* The window is transparent: the system's frosted glass shows through the panel (design/12 §2). */
+  background: transparent;
   color: var(--text);
   overflow: hidden;
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* Set from the settings page (inline on the root element): 100% is solid, 70% the most see-through. */
+:root {
+  --panel-opacity: 90%;
 }
 
 #panel {
@@ -24,6 +30,9 @@ body {
   padding: 8px;
   gap: 8px;
   font-size: 13px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--paper) var(--panel-opacity), transparent);
 }
 
 button {
@@ -79,7 +88,7 @@ button {
   flex: none;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--card);
+  background: color-mix(in srgb, var(--card) var(--panel-opacity), transparent);
   color: var(--muted);
 }
 
@@ -116,7 +125,7 @@ button {
   overflow-y: auto;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--card);
+  background: color-mix(in srgb, var(--card) var(--panel-opacity), transparent);
 }
 
 .group-title {
