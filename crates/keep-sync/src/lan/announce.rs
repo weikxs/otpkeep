@@ -152,6 +152,42 @@ fn fixed<const N: usize>(text: &str) -> Result<[u8; N], AnnounceError> {
         .map_err(|_| AnnounceError::Invalid)
 }
 
+/// The Bluetooth "window information" value: the same record as the TXT record, one `key=value` per line, plus
+/// the L2CAP channel (`p`) to connect to (design/06-sync.md §3.6). Names never contain line breaks.
+#[must_use]
+pub fn window_info_bytes(announcement: &Announcement, psm: u16) -> Vec<u8> {
+    let mut lines: Vec<String> = to_txt(announcement)
+        .into_iter()
+        .map(|(key, value)| format!("{key}={value}"))
+        .collect();
+    lines.push(format!("p={psm}"));
+    lines.join("\n").into_bytes()
+}
+
+/// Reads a Bluetooth "window information" value.
+///
+/// # Errors
+///
+/// Returns [`AnnounceError`].
+pub fn from_window_info(bytes: &[u8]) -> Result<(Announcement, u16), AnnounceError> {
+    let text = std::str::from_utf8(bytes).map_err(|_| AnnounceError::Invalid)?;
+    let pairs: Vec<(String, String)> = text
+        .split('\n')
+        .map(|line| {
+            line.split_once('=')
+                .map(|(k, v)| (k.to_owned(), v.to_owned()))
+                .ok_or(AnnounceError::Invalid)
+        })
+        .collect::<Result<_, _>>()?;
+    let psm = pairs
+        .iter()
+        .find(|(k, _)| k == "p")
+        .and_then(|(_, v)| v.parse::<u16>().ok())
+        .filter(|psm| *psm != 0)
+        .ok_or(AnnounceError::Invalid)?;
+    Ok((from_txt(&pairs)?, psm))
+}
+
 /// The group tag for one hour: keyed BLAKE3 of the group id and the hour number.
 #[must_use]
 pub fn group_tag(tag_key: &[u8; 32], group_id: &[u8; 16], hour: u64) -> [u8; TAG_LEN] {

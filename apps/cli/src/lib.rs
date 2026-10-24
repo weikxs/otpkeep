@@ -82,6 +82,8 @@ Commands:
                    --minutes <1-5>  how long to wait (default 2)
   sync join      Find this group's waiting device and sync with it, entering the code it shows
                    --to <name|fingerprint>  which device, when several wait
+                   (pair and sync commands search and wait on both the local network and Bluetooth;
+                    --via lan or --via bluetooth uses only one)
   pair open      Add a device to this device's sync group (starting a group if there is none)
                    --minutes <1-5>, --name <name of this device>, --qr  also print the invite and its QR code
   pair join      Join a sync group: find the waiting device and enter its pairing code
@@ -243,22 +245,29 @@ fn run_lan(
 ) -> Result<commands::Printed, CliError> {
     use args::LanAction as A;
     match action {
-        A::SyncWait { minutes } => lan::sync_wait(context, minutes, options, out),
-        A::SyncJoin { to } => lan::sync_join(context, to.as_deref(), options, out),
-        A::PairOpen { minutes, name, qr } => {
-            lan::pair_open(context, minutes, name.as_deref(), qr, options, out)
-        }
+        A::SyncWait { minutes, via } => lan::sync_wait(context, minutes, via, options, out),
+        A::SyncJoin { to, via } => lan::sync_join(context, to.as_deref(), via, options, out),
+        A::PairOpen {
+            minutes,
+            name,
+            qr,
+            via,
+        } => lan::pair_open(context, minutes, name.as_deref(), qr, via, options, out),
         A::PairJoin {
             invite,
             to,
             name,
             replace,
+            via,
         } => lan::pair_join(
             context,
-            invite.as_deref(),
-            to.as_deref(),
-            name.as_deref(),
-            replace,
+            &lan::JoinFlags {
+                invite: invite.as_deref(),
+                to: to.as_deref(),
+                name: name.as_deref(),
+                replace,
+                via,
+            },
             options,
             out,
         ),

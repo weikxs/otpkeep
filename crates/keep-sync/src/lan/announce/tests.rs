@@ -1,5 +1,6 @@
 use super::{
-    AnnounceError, Announcement, HOUR_MS, from_txt, group_tag, matches_group, merge_found, to_txt,
+    AnnounceError, Announcement, HOUR_MS, from_txt, from_window_info, group_tag, matches_group,
+    merge_found, to_txt, window_info_bytes,
 };
 use crate::lan::window::WindowKind;
 
@@ -144,4 +145,22 @@ fn a_window_found_on_two_transports_is_listed_once_by_its_faster_route() {
         .map(|w| (w.announcement.window_random[0], w.route.via()))
         .collect();
     assert_eq!(vias, [(1, Via::Lan), (2, Via::Bluetooth)]);
+}
+
+#[test]
+fn the_bluetooth_window_information_carries_the_record_and_the_channel() {
+    for kind in [WindowKind::Pair, WindowKind::Sync] {
+        let announcement = sample(kind);
+
+        let bytes = window_info_bytes(&announcement, 0x0081);
+
+        assert_eq!(from_window_info(&bytes), Ok((announcement, 0x0081)));
+    }
+    assert_eq!(
+        from_window_info(b"v=1\nw=pair"),
+        Err(AnnounceError::Invalid),
+        "no channel"
+    );
+    assert_eq!(from_window_info(b"garbage"), Err(AnnounceError::Invalid));
+    assert_eq!(from_window_info(&[0xff, 0xfe]), Err(AnnounceError::Invalid));
 }

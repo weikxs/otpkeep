@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use keep_sync::channel::PROTOCOL_VERSION;
 use keep_sync::channel::hello::Hello;
-use keep_sync::flow::listen::Listeners;
 use keep_sync::flow::peer::PeerInfo;
 use keep_sync::flow::sync_join::{JoinOutcome, Joiner, join_sync};
 use keep_sync::flow::sync_open::{OpenerEvent, SyncWindow, WindowOutcome, run_sync_window};
@@ -22,7 +21,7 @@ use tokio::sync::mpsc;
 use zeroize::Zeroizing;
 
 use super::{not_synced, pick, runtime, stopped, this_platform};
-use crate::args::Options;
+use crate::args::{Options, Transport};
 use crate::commands::{Printed, service_error};
 use crate::open::open_service;
 use crate::{CliError, Context, EXIT_CANCELLED, Prompt};
@@ -33,6 +32,7 @@ const MINUTE_MS: u64 = 60 * 1000;
 pub(crate) fn sync_wait(
     context: &mut Context<'_>,
     minutes: Option<u64>,
+    via: Transport,
     options: Options,
     out: &mut dyn Write,
 ) -> Result<Printed, CliError> {
@@ -47,13 +47,6 @@ pub(crate) fn sync_wait(
     let now = context.now_ms;
     let rt = runtime()?;
     let outcome = rt.block_on(async {
-        let addrs = network.addresses()?;
-        let listeners = Listeners::bind(&addrs).await.map_err(|_| {
-            not_synced(
-                "NO_ELIGIBLE_INTERFACE",
-                "the window could not start listening",
-            )
-        })?;
         let group = doc.group.as_ref().ok_or_else(not_in_group)?;
         let announcement = Announcement {
             kind: WindowKind::Sync,
@@ -63,9 +56,10 @@ pub(crate) fn sync_wait(
             window_random,
             group_tag: Some(group_tag(&group.tag_key, &group.group_id, now() / HOUR_MS)),
         };
-        let announced = network.announce(&addrs, listeners.port(), &announcement)?;
-        let mut acceptor = keep_sync::transport::Acceptor::new();
-        acceptor.add_lan(listeners);
+        let opened = network.open(via, &announcement).await?;
+        for note in &opened.notes {
+            let _ = writeln!(out, "{note}");
+        }
         let _ = writeln!(
             out,
             "Sync code: {} {}   (waiting up to {} min; enter it on the other device)",
@@ -86,8 +80,8 @@ pub(crate) fn sync_wait(
         let current_doc = doc.clone();
         let session = tokio::spawn(run_sync_window(
             window,
-            acceptor,
-            announced,
+            opened.acceptor,
+            (),
             Arc::new(move || current_doc.clone()),
             Arc::new(now),
             events,
@@ -133,6 +127,7 @@ pub(crate) fn sync_wait(
 pub(crate) fn sync_join(
     context: &mut Context<'_>,
     to: Option<&str>,
+    via: Transport,
     options: Options,
     out: &mut dyn Write,
 ) -> Result<Printed, CliError> {
@@ -145,7 +140,7 @@ pub(crate) fn sync_join(
     let now = context.now_ms;
     let rt = runtime()?;
     let _ = writeln!(out, "Searching for devices waiting to sync …");
-    let windows = rt.block_on(network.browse(WindowKind::Sync, |a| {
+    let windows = rt.block_on(network.browse(via, WindowKind::Sync, |a: &Announcement| {
         a.group_tag
             .is_some_and(|tag| matches_group(&tag, &group.tag_key, &group.group_id, now()))
     }))?;

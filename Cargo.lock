@@ -2282,6 +2282,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "keep-ble"
+version = "0.0.1"
+dependencies = [
+ "dispatch2",
+ "keep-sync",
+ "objc2",
+ "objc2-core-bluetooth",
+ "objc2-foundation",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "keep-ffi"
 version = "0.0.1"
 
@@ -2860,6 +2874,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2-core-bluetooth"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79b30b9eacc37434a61377866f68b27acef9fa5496f25cc9ca8b2549032e0394"
+dependencies = [
+ "bitflags 2.13.2",
+ "dispatch2",
+ "objc2",
+ "objc2-core-foundation",
+ "objc2-foundation",
+]
+
+[[package]]
 name = "objc2-core-data"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2950,6 +2977,7 @@ checksum = "e3e0adef53c21f888deb4fa59fc59f7eb17404926ee8a6f59f5df0fd7f9f3272"
 dependencies = [
  "bitflags 2.13.2",
  "block2",
+ "libc",
  "objc2",
  "objc2-core-foundation",
 ]
@@ -3062,6 +3090,7 @@ dependencies = [
 name = "otpkeep-cli"
 version = "0.0.1"
 dependencies = [
+ "keep-ble",
  "keep-find",
  "keep-keyuri",
  "keep-passcode",

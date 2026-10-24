@@ -9,7 +9,9 @@ use std::time::Duration;
 use keep_sync::lan::announce::{Announcement, FoundWindow};
 use keep_sync::lan::interfaces::Eligible;
 use keep_sync::lan::window::WindowKind;
-use keep_sync::transport::Route;
+use keep_sync::transport::{Acceptor, Route, Via};
+
+use crate::args::Transport;
 use keep_vault::Platform;
 
 use crate::{CliError, EXIT_INVALID_INPUT, EXIT_NOT_SYNCED};
@@ -19,7 +21,7 @@ mod pair;
 mod sync;
 
 pub(crate) use devices::{devices, leave, remove_device, rename};
-pub(crate) use pair::{pair_join, pair_open};
+pub(crate) use pair::{JoinFlags, pair_join, pair_open};
 pub(crate) use sync::{sync_join, sync_wait};
 
 /// `JOIN_BROWSE`: how long to search for windows.
@@ -60,7 +62,83 @@ impl Drop for Announced {
     }
 }
 
+/// A window's transports, ready to take connections.
+pub(crate) struct Opened {
+    /// Every transport's connections.
+    pub(crate) acceptor: Acceptor,
+    /// The local network's addresses and port, when it is used.
+    pub(crate) lan: Option<(Vec<Eligible>, u16)>,
+    /// Transports that could not be used, for the person.
+    pub(crate) notes: Vec<String>,
+}
+
 impl Network {
+    /// Opens a window on the chosen transports (both when `via` is `Any`): listening and announcing on the local
+    /// network, advertising over Bluetooth. A transport that cannot be used is noted, unless it was the one asked
+    /// for; at least one must work.
+    pub(crate) async fn open(
+        &self,
+        via: Transport,
+        announcement: &Announcement,
+    ) -> Result<Opened, CliError> {
+        let mut opened = Opened {
+            acceptor: Acceptor::new(),
+            lan: None,
+            notes: Vec::new(),
+        };
+        if via != Transport::Bluetooth {
+            match self.open_lan(&mut opened.acceptor, announcement).await {
+                Ok(lan) => opened.lan = Some(lan),
+                Err(error) if via == Transport::Any => opened
+                    .notes
+                    .push(format!("Local network not used: {}", error.message)),
+                Err(error) => return Err(error),
+            }
+        }
+        if via != Transport::Lan && matches!(self, Self::System) {
+            match keep_ble::BleWindow::open(announcement, opened.acceptor.sender()).await {
+                Ok(window) => opened.acceptor.hold(window),
+                Err(error) if via == Transport::Any => {
+                    opened.notes.push(format!("Bluetooth not used: {error}"));
+                }
+                Err(error) => return Err(not_synced(error.code(), &error.to_string())),
+            }
+        } else if via == Transport::Bluetooth {
+            return Err(not_synced(
+                "BLUETOOTH_UNSUPPORTED",
+                "Bluetooth is not available here",
+            ));
+        }
+        if opened.lan.is_none() && via == Transport::Any && opened.notes.len() == 2 {
+            return Err(not_synced(
+                "NO_ELIGIBLE_INTERFACE",
+                &opened.notes.join("; "),
+            ));
+        }
+        Ok(opened)
+    }
+
+    async fn open_lan(
+        &self,
+        acceptor: &mut Acceptor,
+        announcement: &Announcement,
+    ) -> Result<(Vec<Eligible>, u16), CliError> {
+        let addrs = self.addresses()?;
+        let listeners = keep_sync::flow::listen::Listeners::bind(&addrs)
+            .await
+            .map_err(|_| {
+                not_synced(
+                    "NO_ELIGIBLE_INTERFACE",
+                    "the window could not start listening",
+                )
+            })?;
+        let port = listeners.port();
+        let announced = self.announce(&addrs, port, announcement)?;
+        acceptor.add_lan(listeners);
+        acceptor.hold(announced);
+        Ok((addrs, port))
+    }
+
     /// The addresses to listen on.
     pub(crate) fn addresses(&self) -> Result<Vec<Eligible>, CliError> {
         let addrs = match self {
@@ -115,8 +193,47 @@ impl Network {
         }
     }
 
-    /// Windows of `kind` that `wanted` accepts, found within [`BROWSE`].
+    /// Windows of `kind` that `wanted` accepts, found on the chosen transports within [`BROWSE`].
     pub(crate) async fn browse(
+        &self,
+        via: Transport,
+        kind: WindowKind,
+        wanted: impl Fn(&Announcement) -> bool + Copy,
+    ) -> Result<Vec<FoundWindow>, CliError> {
+        let bluetooth = async {
+            if via == Transport::Lan || !matches!(self, Self::System) {
+                return Ok(Vec::new());
+            }
+            keep_ble::browse(BROWSE, BROWSE_SETTLE).await
+        };
+        let lan = async {
+            if via == Transport::Bluetooth {
+                return Ok(Vec::new());
+            }
+            self.browse_lan(kind, wanted).await
+        };
+        let (lan, bluetooth) = tokio::join!(lan, bluetooth);
+        let bluetooth = match (bluetooth, via) {
+            (Ok(found), _) => found,
+            (Err(error), Transport::Bluetooth) => {
+                return Err(not_synced(error.code(), &error.to_string()));
+            }
+            (Err(_), _) => Vec::new(),
+        };
+        let lan = match (lan, via) {
+            (Ok(found), _) => found,
+            (Err(error), Transport::Lan) => return Err(error),
+            (Err(_), _) => Vec::new(),
+        };
+        let accepted = bluetooth
+            .into_iter()
+            .filter(|w| w.announcement.kind == kind && wanted(&w.announcement));
+        Ok(keep_sync::lan::announce::merge_found(
+            lan.into_iter().chain(accepted).collect(),
+        ))
+    }
+
+    async fn browse_lan(
         &self,
         kind: WindowKind,
         wanted: impl Fn(&Announcement) -> bool,
@@ -163,7 +280,7 @@ impl Network {
                 }
             }
         }
-        Ok(keep_sync::lan::announce::merge_found(found))
+        Ok(found)
     }
 }
 
@@ -187,6 +304,14 @@ pub(crate) fn platform_name(platform: Platform) -> String {
         Platform::Ios => "iOS".to_owned(),
         Platform::Android => "Android".to_owned(),
         Platform::Other(code) => format!("platform {code}"),
+    }
+}
+
+/// A transport's name as people know it.
+pub(crate) fn via_name(via: Via) -> &'static str {
+    match via {
+        Via::Lan => "local network",
+        Via::Bluetooth => "Bluetooth",
     }
 }
 
@@ -228,7 +353,7 @@ pub(crate) fn pick<'a>(
     match matches.as_slice() {
         [] => Err(not_synced(
             "NOT_FOUND",
-            "no waiting device was found; check both are on the same network (guest or public Wi-Fi may block devices from reaching each other)",
+            "no waiting device was found: keep the devices close with Bluetooth on, or on the same network (guest or public Wi-Fi may block devices from reaching each other)",
         )),
         [only] => Ok(only),
         many => {
@@ -237,10 +362,11 @@ pub(crate) fn pick<'a>(
                 .enumerate()
                 .map(|(n, w)| {
                     format!(
-                        "{}. {} · {}",
+                        "{}. {} · {} ({})",
                         n + 1,
                         w.announcement.lan_name,
-                        w.announcement.short_fingerprint
+                        w.announcement.short_fingerprint,
+                        via_name(w.route.via())
                     )
                 })
                 .collect();

@@ -37,25 +37,41 @@ pub(crate) enum Command {
     },
 }
 
+/// Which transports a pairing or sync may use.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Transport {
+    /// Both the local network and Bluetooth.
+    #[default]
+    Any,
+    /// The local network only.
+    Lan,
+    /// Bluetooth only.
+    Bluetooth,
+}
+
 /// Pairing, sync and device commands.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LanAction {
     SyncWait {
         minutes: Option<u64>,
+        via: Transport,
     },
     SyncJoin {
         to: Option<String>,
+        via: Transport,
     },
     PairOpen {
         minutes: Option<u64>,
         name: Option<String>,
         qr: bool,
+        via: Transport,
     },
     PairJoin {
         invite: Option<String>,
         to: Option<String>,
         name: Option<String>,
         replace: bool,
+        via: Transport,
     },
     Devices,
     RemoveDevice {
@@ -353,26 +369,40 @@ fn parse_lan(command: &str, rest: &[String]) -> Result<Command, UsageError> {
     };
     let parsed = parse_lan_flags(
         rest,
-        &["--minutes", "--to", "--name", "--invite"],
+        &["--minutes", "--to", "--name", "--invite", "--via"],
         &["--qr", "--replace"],
     )?;
+    let via = match parsed.value("--via").as_deref() {
+        None => Transport::Any,
+        Some("lan") => Transport::Lan,
+        Some("bluetooth") => Transport::Bluetooth,
+        Some(other) => {
+            return Err(UsageError(format!(
+                "unknown '--via {other}'; use lan or bluetooth"
+            )));
+        }
+    };
     let action = match (command, sub) {
         ("sync", "wait") => LanAction::SyncWait {
             minutes: minutes(&parsed)?,
+            via,
         },
         ("sync", "join") => LanAction::SyncJoin {
             to: parsed.value("--to"),
+            via,
         },
         ("pair", "open") => LanAction::PairOpen {
             minutes: minutes(&parsed)?,
             name: parsed.value("--name"),
             qr: parsed.switch("--qr"),
+            via,
         },
         ("pair", "join") => LanAction::PairJoin {
             invite: parsed.value("--invite"),
             to: parsed.value("--to"),
             name: parsed.value("--name"),
             replace: parsed.switch("--replace"),
+            via,
         },
         ("devices", "") => match parsed.words.as_slice() {
             [] => LanAction::Devices,

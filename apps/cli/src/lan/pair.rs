@@ -6,7 +6,6 @@ use std::sync::Arc;
 use keep_sync::channel::PROTOCOL_VERSION;
 use keep_sync::channel::code::Secret;
 use keep_sync::channel::hello::{Hello, is_valid_lan_name};
-use keep_sync::flow::listen::Listeners;
 use keep_sync::flow::pair_join::{JoinMode, JoinPairOutcome, PairTarget, join_pair};
 use keep_sync::flow::pair_open::{PairOutcome, PairWindow, run_pair_window};
 use keep_sync::flow::sync_open::OpenerEvent;
@@ -22,7 +21,7 @@ use zeroize::Zeroizing;
 
 use super::sync::{cancelled, closed, commit, describe, hello, random_failed, require_terminal};
 use super::{not_synced, pick, runtime, stopped, this_platform};
-use crate::args::Options;
+use crate::args::{Options, Transport};
 use crate::commands::{Printed, service_error};
 use crate::open::open_service;
 use crate::{CliError, Context, EXIT_INVALID_INPUT, Prompt};
@@ -35,6 +34,7 @@ pub(crate) fn pair_open(
     minutes: Option<u64>,
     name: Option<&str>,
     qr: bool,
+    via: Transport,
     options: Options,
     out: &mut dyn Write,
 ) -> Result<Printed, CliError> {
@@ -60,10 +60,6 @@ pub(crate) fn pair_open(
     let now = context.now_ms;
     let rt = runtime()?;
     let outcome = rt.block_on(async {
-        let addrs = network.addresses()?;
-        let listeners = Listeners::bind(&addrs)
-            .await
-            .map_err(|_| not_synced("NO_ELIGIBLE_INTERFACE", "the window could not start listening"))?;
         let opener_hello = hello(&identity, &doc);
         let announcement = Announcement {
             kind: WindowKind::Pair,
@@ -73,10 +69,10 @@ pub(crate) fn pair_open(
             window_random,
             group_tag: None,
         };
-        let announced = network.announce(&addrs, listeners.port(), &announcement)?;
-        let port = listeners.port();
-        let mut acceptor = keep_sync::transport::Acceptor::new();
-        acceptor.add_lan(listeners);
+        let opened = network.open(via, &announcement).await?;
+        for note in &opened.notes {
+            let _ = writeln!(out, "{note}");
+        }
         let _ = writeln!(
             out,
             "Pairing code: {} {}   (waiting up to {} min; enter it on the new device with 'otpkeep pair join')",
@@ -84,8 +80,12 @@ pub(crate) fn pair_open(
             &code[4..],
             wait_ms / MINUTE_MS
         );
-        if qr {
-            show_invite(out, &addrs, port, &announcement, &secret);
+        match (qr, &opened.lan) {
+            (true, Some((addrs, port))) => show_invite(out, addrs, *port, &announcement, &secret),
+            (true, None) => {
+                let _ = writeln!(out, "No invite: it needs the local network; use the pairing code.");
+            }
+            (false, _) => {}
         }
         let window = PairWindow {
             me: identity.device_id(),
@@ -101,8 +101,8 @@ pub(crate) fn pair_open(
         let current_doc = doc.clone();
         let session = tokio::spawn(run_pair_window(
             window,
-            acceptor,
-            announced,
+            opened.acceptor,
+            (),
             Arc::new(move || current_doc.clone()),
             Arc::new(now),
             events,
@@ -137,15 +137,25 @@ pub(crate) fn pair_open(
     }
 }
 
+/// The flags of `otpkeep pair join`.
+pub(crate) struct JoinFlags<'a> {
+    /// Use this invite instead of searching.
+    pub(crate) invite: Option<&'a str>,
+    /// Which window, when several are found.
+    pub(crate) to: Option<&'a str>,
+    /// This device's name.
+    pub(crate) name: Option<&'a str>,
+    /// Drop this device's entries (after a backup).
+    pub(crate) replace: bool,
+    /// Which transports to search.
+    pub(crate) via: Transport,
+}
+
 /// Joins a sync group through a pairing window: from a QR code's text, or found on the network with the
 /// typed pairing code.
-#[allow(clippy::too_many_arguments, reason = "the command's flags")]
 pub(crate) fn pair_join(
     context: &mut Context<'_>,
-    invite: Option<&str>,
-    to: Option<&str>,
-    name: Option<&str>,
-    replace: bool,
+    flags: &JoinFlags<'_>,
     options: Options,
     out: &mut dyn Write,
 ) -> Result<Printed, CliError> {
@@ -154,15 +164,17 @@ pub(crate) fn pair_join(
     if service.doc().group.is_some() {
         return Err(stopped(keep_sync::channel::message::ErrorCode::OtherGroup));
     }
-    let name = lan_name(name)?;
+    let (to, replace) = (flags.to, flags.replace);
+    let name = lan_name(flags.name)?;
     let doc = service.doc().clone();
     let network = context.network.clone();
     let rt = runtime()?;
-    let target = if let Some(text) = invite {
+    let target = if let Some(text) = flags.invite {
         from_invite(text, &network.addresses()?)?
     } else {
         let _ = writeln!(out, "Searching for devices waiting to add one …");
-        let windows = rt.block_on(network.browse(WindowKind::Pair, |_| true))?;
+        let windows =
+            rt.block_on(network.browse(flags.via, WindowKind::Pair, |_: &Announcement| true))?;
         found_target(context, &windows, to)?
     };
     let new = NewDevice::generate().map_err(|_| random_failed())?;

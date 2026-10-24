@@ -1,0 +1,39 @@
+[package]
+name = "keep-ble"
+description = "Bluetooth Low Energy transport for pairing and sync: announce a window, find windows, byte streams."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+keep-sync = { path = "../keep-sync" }
+thiserror = "2"
+tokio = { version = "1", features = ["io-util", "rt", "sync", "time", "macros"] }
+tracing = "0.1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+dispatch2 = "0.3"
+objc2 = "0.6"
+objc2-core-bluetooth = "0.3"
+objc2-foundation = { version = "0.3", features = ["NSArray", "NSData", "NSDate", "NSDictionary", "NSError", "NSObject", "NSRunLoop", "NSStream", "NSString", "NSUUID"] }
+
+# Not the workspace lints: unsafe code is denied rather than forbidden, so the platform bindings can allow it
+# where they call Objective-C (ADR-018). Everything else matches the workspace.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+module_name_repetitions = "allow"
+undocumented_unsafe_blocks = "deny"
