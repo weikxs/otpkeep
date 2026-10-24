@@ -21,7 +21,7 @@ jobs:
     name: privacy, format and dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Privacy
         run: scripts/check-privacy.sh
       - name: Format
@@ -42,7 +42,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
@@ -59,7 +59,7 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - uses: taiki-e/install-action@v2
         with:
@@ -71,7 +71,7 @@ jobs:
     name: ui (typecheck, components, browser)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
         with:
           rust: "false"
@@ -86,7 +86,7 @@ jobs:
     name: ios (simulator build)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - run: rustup target add aarch64-apple-ios-sim
       - name: Build
@@ -99,7 +99,7 @@ jobs:
     env:
       NDK_VERSION: 28.2.13676358
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - uses: actions/setup-java@v5
         with:
@@ -118,7 +118,7 @@ jobs:
     name: installer size (at most 20 MB)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - name: Build release bundles
         working-directory: ${{ env.UI_DIR }}

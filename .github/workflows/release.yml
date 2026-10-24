@@ -25,7 +25,7 @@ jobs:
       version: ${{ steps.check.outputs.version }}
       prerelease: ${{ steps.check.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # The release page is .github/release-notes/<tag>.md, written by a person from TEMPLATE.md; never
       # commit messages, hashes or emails. The check stops here when it is missing or has TODOs.
       - id: check
@@ -36,7 +36,7 @@ jobs:
     needs: prepare
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - uses: taiki-e/install-action@v2
         with:
@@ -80,7 +80,7 @@ jobs:
       # linuxdeploy is itself an AppImage; this lets it run without FUSE.
       APPIMAGE_EXTRACT_AND_RUN: "1"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - name: Rust targets for the universal macOS app
         if: matrix.os == 'darwin'
@@ -123,7 +123,7 @@ jobs:
             modes: deb appimage
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.artifact }}
@@ -145,7 +145,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4
         with:
           pattern: packages-*
@@ -173,7 +173,7 @@ jobs:
     needs: [prepare, release]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4
         with:
           name: packages-darwin-universal
