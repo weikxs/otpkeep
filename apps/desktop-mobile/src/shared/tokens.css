@@ -1,0 +1,50 @@
+/* Colour tokens shared by the quick panel and the management page (design/12 §2). */
+:root {
+  color-scheme: light dark;
+  --paper: #f7f6f2;
+  --card: #ffffff;
+  --line: #e6e3da;
+  --text: #1d1d1b;
+  --muted: #6f6c64;
+  --accent: #0f9d8a;
+  --accent-soft: #e2f4f0;
+  --amber: #c98a12;
+  --hover: #efede6;
+  --toast: #1d1d1b;
+  --toast-text: #f7f6f2;
+  --tile-0: #e8dcc8;
+  --tile-1: #d6e4d3;
+  --tile-2: #d4dfe9;
+  --tile-3: #ead3d0;
+  --tile-4: #ddd6ea;
+  --tile-5: #e9e1c6;
+  --tile-6: #cfe5e1;
+  --tile-7: #e6d5e2;
+  --tile-text: #3a3832;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #16171a;
+    --card: #1f2125;
+    --line: #2c2f35;
+    --text: #ecebe6;
+    --muted: #9a9890;
+    --accent: #3cc4ae;
+    --accent-soft: #1c3631;
+    --amber: #e3a93a;
+    --hover: #272a2f;
+    --toast: #ecebe6;
+    --toast-text: #16171a;
+    --tile-0: #4a4134;
+    --tile-1: #364536;
+    --tile-2: #333f4c;
+    --tile-3: #4b3634;
+    --tile-4: #3e3850;
+    --tile-5: #4a4430;
+    --tile-6: #2f4643;
+    --tile-7: #4a3546;
+    --tile-text: #f1efe8;
+  }
+}

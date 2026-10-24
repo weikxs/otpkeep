@@ -8,6 +8,7 @@ use std::time::Duration;
 use keep_find::{FindContext, FindIndex};
 use keep_passcode::{CodeKind, Passcode};
 use keep_platform::Keystore;
+use keep_vault::edit::{Change, EditError, NOTE_MAX_CHARS, TITLE_MAX_CHARS};
 use keep_vault::open::{Startup, StopReason, UnlockError, start, unlock_with_password};
 use keep_vault::service::{ServiceError, VaultService};
 use keep_vault::store::VaultPaths;
@@ -19,8 +20,6 @@ use zeroize::Zeroizing;
 pub const PANEL_LIMIT: usize = 20;
 /// Entries found by a search, at most.
 pub const SEARCH_LIMIT: usize = 50;
-/// The first rows get the global shortcuts ⌃⌥⌘1 … ⌃⌥⌘0.
-const SHORTCUT_ROWS: usize = 10;
 const MS_PER_S: u64 = 1000;
 
 /// The clock, in Unix milliseconds.
@@ -44,8 +43,21 @@ pub struct PanelEntry {
     pub period_s: Option<u16>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub valid_until_ms: Option<u64>,
+    /// Its global shortcut in canonical form; filled in by the shortcut layer, not here.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub shortcut: Option<u8>,
+    pub shortcut: Option<String>,
+}
+
+/// One entry's descriptive fields, for the browser management page.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EntryInfo {
+    pub id: String,
+    pub title: String,
+    pub issuer: String,
+    pub account: String,
+    pub note: String,
+    pub pinned: bool,
+    pub kind: EntryKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -107,15 +119,21 @@ pub enum CoreError {
     ReadOnly,
     #[error("the data could not be saved")]
     Save,
+    /// A field is not acceptable; the code says which rule (`TITLE_EMPTY`, `TITLE_TOO_LONG`, `NOTE_TOO_LONG`).
+    #[error("the value is not acceptable: {0}")]
+    Invalid(&'static str),
 }
 
 impl From<ServiceError> for CoreError {
     fn from(error: ServiceError) -> Self {
         match error {
-            ServiceError::NotFound => Self::NotFound,
+            ServiceError::NotFound | ServiceError::Edit(EditError::NotFound) => Self::NotFound,
             ServiceError::NoCodeYet => Self::NoCodeYet,
             ServiceError::Passcode(_) => Self::Passcode,
             ServiceError::Save(keep_vault::open::SaveError::ReadOnly) => Self::ReadOnly,
+            ServiceError::Edit(EditError::TitleEmpty) => Self::Invalid("TITLE_EMPTY"),
+            ServiceError::Edit(EditError::TitleTooLong) => Self::Invalid("TITLE_TOO_LONG"),
+            ServiceError::Edit(EditError::NoteTooLong) => Self::Invalid("NOTE_TOO_LONG"),
             _ => Self::Save,
         }
     }
@@ -255,6 +273,48 @@ impl Core {
             .ok_or(CoreError::NotFound)
     }
 
+    /// Every entry matching `query` (all of them, in list order, when empty), with names and notes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CoreError::NeedsPassword`] before the master password is entered.
+    pub fn list(&self, query: &str) -> Result<Vec<EntryInfo>, CoreError> {
+        let service = self.service()?;
+        Ok(select(service, query, None).into_iter().map(info).collect())
+    }
+
+    /// Changes an entry's display name and / or note. Both are checked before either is saved.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CoreError`]; nothing changes on failure.
+    pub fn edit(
+        &mut self,
+        id: &str,
+        title: Option<String>,
+        note: Option<String>,
+    ) -> Result<EntryInfo, CoreError> {
+        check_title_and_note(title.as_deref(), note.as_deref())?;
+        let Vault::Open { service, read_only } = &mut self.vault else {
+            return Err(CoreError::NeedsPassword);
+        };
+        if *read_only {
+            return Err(CoreError::ReadOnly);
+        }
+        let entry = find(service, id)?;
+        for change in [title.map(Change::Title), note.map(Change::Note)]
+            .into_iter()
+            .flatten()
+        {
+            match service.edit(entry, change) {
+                // The change itself is saved; only this device's history of it is missing.
+                Ok(()) | Err(ServiceError::HistoryNotSaved) => {}
+                Err(error) => return Err(error.into()),
+            }
+        }
+        service.entry(entry).map(info).ok_or(CoreError::NotFound)
+    }
+
     /// Opens a vault protected by a master password; it then stays open for this run. Returns the new state.
     pub fn unlock(&mut self, password: &str) -> PanelState {
         let (Vault::NeedsPassword, Some(paths)) = (&self.vault, &self.paths) else {
@@ -285,29 +345,67 @@ fn find(service: &VaultService, id: &str) -> Result<EntryId, CoreError> {
         .ok_or(CoreError::NotFound)
 }
 
-/// The rows: without a search the first [`PANEL_LIMIT`] in list order (pinned first); with one, the best
-/// matches.
-fn rows(service: &VaultService, query: &str, now_ms: u64) -> Vec<PanelEntry> {
+/// Without a search, the entries in list order (pinned first), at most `limit`; with one, the best matches.
+fn select<'a>(service: &'a VaultService, query: &str, limit: Option<usize>) -> Vec<&'a Entry> {
     let ordered = service.ordered();
-    let chosen: Vec<&Entry> = if query.trim().is_empty() {
-        ordered.into_iter().take(PANEL_LIMIT).collect()
-    } else {
-        let index = FindIndex::build(&ordered);
-        index
-            .find(query, &FindContext::default())
+    if query.trim().is_empty() {
+        return ordered
             .into_iter()
-            .take(SEARCH_LIMIT)
-            .filter_map(|hit| ordered.iter().find(|e| e.id == hit.entry).copied())
-            .collect()
-    };
-    chosen
+            .take(limit.unwrap_or(usize::MAX))
+            .collect();
+    }
+    let index = FindIndex::build(&ordered);
+    index
+        .find(query, &FindContext::default())
         .into_iter()
-        .enumerate()
-        .map(|(index, entry)| row(service, entry, index, now_ms))
+        .take(SEARCH_LIMIT)
+        .filter_map(|hit| ordered.iter().find(|e| e.id == hit.entry).copied())
         .collect()
 }
 
-fn row(service: &VaultService, entry: &Entry, index: usize, now_ms: u64) -> PanelEntry {
+/// The panel's rows: at most [`PANEL_LIMIT`] without a search.
+fn rows(service: &VaultService, query: &str, now_ms: u64) -> Vec<PanelEntry> {
+    select(service, query, Some(PANEL_LIMIT))
+        .into_iter()
+        .map(|entry| row(service, entry, now_ms))
+        .collect()
+}
+
+fn kind_of(entry: &Entry) -> EntryKind {
+    match entry.key.value.spec.kind() {
+        CodeKind::TimeBased { .. } => EntryKind::Totp,
+        CodeKind::CounterBased => EntryKind::Hotp,
+    }
+}
+
+fn info(entry: &Entry) -> EntryInfo {
+    EntryInfo {
+        id: entry.id.to_string(),
+        title: entry.title.value.clone(),
+        issuer: entry.issuer.value.clone(),
+        account: entry.account.value.clone(),
+        note: entry.note.value.clone(),
+        pinned: entry.pinned.value,
+        kind: kind_of(entry),
+    }
+}
+
+fn check_title_and_note(title: Option<&str>, note: Option<&str>) -> Result<(), CoreError> {
+    if let Some(title) = title {
+        if title.trim().is_empty() {
+            return Err(CoreError::Invalid("TITLE_EMPTY"));
+        }
+        if title.chars().count() > TITLE_MAX_CHARS {
+            return Err(CoreError::Invalid("TITLE_TOO_LONG"));
+        }
+    }
+    if note.is_some_and(|n| n.chars().count() > NOTE_MAX_CHARS) {
+        return Err(CoreError::Invalid("NOTE_TOO_LONG"));
+    }
+    Ok(())
+}
+
+fn row(service: &VaultService, entry: &Entry, now_ms: u64) -> PanelEntry {
     let passcode: Option<Passcode> = service.passcode(entry.id).ok();
     let (kind, period_s) = match entry.key.value.spec.kind() {
         CodeKind::TimeBased { period_s } => (EntryKind::Totp, Some(period_s)),
@@ -331,7 +429,7 @@ fn row(service: &VaultService, entry: &Entry, index: usize, now_ms: u64) -> Pane
         next_code: passcode.as_ref().and_then(|p| p.next().map(str::to_owned)),
         period_s,
         valid_until_ms,
-        shortcut: (index < SHORTCUT_ROWS).then(|| u8::try_from(index + 1).unwrap_or(u8::MAX)),
+        shortcut: None,
     }
 }
 

@@ -129,6 +129,36 @@ describe("Panel", () => {
     expect(screen.getByText("添加账号")).toBeTruthy();
   });
 
+  it("shows each row's shortcut the way the Mac writes it", async () => {
+    show(demoApi({ clock: () => STEADY }));
+
+    const rows = await screen.findAllByTestId("entry");
+    expect(rows[0]?.textContent).toContain("⌃⌥⌘1");
+  });
+
+  it("opens the management page in the browser", async () => {
+    const api = demoApi({ clock: () => STEADY });
+    const openGate = vi.spyOn(api, "openGate");
+    show(api);
+
+    fireEvent.click(await screen.findByLabelText("在浏览器中管理"));
+
+    expect(openGate).toHaveBeenCalledOnce();
+  });
+
+  it("reloads when the data changes elsewhere", async () => {
+    const api = demoApi({ clock: () => STEADY });
+    let changed = () => {};
+    const state = vi.spyOn(api, "state");
+    show({ ...api, onChange: (listener) => ((changed = listener), () => {}) });
+    await screen.findAllByTestId("entry");
+    const before = state.mock.calls.length;
+
+    changed();
+
+    await waitFor(() => expect(state.mock.calls.length).toBeGreaterThan(before));
+  });
+
   it("has no lock button (ADR-019)", async () => {
     show(demoApi({ clock: () => STEADY }));
 

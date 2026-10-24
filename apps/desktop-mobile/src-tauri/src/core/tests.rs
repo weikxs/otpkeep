@@ -116,7 +116,6 @@ fn lists_pinned_first_with_codes_and_shortcuts() {
     assert_eq!(first.period_s, Some(30));
     assert_eq!(first.valid_until_ms, Some(1_700_000_040_000));
     assert_eq!(first.next_code, None);
-    assert_eq!(first.shortcut, Some(1));
     assert_eq!(state.entries[2].kind, EntryKind::Hotp);
     assert_eq!(state.entries[2].code, None);
     assert!(!state.uses_master_password);
@@ -182,7 +181,7 @@ fn shows_at_most_the_panel_limit_without_a_search() {
 
     assert_eq!(app.state("").entries.len(), PANEL_LIMIT);
     assert_eq!(app.state("demo").entries.len(), 25);
-    assert_eq!(app.state("").entries[10].shortcut, None);
+    assert_eq!(app.list("").unwrap().len(), 25);
 }
 
 #[test]
@@ -286,4 +285,75 @@ fn explains_a_missing_data_directory() {
     );
 
     assert_eq!(app.state("").problem, Some(Problem::NoDataDir));
+}
+
+#[test]
+fn lists_every_entry_with_its_note() {
+    let dir = temp_dir();
+    let app = keystore_core(dir.path(), STEADY_MS);
+
+    let all = app.list("").unwrap();
+
+    assert_eq!(all.len(), 3);
+    assert_eq!(all[0].title, "Example Mail");
+    assert_eq!(all[2].kind, EntryKind::Hotp);
+    assert_eq!(app.list("cloud").unwrap().len(), 1);
+}
+
+#[test]
+fn edits_the_name_and_the_note() {
+    let dir = temp_dir();
+    let mut app = keystore_core(dir.path(), STEADY_MS);
+    let id = app.list("cloud").unwrap().remove(0).id;
+
+    let edited = app
+        .edit(
+            &id,
+            Some("Cloud 工作".to_owned()),
+            Some("备用码在抽屉里".to_owned()),
+        )
+        .unwrap();
+
+    assert_eq!(edited.title, "Cloud 工作");
+    assert_eq!(edited.note, "备用码在抽屉里");
+    assert_eq!(app.list("工作").unwrap()[0].id, id);
+}
+
+#[test]
+fn refuses_bad_names_and_changes_nothing() {
+    let dir = temp_dir();
+    let mut app = keystore_core(dir.path(), STEADY_MS);
+    let id = app.list("cloud").unwrap().remove(0).id;
+    let long_note = "x".repeat(keep_vault::edit::NOTE_MAX_CHARS + 1);
+    let long_title = "名".repeat(keep_vault::edit::TITLE_MAX_CHARS + 1);
+
+    assert_eq!(
+        app.edit(&id, Some("  ".to_owned()), None),
+        Err(CoreError::Invalid("TITLE_EMPTY"))
+    );
+    assert_eq!(
+        app.edit(&id, Some(long_title), None),
+        Err(CoreError::Invalid("TITLE_TOO_LONG"))
+    );
+    assert_eq!(
+        app.edit(&id, Some("New".to_owned()), Some(long_note)),
+        Err(CoreError::Invalid("NOTE_TOO_LONG"))
+    );
+    assert_eq!(app.list("cloud").unwrap()[0].title, "Example Cloud");
+    assert_eq!(
+        app.edit("nope", None, Some(String::new())),
+        Err(CoreError::NotFound)
+    );
+}
+
+#[test]
+fn editing_needs_the_password_first() {
+    let dir = temp_dir();
+    let mut app = password_core(dir.path());
+
+    assert_eq!(app.list(""), Err(CoreError::NeedsPassword));
+    assert_eq!(
+        app.edit("x", None, Some(String::new())),
+        Err(CoreError::NeedsPassword)
+    );
 }

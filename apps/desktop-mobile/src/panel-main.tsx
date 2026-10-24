@@ -3,6 +3,7 @@ import { type PanelApi, insideApp, tauriApi } from "./panel/api";
 import { demoApi } from "./panel/demo";
 import { strings } from "./panel/i18n";
 import { Panel } from "./panel/Panel";
+import "./shared/tokens.css";
 import "./panel/panel.css";
 
 const root = document.getElementById("panel");

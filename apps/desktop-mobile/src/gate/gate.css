@@ -1,0 +1,267 @@
+/* The browser management page. Colours come from ../shared/tokens.css; same visual language as the panel. */
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--paper);
+  color: var(--text);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.gate {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+.gate-header h1 {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.gate-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.gate-search {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  outline: none;
+}
+
+.gate-search:focus {
+  border-color: var(--accent);
+}
+
+.muted {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.gate-message {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.gate-message h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  color: var(--text);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.tile {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--tile-text);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.tile-0 { background: var(--tile-0); }
+.tile-1 { background: var(--tile-1); }
+.tile-2 { background: var(--tile-2); }
+.tile-3 { background: var(--tile-3); }
+.tile-4 { background: var(--tile-4); }
+.tile-5 { background: var(--tile-5); }
+.tile-6 { background: var(--tile-6); }
+.tile-7 { background: var(--tile-7); }
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.card-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.card-note {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.card-shortcut {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.field-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.shortcut-field {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.keys {
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--paper);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+.recorder {
+  padding: 5px 12px;
+  border: 1px dashed var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.link-button {
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.edit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.edit-form input,
+.edit-form textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--paper);
+  outline: none;
+  resize: vertical;
+}
+
+.edit-form input:focus,
+.edit-form textarea:focus {
+  border-color: var(--accent);
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.primary,
+.secondary {
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+.primary {
+  border: 0;
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.primary:disabled {
+  opacity: 0.6;
+}
+
+.secondary {
+  border: 1px solid var(--line);
+  background: transparent;
+}
+
+.field-error {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--amber);
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border-radius: 9px;
+  background: var(--toast);
+  color: var(--toast-text);
+  font-size: 13px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+}

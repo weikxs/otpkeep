@@ -35,9 +35,3 @@ export function tileColor(name: string): number {
   }
   return hash % TILE_COLORS;
 }
-
-/** The shortcut label for row `n` (1–10). */
-export function shortcutLabel(n: number, isMac: boolean): string {
-  const digit = n === 10 ? "0" : String(n);
-  return isMac ? `⌃⌥⌘${digit}` : `Ctrl+Shift+Alt+${digit}`;
-}

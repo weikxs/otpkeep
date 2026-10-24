@@ -20,8 +20,8 @@ export interface PanelEntry {
   periodS?: number;
   /** When the current TOTP code ends, in the core's clock (Unix milliseconds). */
   validUntilMs?: number;
-  /** 1–10: the global shortcut digit (10 means 0). */
-  shortcut?: number;
+  /** Its global shortcut in canonical form (`control+alt+super+Digit1`): its own, or its row's default. */
+  shortcut?: string;
 }
 
 /** There is no app lock (ADR-019): a master password is asked for once per run. */
@@ -63,12 +63,17 @@ export interface PanelApi {
   nextHotp(id: string): Promise<PanelEntry>;
   unlock(password: string): Promise<PanelState>;
   openMain(page?: "add" | "import" | "settings"): Promise<void>;
+  /** Opens the management page in the default browser. */
+  openGate(): Promise<void>;
+  /** Calls `listener` when the data changed elsewhere or the panel was shown; returns how to stop. */
+  onChange(listener: () => void): () => void;
   hide(): Promise<void>;
 }
 
 /** The core, through Tauri commands. */
 export async function tauriApi(): Promise<PanelApi> {
   const { invoke } = await import("@tauri-apps/api/core");
+  const { listen } = await import("@tauri-apps/api/event");
   return {
     state: (query) => invoke<PanelState>("panel_state", { query }),
     copy: (id) => invoke<CopyResult>("copy_code", { id }),
@@ -76,6 +81,13 @@ export async function tauriApi(): Promise<PanelApi> {
     unlock: (password) => invoke<PanelState>("unlock", { password }),
     openMain: (page) => invoke<void>("open_main", { page: page ?? null }),
     hide: () => invoke<void>("hide_panel"),
+    openGate: () => invoke<void>("open_gate"),
+    onChange: (listener) => {
+      const stops = ["vault-changed", "panel-shown"].map((name) => listen(name, () => listener()));
+      return () => {
+        for (const stop of stops) void stop.then((unlisten) => unlisten());
+      };
+    },
   };
 }
 

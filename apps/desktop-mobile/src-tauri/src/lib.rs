@@ -9,7 +9,15 @@ mod core;
 #[cfg(desktop)]
 mod desktop;
 #[cfg(desktop)]
+mod gate;
+#[cfg(desktop)]
+mod hotkeys;
+#[cfg(desktop)]
 mod icon;
+#[cfg(desktop)]
+mod settings;
+#[cfg(desktop)]
+mod shortcuts;
 
 /// Starts the app and blocks until it exits.
 ///
@@ -40,23 +48,33 @@ fn builder() -> tauri::Builder<tauri::Wry> {
     } else {
         Box::new(SystemKeystore::new())
     };
+    let dir = data_dir();
+    let hotkeys = hotkeys::Hotkeys::load(settings::SettingsFile::new(dir.as_deref()));
     let core = core::Core::start(
-        data_dir().map(|dir| VaultPaths::new(&dir)),
+        dir.map(|dir| VaultPaths::new(&dir)),
         keystore,
         Arc::new(system_now_ms),
         LOCK_WAIT,
     );
     tauri::Builder::default()
+        .plugin(hotkeys::plugin())
         .manage(commands::AppCore(Mutex::new(core)))
+        .manage(hotkeys)
+        .manage(gate::GateServer::default())
         .invoke_handler(tauri::generate_handler![
             commands::panel_state,
             commands::copy_code,
             commands::next_hotp,
             commands::unlock,
             commands::open_main,
+            commands::open_gate,
             commands::hide_panel,
         ])
-        .setup(|app| Ok(desktop::setup(app.handle())?))
+        .setup(|app| {
+            desktop::setup(app.handle())?;
+            hotkeys::register_all(app.handle());
+            Ok(())
+        })
 }
 
 #[cfg(mobile)]

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TILE_COLORS, groupCode, monogram, shortcutLabel, tileColor } from "./format";
+import { TILE_COLORS, groupCode, monogram, tileColor } from "./format";
 
 describe("groupCode", () => {
   it("groups six digits in threes", () => {
@@ -45,16 +45,5 @@ describe("tileColor", () => {
       expect(color).toBeGreaterThanOrEqual(0);
       expect(color).toBeLessThan(TILE_COLORS);
     }
-  });
-});
-
-describe("shortcutLabel", () => {
-  it("uses Mac symbols and 0 for the tenth row", () => {
-    expect(shortcutLabel(1, true)).toBe("⌃⌥⌘1");
-    expect(shortcutLabel(10, true)).toBe("⌃⌥⌘0");
-  });
-
-  it("spells out keys elsewhere", () => {
-    expect(shortcutLabel(3, false)).toBe("Ctrl+Shift+Alt+3");
   });
 });

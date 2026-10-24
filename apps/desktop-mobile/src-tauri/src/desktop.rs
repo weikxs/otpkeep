@@ -34,11 +34,12 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     app.manage(LastBlur::default());
 
     let open = MenuItem::with_id(app, "open", "打开主窗口", true, None::<&str>)?;
+    let manage = MenuItem::with_id(app, "manage", "在浏览器中管理…", true, None::<&str>)?;
     let sync = MenuItem::with_id(app, "sync", "同步…", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "设置…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出 OTPKeep", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&open, &sync, &settings, &separator, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &manage, &sync, &settings, &separator, &quit])?;
 
     TrayIconBuilder::with_id("otpkeep")
         .icon(Image::new_owned(
@@ -52,9 +53,13 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "open" => show_main(app, None),
+            "manage" => crate::gate::open_in_browser(app),
             "sync" => show_main(app, Some("sync")),
             "settings" => show_main(app, Some("settings")),
-            "quit" => app.exit(0),
+            "quit" => {
+                crate::gate::stop(app);
+                app.exit(0);
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {

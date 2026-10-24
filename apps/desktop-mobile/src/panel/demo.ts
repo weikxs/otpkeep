@@ -40,7 +40,7 @@ export function demoApi({ clock = Date.now, status = "ready", empty = false }: D
     const matched = source.filter((e) => q === "" || `${e.title} ${e.issuer} ${e.account}`.toLowerCase().includes(q));
     const ordered = q === "" ? [...matched.filter((e) => e.pinned), ...matched.filter((e) => !e.pinned)] : matched;
     return ordered.map((e, index) => {
-      const shortcut = index < 10 ? { shortcut: index + 1 } : {};
+      const shortcut = index < 10 ? { shortcut: `control+alt+super+Digit${(index + 1) % 10}` } : {};
       if (e.kind === "hotp") {
         const code = hotpCodes.get(e.id);
         return { ...e, ...shortcut, ...(code === undefined ? {} : { code }) };
@@ -87,6 +87,8 @@ export function demoApi({ clock = Date.now, status = "ready", empty = false }: D
       return state("");
     },
     openMain: async () => {},
+    openGate: async () => {},
+    onChange: () => () => {},
     hide: async () => {},
   };
 }

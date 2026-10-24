@@ -6,6 +6,7 @@
     reason = "the signatures Tauri commands take"
 )]
 
+use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard};
 
 use serde::Serialize;
@@ -14,12 +15,14 @@ use tauri::{AppHandle, State, WebviewWindow};
 use crate::clipboard::{CLEAR_AFTER, copy_then_clear};
 use crate::core::{Core, CoreError, PanelEntry, PanelState};
 use crate::desktop;
+use crate::hotkeys::Hotkeys;
+use crate::shortcuts::ShortcutMap;
 
 /// The vault, shared by the commands.
 pub struct AppCore(pub Mutex<Core>);
 
 impl AppCore {
-    fn get(&self) -> MutexGuard<'_, Core> {
+    pub(crate) fn get(&self) -> MutexGuard<'_, Core> {
         // A panic while holding the lock leaves the core usable: every change is saved before it returns.
         self.0
             .lock()
@@ -42,12 +45,54 @@ fn code_of(error: CoreError) -> String {
 }
 
 #[tauri::command]
-pub fn panel_state(query: &str, vault: State<'_, AppCore>) -> PanelState {
-    vault.get().state(query)
+pub fn panel_state(
+    query: &str,
+    vault: State<'_, AppCore>,
+    hotkeys: State<'_, Hotkeys>,
+) -> PanelState {
+    let core = vault.get();
+    let state = core.state(query);
+    let places = list_places(&core);
+    with_shortcuts(state, &hotkeys.map(), &places)
+}
+
+/// Each entry's place in the whole list, which decides its default shortcut.
+pub(crate) fn list_places(core: &Core) -> HashMap<String, usize> {
+    core.list("")
+        .map(|all| {
+            all.into_iter()
+                .enumerate()
+                .map(|(i, e)| (e.id, i))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn with_shortcuts(
+    state: PanelState,
+    map: &ShortcutMap,
+    places: &HashMap<String, usize>,
+) -> PanelState {
+    let entries = state
+        .entries
+        .into_iter()
+        .map(|entry| {
+            let shortcut = places
+                .get(&entry.id)
+                .and_then(|&place| map.shown_for(&entry.id, place));
+            PanelEntry { shortcut, ..entry }
+        })
+        .collect();
+    PanelState { entries, ..state }
 }
 
 #[tauri::command]
 pub fn copy_code(id: &str, vault: State<'_, AppCore>) -> CommandResult<CopyResult> {
+    copy_entry(&vault, id)
+}
+
+/// Copies an entry's current code; it is cleared from the clipboard later.
+pub(crate) fn copy_entry(vault: &AppCore, id: &str) -> CommandResult<CopyResult> {
     let code = vault.get().code(id).map_err(code_of)?;
     copy_then_clear(code, CLEAR_AFTER).map_err(|_| "Clipboard".to_owned())?;
     Ok(CopyResult {
@@ -69,6 +114,11 @@ pub fn unlock(password: String, vault: State<'_, AppCore>) -> PanelState {
 #[tauri::command]
 pub fn open_main(page: Option<String>, app: AppHandle) {
     desktop::show_main(&app, page.as_deref());
+}
+
+#[tauri::command]
+pub fn open_gate(app: AppHandle) {
+    crate::gate::open_in_browser(&app);
 }
 
 #[tauri::command]

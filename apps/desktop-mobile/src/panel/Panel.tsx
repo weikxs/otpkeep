@@ -1,7 +1,8 @@
 import { Fragment } from "preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { PanelApi, PanelEntry, PanelState } from "./api";
-import { groupCode, monogram, shortcutLabel, tileColor } from "./format";
+import { formatShortcut } from "../shared/shortcut";
+import { groupCode, monogram, tileColor } from "./format";
 import type { Strings } from "./i18n";
 
 /** Codes ending within this many seconds also show the next one (FR-1.4). */
@@ -43,6 +44,9 @@ export function Panel({ api, text, isMac, clock = Date.now }: PanelProps) {
     void load(query);
     setSelected(0);
   }, [query, load]);
+
+  // Names and shortcuts changed on the management page, or the panel opened again.
+  useEffect(() => api.onChange(() => void load(query)), [api, load, query]);
 
   const coreNow = now + offset;
   const expired = state?.entries.some((e) => e.validUntilMs !== undefined && e.validUntilMs <= coreNow) ?? false;
@@ -163,6 +167,9 @@ export function Panel({ api, text, isMac, clock = Date.now }: PanelProps) {
           <button type="button" class="icon-button" title={text.addShort} aria-label={text.add} onClick={() => void api.openMain("add")}>
             <PlusIcon />
           </button>
+          <button type="button" class="icon-button" title={text.manage} aria-label={text.manage} onClick={() => void api.openGate()}>
+            <GlobeIcon />
+          </button>
           <button type="button" class="icon-button" title={text.openMain} aria-label={text.openMain} onClick={() => void api.openMain()}>
             <WindowIcon />
           </button>
@@ -270,7 +277,7 @@ function Row({ entry, index, selected, copied, coreNow, text, isMac, onCopy, onH
             )}
           </>
         )}
-        {entry.shortcut !== undefined && <span class="shortcut">{shortcutLabel(entry.shortcut, isMac)}</span>}
+        {entry.shortcut !== undefined && <span class="shortcut">{formatShortcut(entry.shortcut, isMac)}</span>}
       </span>
       {remainingS !== undefined && entry.periodS !== undefined && (
         <Ring remaining={remainingS} period={entry.periodS} ending={ending} label={text.seconds(remainingS)} />
@@ -375,6 +382,15 @@ function WindowIcon() {
     <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
       <rect x="2.5" y="3.5" width="11" height="9" rx="1.5" />
       <path d="M2.5 6h11" />
+    </svg>
+  );
+}
+
+function GlobeIcon() {
+  return (
+    <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M2.5 8h11M8 2.5c1.6 1.6 2.4 3.4 2.4 5.5S9.6 11.9 8 13.5M8 2.5C6.4 4.1 5.6 5.9 5.6 8s.8 3.9 2.4 5.5" />
     </svg>
   );
 }
