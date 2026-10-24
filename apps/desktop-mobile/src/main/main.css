@@ -66,6 +66,7 @@ button {
 
 .main-search {
   flex: 1;
+  min-width: 140px;
   max-width: 460px;
   height: 36px;
   padding: 0 14px;
@@ -81,8 +82,40 @@ button {
 
 .topbar-actions {
   display: flex;
+  align-items: center;
+  flex: none;
   gap: 8px;
   margin-left: auto;
+}
+
+/* Icon and label; below 1180 px the labels go and the buttons become squares (title shows the name). */
+.tool-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tool-icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (max-width: 1180px) {
+  .tool-button {
+    width: 34px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .tool-label {
+    display: none;
+  }
 }
 
 .primary,
@@ -196,7 +229,8 @@ button {
   text-align: left;
 }
 
-.entry-main:hover {
+/* The whole row lights up, handle and shortcut included, not only its middle. */
+.entry-row:hover:not(.editing) {
   background: var(--hover);
 }
 

@@ -81,7 +81,7 @@ test("the editor shows tags, place, history and the trash", async ({ page }) => 
   await page.getByRole("button", { name: "移入回收站" }).last().click();
 
   await expect(page.getByTestId("entry")).toHaveCount(3);
-  await page.getByText("回收站（1）").click();
+  await page.getByRole("button", { name: "回收站（1）" }).click();
   await expect(page.getByTestId("trash-row")).toHaveCount(1);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/main-trash.png` });
 });

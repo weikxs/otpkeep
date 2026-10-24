@@ -9,6 +9,7 @@ import { ExportDialog } from "./ExportDialog";
 import { SettingsDialog } from "./SettingsDialog";
 import { syncStrings } from "./sync/i18n";
 import { SyncDialog } from "./sync/SyncDialog";
+import { ToolButton } from "./Toolbar";
 import { TrashDialog } from "./TrashDialog";
 import { type MainStrings, describe } from "./i18n";
 
@@ -203,26 +204,14 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
           />
         )}
         <span class="topbar-actions">
+          {!empty && <ToolButton icon="trash" label={text.trashButton(trashCount)} onClick={() => setTrashOpen(true)} />}
+          <ToolButton icon="sync" label={text.syncButton} onClick={() => setSyncOpen(true)} />
           {!empty && (
-            <button type="button" class="secondary" onClick={() => setTrashOpen(true)}>
-              {text.trashButton(trashCount)}
-            </button>
+            <ToolButton icon="export" label={text.exportButton} onClick={() => setExporting({ ids: null, count: allCount })} />
           )}
-          <button type="button" class="secondary" onClick={() => setSyncOpen(true)}>
-            {text.syncButton}
-          </button>
-          {!empty && (
-            <button type="button" class="secondary" onClick={() => setExporting({ ids: null, count: allCount })}>
-              {text.exportButton}
-            </button>
-          )}
+          <ToolButton icon="settings" label={text.settings} onClick={() => setSettingsOpen(true)} />
+          <ToolButton icon="browser" label={text.manage} onClick={() => void api.openGate()} />
           {languageMenu}
-          <button type="button" class="secondary" onClick={() => setSettingsOpen(true)}>
-            {text.settings}
-          </button>
-          <button type="button" class="secondary" onClick={() => void api.openGate()}>
-            {text.manage}
-          </button>
           <button type="button" class="primary" onClick={() => setDialog({ tab: "paste" })}>
             + {text.add}
           </button>
