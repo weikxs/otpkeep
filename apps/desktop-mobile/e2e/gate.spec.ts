@@ -82,7 +82,9 @@ for (const scheme of ["light", "dark"] as const) {
     await cloud.getByText("设置").click();
     await page.getByTestId("recorder").press("Control+Alt+Meta+KeyP");
     await expect(page.getByRole("status")).toHaveText("快捷键已设置，按下即可复制验证码");
-    await expect(cloud.locator("kbd")).toHaveText("⌃⌥⌘P");
+    // Shown the way the platform writes it, as the page decides (isMacPlatform): symbols on a Mac, names elsewhere.
+    const onMac = await page.evaluate(() => navigator.userAgent.includes("Mac"));
+    await expect(cloud.locator("kbd")).toHaveText(onMac ? "⌃⌥⌘P" : "Ctrl+Alt+Win+P");
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/gate-${scheme}-edited.png` });
 
     await page.getByTestId("card").first().getByText("复制").click();

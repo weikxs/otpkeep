@@ -1,20 +1,41 @@
+# One pull request per ecosystem per week at most: the week's updates are grouped together.
+# Major versions of Rust crates and npm packages are not proposed automatically: they change APIs (the
+# RustCrypto 0.11/0.13 family, Preact 11, TypeScript 7) and are upgraded on purpose, with their own tests.
 version: 2
 updates:
   - package-ecosystem: cargo
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 1
+    groups:
+      cargo:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: build
   - package-ecosystem: npm
     directory: /apps/desktop-mobile
     schedule:
       interval: weekly
+    open-pull-requests-limit: 1
+    groups:
+      npm:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: build
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 1
+    groups:
+      github-actions:
+        patterns: ["*"]
     commit-message:
       prefix: ci

@@ -10,6 +10,11 @@ if ! grep -Eq '^(feat|fix|docs|refactor|test|chore|perf|ci|build|style|revert)(\
   exit 1
 fi
 
+if [ "${#subject}" -gt 72 ]; then
+  echo "commit-msg: keep the subject at most 72 characters (it has ${#subject})" >&2
+  exit 1
+fi
+
 if grep -Eiq '^co-authored-by:.*(claude|anthropic|copilot|chatgpt|openai|gemini|cursor|bot)|generated with|🤖' "$MESSAGE_FILE"; then
   echo "commit-msg: remove tool or bot attribution; commits are authored by the contributor only" >&2
   exit 1
