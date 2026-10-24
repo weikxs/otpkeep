@@ -1,12 +1,68 @@
 //! The OTPKeep app shell shared by desktop and mobile.
 
+#[cfg(desktop)]
+mod clipboard;
+#[cfg(desktop)]
+mod commands;
+#[cfg(desktop)]
+mod core;
+#[cfg(desktop)]
+mod desktop;
+#[cfg(desktop)]
+mod icon;
+
 /// Starts the app and blocks until it exits.
 ///
 /// # Errors
 ///
 /// Returns the [`tauri::Error`] reported when the app cannot start.
 pub fn try_run() -> Result<(), tauri::Error> {
-    tauri::Builder::default().run(tauri::generate_context!())
+    builder().run(tauri::generate_context!())
+}
+
+#[cfg(desktop)]
+fn builder() -> tauri::Builder<tauri::Wry> {
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    use keep_platform::{Keystore, MemoryKeystore, SystemKeystore, data_dir};
+    use keep_vault::service::system_now_ms;
+    use keep_vault::store::VaultPaths;
+
+    /// Set to `memory` to use an empty in-memory keystore instead of the system one (for tests).
+    const KEYSTORE_OVERRIDE: &str = "OTPKEEP_KEYSTORE";
+    /// How long to wait for another OTPKeep process to release the data.
+    const LOCK_WAIT: Duration = Duration::from_secs(2);
+
+    let keystore: Box<dyn Keystore> = if std::env::var(KEYSTORE_OVERRIDE).as_deref() == Ok("memory")
+    {
+        Box::new(MemoryKeystore::new())
+    } else {
+        Box::new(SystemKeystore::new())
+    };
+    let core = core::Core::start(
+        data_dir().map(|dir| VaultPaths::new(&dir)),
+        keystore,
+        Arc::new(system_now_ms),
+        LOCK_WAIT,
+    );
+    tauri::Builder::default()
+        .manage(commands::AppCore(Mutex::new(core)))
+        .invoke_handler(tauri::generate_handler![
+            commands::panel_state,
+            commands::copy_code,
+            commands::next_hotp,
+            commands::unlock,
+            commands::lock,
+            commands::open_main,
+            commands::hide_panel,
+        ])
+        .setup(|app| Ok(desktop::setup(app.handle())?))
+}
+
+#[cfg(mobile)]
+fn builder() -> tauri::Builder<tauri::Wry> {
+    tauri::Builder::default()
 }
 
 /// Entry point on iOS and Android, where the platform calls the app and nothing receives a result.

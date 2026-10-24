@@ -1,0 +1,82 @@
+//! The commands the quick panel calls (apps/desktop-mobile/src/panel/api.ts).
+
+// Tauri hands commands their state, handles and arguments by value.
+#![allow(
+    clippy::needless_pass_by_value,
+    reason = "the signatures Tauri commands take"
+)]
+
+use std::sync::{Mutex, MutexGuard};
+
+use serde::Serialize;
+use tauri::{AppHandle, State, WebviewWindow};
+
+use crate::clipboard::{CLEAR_AFTER, copy_then_clear};
+use crate::core::{Core, CoreError, PanelEntry, PanelState};
+use crate::desktop;
+
+/// The vault, shared by the commands.
+pub struct AppCore(pub Mutex<Core>);
+
+impl AppCore {
+    fn get(&self) -> MutexGuard<'_, Core> {
+        // A panic while holding the lock leaves the core usable: every change is saved before it returns.
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+/// What the panel learns after a copy.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CopyResult {
+    clears_in_s: u64,
+}
+
+/// An error code the panel can show (`CopyFailed`, `Locked`, …).
+type CommandResult<T> = Result<T, String>;
+
+fn code_of(error: CoreError) -> String {
+    format!("{error:?}")
+}
+
+#[tauri::command]
+pub fn panel_state(query: &str, vault: State<'_, AppCore>) -> PanelState {
+    vault.get().state(query)
+}
+
+#[tauri::command]
+pub fn copy_code(id: &str, vault: State<'_, AppCore>) -> CommandResult<CopyResult> {
+    let code = vault.get().code(id).map_err(code_of)?;
+    copy_then_clear(code, CLEAR_AFTER).map_err(|_| "Clipboard".to_owned())?;
+    Ok(CopyResult {
+        clears_in_s: CLEAR_AFTER.as_secs(),
+    })
+}
+
+#[tauri::command]
+pub fn next_hotp(id: &str, vault: State<'_, AppCore>) -> CommandResult<PanelEntry> {
+    vault.get().next_hotp(id).map_err(code_of)
+}
+
+#[tauri::command]
+pub fn unlock(password: String, vault: State<'_, AppCore>) -> PanelState {
+    let password = zeroize::Zeroizing::new(password);
+    vault.get().unlock(&password)
+}
+
+#[tauri::command]
+pub fn lock(vault: State<'_, AppCore>) {
+    vault.get().lock();
+}
+
+#[tauri::command]
+pub fn open_main(page: Option<String>, app: AppHandle) {
+    desktop::show_main(&app, page.as_deref());
+}
+
+#[tauri::command]
+pub fn hide_panel(window: WebviewWindow) {
+    let _ = window.hide();
+}

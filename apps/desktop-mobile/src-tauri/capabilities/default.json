@@ -1,7 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Minimal permissions for the main window.",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "description": "Minimal permissions for the main window and the menu bar panel.",
+  "windows": [
+    "main",
+    "panel"
+  ],
+  "permissions": [
+    "core:default"
+  ]
 }
