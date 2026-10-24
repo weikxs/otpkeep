@@ -6,17 +6,21 @@ use std::time::Duration;
 use arboard::Clipboard;
 use zeroize::Zeroizing;
 
-/// How long a copied code stays on the clipboard.
-pub const CLEAR_AFTER: Duration = Duration::from_secs(30);
-
-/// Puts `code` on the clipboard and clears it after `after`, unless something else was copied meanwhile.
+/// Puts `code` on the clipboard and clears it after `after`, unless something else was copied meanwhile;
+/// with `None` it stays (the person turned clearing off).
 ///
 /// # Errors
 ///
 /// Returns the clipboard's error when the code could not be written.
-pub fn copy_then_clear(code: Zeroizing<String>, after: Duration) -> Result<(), arboard::Error> {
+pub fn copy_then_clear(
+    code: Zeroizing<String>,
+    after: Option<Duration>,
+) -> Result<(), arboard::Error> {
     let mut clipboard = Clipboard::new()?;
     write_hidden(&mut clipboard, &code)?;
+    let Some(after) = after else {
+        return Ok(());
+    };
     std::thread::Builder::new()
         .name("clipboard-clear".to_owned())
         .spawn(move || {

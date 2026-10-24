@@ -102,3 +102,19 @@ fn setting_the_same_shortcut_again_or_removing_it_works() {
         "the original is unchanged"
     );
 }
+
+#[test]
+fn an_own_shortcut_taken_while_defaults_were_off_wins_over_the_default() {
+    let off = ShortcutMap::new(false, BTreeMap::new())
+        .with("e1", Some("control+alt+super+Digit1"))
+        .unwrap();
+
+    let on = off.with_defaults(true);
+
+    assert_eq!(on.default_for(0), None);
+    assert_eq!(
+        on.default_for(1).as_deref(),
+        Some("control+alt+super+Digit2")
+    );
+    assert_eq!(on.targets().len(), 10, "nine defaults and the entry's own");
+}

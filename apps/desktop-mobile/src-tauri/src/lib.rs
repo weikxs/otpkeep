@@ -21,7 +21,11 @@ mod key_commands;
 #[cfg(desktop)]
 mod manage_commands;
 #[cfg(desktop)]
+mod preferences;
+#[cfg(desktop)]
 mod settings;
+#[cfg(desktop)]
+mod settings_commands;
 #[cfg(desktop)]
 mod shortcuts;
 #[cfg(desktop)]
@@ -98,6 +102,8 @@ fn builder() -> tauri::Builder<tauri::Wry> {
             key_commands::replace_key,
             key_commands::rename_entry,
             key_commands::set_shortcut,
+            settings_commands::get_settings,
+            settings_commands::set_settings,
             commands::hide_panel,
         ])
         .setup(|app| {

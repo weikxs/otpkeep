@@ -111,3 +111,17 @@ test("several accounts are tagged at once", async ({ page }) => {
 
   await expect(page.getByText("已修改 2 个账号")).toBeVisible();
 });
+
+test("the settings switch the theme for the whole window", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.setViewportSize({ width: 900, height: 640 });
+  await page.goto("/index.html");
+
+  await page.getByRole("button", { name: "设置" }).click();
+  await page.getByLabel("主题").selectOption("dark");
+
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  expect(background).toBe("rgb(22, 23, 26)");
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/main-settings.png` });
+});

@@ -73,14 +73,25 @@ impl ShortcutMap {
         Self { defaults, entries }
     }
 
-    /// The default shortcut of row `index` (0-based), if it has one.
+    /// The default shortcut of row `index` (0-based), if it has one. An entry's own shortcut wins over a
+    /// default it equals (it could be set while the defaults were off).
     #[must_use]
     pub fn default_for(&self, index: usize) -> Option<String> {
         if !self.defaults || index >= DEFAULT_ROWS {
             return None;
         }
         let digit = (index + 1) % DEFAULT_ROWS;
-        Some(format!("control+alt+super+Digit{digit}"))
+        let shortcut = format!("control+alt+super+Digit{digit}");
+        (!self.entries.values().any(|own| *own == shortcut)).then_some(shortcut)
+    }
+
+    /// A copy with the row defaults turned on or off.
+    #[must_use]
+    pub fn with_defaults(&self, defaults: bool) -> Self {
+        Self {
+            defaults,
+            entries: self.entries.clone(),
+        }
     }
 
     /// The entry's own shortcut.

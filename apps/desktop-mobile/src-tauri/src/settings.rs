@@ -3,10 +3,13 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
 const FILE: &str = "settings.json";
+/// How long a copied code stays on the clipboard when the setting says nothing (design/10-reference.md §2).
+pub const DEFAULT_CLEAR_S: u16 = 30;
 
 /// The settings this version knows; fields from newer versions are kept as they are.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -15,8 +18,37 @@ pub struct Settings {
     /// Entry id → its own global shortcut, in canonical form.
     #[serde(default)]
     pub entry_shortcuts: BTreeMap<String, String>,
+    /// `zh` or `en`; absent follows the system.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
+    /// `light` or `dark`; absent follows the system.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme: Option<String>,
+    /// Seconds before a copied code is cleared; 0 never clears; absent is [`DEFAULT_CLEAR_S`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clipboard_clear_s: Option<u16>,
+    /// Whether the first ten rows get shortcuts; absent is the system's default (on for macOS).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row_shortcuts: Option<bool>,
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
+}
+
+impl Settings {
+    /// How long a copied code stays on the clipboard; `None` when it is never cleared.
+    #[must_use]
+    pub fn clear_after(&self) -> Option<Duration> {
+        match self.clipboard_clear_s.unwrap_or(DEFAULT_CLEAR_S) {
+            0 => None,
+            seconds => Some(Duration::from_secs(u64::from(seconds))),
+        }
+    }
+
+    /// Whether the first ten rows get shortcuts.
+    #[must_use]
+    pub fn row_shortcuts_on(&self) -> bool {
+        self.row_shortcuts.unwrap_or(cfg!(target_os = "macos"))
+    }
 }
 
 /// Why the settings could not be saved.
@@ -101,7 +133,7 @@ mod tests {
         let dir = temp_dir();
         std::fs::write(
             dir.path().join("settings.json"),
-            r#"{"theme":"dark","entryShortcuts":{"e1":"control+alt+super+KeyG"}}"#,
+            r#"{"theme":"dark","future":1,"entryShortcuts":{"e1":"control+alt+super+KeyG"}}"#,
         )
         .unwrap();
         let file = SettingsFile::new(Some(dir.path()));
@@ -114,7 +146,8 @@ mod tests {
 
         let again = file.load();
         assert_eq!(again.entry_shortcuts.len(), 2);
-        assert_eq!(again.extra["theme"], "dark");
+        assert_eq!(again.theme.as_deref(), Some("dark"));
+        assert_eq!(again.extra["future"], 1);
     }
 
     #[test]

@@ -116,6 +116,18 @@ export interface KeyForm {
 
 export type BatchAction = { action: "trash" } | { action: "addTag"; tag: string } | { action: "removeTag"; tag: string };
 
+export interface Settings {
+  language: "system" | "zh" | "en";
+  theme: "system" | "light" | "dark";
+  /** 0 when copied codes are never cleared. */
+  clipboardClearS: number;
+  rowShortcuts: boolean;
+  rowShortcutsDefault: boolean;
+  version: string;
+}
+
+export type SettingsPatch = Partial<Pick<Settings, "language" | "theme" | "clipboardClearS" | "rowShortcuts">>;
+
 export interface MainApi {
   state(query: string): Promise<MainState>;
   copy(id: string): Promise<CopyResult>;
@@ -130,6 +142,10 @@ export interface MainApi {
   purge(id: string): Promise<void>;
   trashList(): Promise<TrashItem[]>;
   history(id: string): Promise<History>;
+  settings(): Promise<Settings>;
+  setSettings(patch: SettingsPatch): Promise<Settings>;
+  /** Calls `listener` when the settings changed (here or in another window). */
+  onSettings(listener: (settings: Settings) => void): () => void;
   /** Applies one action to several entries, all or nothing; returns how many changed. */
   batch(ids: string[], action: BatchAction): Promise<number>;
   rename(id: string, change: { issuer?: string; account?: string }): Promise<void>;
@@ -189,6 +205,9 @@ export async function tauriMainApi(): Promise<MainApi> {
     purge: (id) => call("purge_entry", { id }),
     trashList: () => call("trash_list"),
     history: (id) => call("entry_history", { id }),
+    settings: () => call("get_settings"),
+    setSettings: (patch) => call("set_settings", { patch }),
+    onSettings: (listener) => subscribe<Settings>("settings-changed", listener),
     batch: (ids, action) => call("batch_entries", { ids, action }),
     rename: (id, change) => call("rename_entry", { id, issuer: change.issuer ?? null, account: change.account ?? null }),
     keyInfo: (id) => call("key_info", { id }),

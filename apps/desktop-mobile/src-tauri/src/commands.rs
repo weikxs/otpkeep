@@ -12,7 +12,9 @@ use std::sync::{Mutex, MutexGuard};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State, WebviewWindow};
 
-use crate::clipboard::{CLEAR_AFTER, copy_then_clear};
+use std::time::Duration;
+
+use crate::clipboard::copy_then_clear;
 use crate::core::{Core, CoreError, ImportProblem, PanelEntry, PanelState};
 use crate::desktop;
 use crate::hotkeys::Hotkeys;
@@ -168,16 +170,24 @@ pub fn edit_entry(
 }
 
 #[tauri::command]
-pub fn copy_code(id: &str, vault: State<'_, AppCore>) -> CommandResult<CopyResult> {
-    copy_entry(&vault, id)
+pub fn copy_code(
+    id: &str,
+    vault: State<'_, AppCore>,
+    hotkeys: State<'_, Hotkeys>,
+) -> CommandResult<CopyResult> {
+    copy_entry(&vault, id, hotkeys.settings().clear_after())
 }
 
 /// Copies an entry's current code; it is cleared from the clipboard later.
-pub(crate) fn copy_entry(vault: &AppCore, id: &str) -> CommandResult<CopyResult> {
+pub(crate) fn copy_entry(
+    vault: &AppCore,
+    id: &str,
+    clear_after: Option<Duration>,
+) -> CommandResult<CopyResult> {
     let code = vault.get().code(id).map_err(CommandError::from)?;
-    copy_then_clear(code, CLEAR_AFTER).map_err(|_| CommandError::code("CLIPBOARD"))?;
+    copy_then_clear(code, clear_after).map_err(|_| CommandError::code("CLIPBOARD"))?;
     Ok(CopyResult {
-        clears_in_s: CLEAR_AFTER.as_secs(),
+        clears_in_s: clear_after.map_or(0, |d| d.as_secs()),
     })
 }
 

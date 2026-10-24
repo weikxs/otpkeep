@@ -7,6 +7,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
 
 use crate::commands::{AppCore, copy_entry};
+use crate::preferences::{SettingsPatch, apply};
 use crate::settings::{Settings, SettingsFile};
 use crate::shortcuts::{Holder, ShortcutError, ShortcutMap, Target};
 
@@ -19,8 +20,8 @@ pub struct Hotkeys {
 struct HotkeyState {
     settings: Settings,
     map: ShortcutMap,
-    /// Registered shortcut id → what it copies.
-    registered: HashMap<u32, Target>,
+    /// Registered shortcut id → its text and what it copies.
+    registered: HashMap<u32, (String, Target)>,
 }
 
 /// Why setting an entry's shortcut failed.
@@ -38,7 +39,7 @@ impl Hotkeys {
     #[must_use]
     pub fn load(file: SettingsFile) -> Self {
         let settings = file.load();
-        let map = ShortcutMap::new(cfg!(target_os = "macos"), valid_only(&settings));
+        let map = ShortcutMap::new(settings.row_shortcuts_on(), valid_only(&settings));
         Self {
             file,
             state: Mutex::new(HotkeyState {
@@ -57,6 +58,12 @@ impl Hotkeys {
     #[must_use]
     pub fn map(&self) -> ShortcutMap {
         self.state().map.clone()
+    }
+
+    /// This device's settings.
+    #[must_use]
+    pub fn settings(&self) -> Settings {
+        self.state().settings.clone()
     }
 }
 
@@ -95,7 +102,7 @@ pub fn register_all<R: Runtime>(app: &AppHandle<R>) {
     let mut state = hotkeys.state();
     for (text, target) in state.map.targets() {
         if let Some(id) = register(app, &text) {
-            state.registered.insert(id, target);
+            state.registered.insert(id, (text, target));
         } else {
             tracing::warn!("a global shortcut could not be registered");
         }
@@ -152,7 +159,9 @@ pub fn set_entry_shortcut<R: Runtime>(
         if let Some(old) = &old
             && let Some(id) = register(app, old)
         {
-            state.registered.insert(id, Target::Entry(entry.to_owned()));
+            state
+                .registered
+                .insert(id, (old.clone(), Target::Entry(entry.to_owned())));
         }
     };
     let new_id = match &wanted {
@@ -174,12 +183,67 @@ pub fn set_entry_shortcut<R: Runtime>(
         restore(&mut state);
         return Err(SetError::Save);
     }
-    if let Some(id) = new_id {
-        state.registered.insert(id, Target::Entry(entry.to_owned()));
+    if let (Some(id), Some(text)) = (new_id, &wanted) {
+        state
+            .registered
+            .insert(id, (text.clone(), Target::Entry(entry.to_owned())));
     }
     state.settings = settings;
     state.map = next;
+    // A default this entry used to shadow (or now shadows) comes back (or goes).
+    reregister_rows(app, &mut state);
     Ok(())
+}
+
+/// Why the settings could not be changed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpdateError {
+    /// A value breaks this rule (`LANGUAGE`, `THEME`, `CLIPBOARD`).
+    Invalid(&'static str),
+    Save,
+}
+
+/// Applies a change from the settings page, saves it, and turns the row shortcuts on or off at once.
+///
+/// # Errors
+///
+/// Returns [`UpdateError`]; nothing changes on failure.
+pub fn update_settings<R: Runtime>(
+    app: &AppHandle<R>,
+    patch: &SettingsPatch,
+) -> Result<Settings, UpdateError> {
+    let hotkeys = app.try_state::<Hotkeys>().ok_or(UpdateError::Save)?;
+    let mut state = hotkeys.state();
+    let next = apply(&state.settings, patch).map_err(UpdateError::Invalid)?;
+    hotkeys.file.save(&next).map_err(|_| UpdateError::Save)?;
+    let rows_changed = next.row_shortcuts_on() != state.settings.row_shortcuts_on();
+    state.settings = next.clone();
+    if rows_changed {
+        state.map = state.map.with_defaults(next.row_shortcuts_on());
+        reregister_rows(app, &mut state);
+    }
+    Ok(next)
+}
+
+/// Unregisters every row default and registers the ones the current map has.
+fn reregister_rows<R: Runtime>(app: &AppHandle<R>, state: &mut HotkeyState) {
+    let rows: Vec<(u32, String)> = state
+        .registered
+        .iter()
+        .filter(|(_, (_, target))| matches!(target, Target::Row(_)))
+        .map(|(id, (text, _))| (*id, text.clone()))
+        .collect();
+    for (id, text) in rows {
+        unregister(app, &text);
+        state.registered.remove(&id);
+    }
+    for (text, target) in state.map.targets() {
+        if matches!(target, Target::Row(_))
+            && let Some(id) = register(app, &text)
+        {
+            state.registered.insert(id, (text, target));
+        }
+    }
 }
 
 /// Who holds a taken shortcut, as the windows word it: `ENTRY:<name>`, `ROW:<n>` or `SEARCH_PANEL`.
@@ -203,9 +267,10 @@ fn pressed<R: Runtime>(app: &AppHandle<R>, id: u32) {
     let Some(hotkeys) = app.try_state::<Hotkeys>() else {
         return;
     };
-    let Some(target) = hotkeys.state().registered.get(&id).cloned() else {
+    let Some((_, target)) = hotkeys.state().registered.get(&id).cloned() else {
         return;
     };
+    let clear_after = hotkeys.settings().clear_after();
     let Some(core) = app.try_state::<AppCore>() else {
         return;
     };
@@ -220,7 +285,7 @@ fn pressed<R: Runtime>(app: &AppHandle<R>, id: u32) {
     };
     // A shortcut for an entry that no longer exists, or before the master password, does nothing.
     if let Some(entry) = entry
-        && copy_entry(&core, &entry).is_err()
+        && copy_entry(&core, &entry, clear_after).is_err()
     {
         tracing::info!("a global shortcut found no code to copy");
     }

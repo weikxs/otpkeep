@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { type AddTab, AddDialog } from "./AddDialog";
-import { CommandFailure, type Entry, type MainApi, type MainState } from "./api";
+import { CommandFailure, type Entry, type MainApi, type MainState, type Settings } from "./api";
 import type { EntryChange } from "./EntryEditor";
 import { ENTRY_DRAG_TYPE, EntryRow } from "./EntryRow";
 import { BatchBar } from "./BatchBar";
+import { SettingsDialog } from "./SettingsDialog";
 import { TrashDialog } from "./TrashDialog";
 import { type MainStrings, describe } from "./i18n";
 
@@ -16,12 +17,14 @@ export interface MainAppProps {
   text: MainStrings;
   isMac: boolean;
   clock?: () => number;
+  /** The settings were changed here: the page follows the theme and language. */
+  onSettingsSaved?: (settings: Settings) => void;
 }
 
 type Dialog = { tab: AddTab; dropped?: Uint8Array } | null;
 
 /** The main window: every account, search, and adding (design/07-platform.md §2.4a). */
-export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
+export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved }: MainAppProps) {
   const [state, setState] = useState<MainState | null>(null);
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
@@ -33,6 +36,7 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
   const [tag, setTag] = useState<string | null>(null);
   const [trashOpen, setTrashOpen] = useState(false);
   const [trashCount, setTrashCount] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [chosen, setChosen] = useState<string[]>([]);
 
@@ -53,6 +57,7 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
     () =>
       api.onPage((page) => {
         if (page === "add" || page === "import") setDialog({ tab: page === "add" ? "paste" : "file" });
+        if (page === "settings") setSettingsOpen(true);
       }),
     [api],
   );
@@ -172,6 +177,9 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
               {text.trashButton(trashCount)}
             </button>
           )}
+          <button type="button" class="secondary" onClick={() => setSettingsOpen(true)}>
+            {text.settings}
+          </button>
           <button type="button" class="secondary" onClick={() => void api.openGate()}>
             {text.manage}
           </button>
@@ -286,6 +294,18 @@ export function MainApp({ api, text, isMac, clock = Date.now }: MainAppProps) {
             void load(query);
           }}
           onClose={() => setDialog(null)}
+        />
+      )}
+      {settingsOpen && (
+        <SettingsDialog
+          api={api}
+          text={text}
+          isMac={isMac}
+          onSaved={(settings) => {
+            setToast(text.saved);
+            onSettingsSaved?.(settings);
+          }}
+          onClose={() => setSettingsOpen(false)}
         />
       )}
       {trashOpen && (

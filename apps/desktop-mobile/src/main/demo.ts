@@ -1,6 +1,7 @@
 import {
   CommandFailure,
   type Entry,
+  type Settings,
   type History,
   type ImportRow,
   type ImportView,
@@ -62,6 +63,14 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
   const staged = new Map<string, { rows: ImportRow[]; accounts: DemoAccount[] }>();
   const copied: string[] = [];
   const history = new Map<string, History>();
+  let settings: Settings = {
+    language: "system",
+    theme: "system",
+    clipboardClearS: 30,
+    rowShortcuts: true,
+    rowShortcutsDefault: true,
+    version: "0.0.1",
+  };
   let tokens = 0;
   const live = () => {
     const kept = accounts.filter((a) => a.trashedAt === undefined);
@@ -159,7 +168,7 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
     state: async (query) => state(query),
     copy: async (id) => {
       copied.push(id);
-      return { clearsInS: 30 };
+      return { clearsInS: settings.clipboardClearS };
     },
     nextHotp: async (id) => {
       generated.set(id, fakeCode(id, generated.size + 7));
@@ -211,6 +220,16 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
           purgeAtMs: (a.trashedAt ?? 0) + TRASH_KEEP_MS,
         })),
     history: async (id) => history.get(id) ?? { title: [], note: [] },
+    settings: async () => settings,
+    setSettings: async (patch) => {
+      const seconds = patch.clipboardClearS;
+      if (seconds !== undefined && seconds !== 0 && (seconds < 10 || seconds > 120)) {
+        throw new CommandFailure("INVALID", "CLIPBOARD");
+      }
+      settings = { ...settings, ...patch };
+      return settings;
+    },
+    onSettings: () => () => {},
     batch: async (ids, action) => {
       let changed = 0;
       if (action.action !== "trash" && action.tag.trim() === "") throw new CommandFailure("INVALID", "TAG_EMPTY");
