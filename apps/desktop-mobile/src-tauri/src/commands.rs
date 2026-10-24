@@ -34,7 +34,7 @@ pub struct CopyResult {
     clears_in_s: u64,
 }
 
-/// An error code the panel can show (`CopyFailed`, `Locked`, …).
+/// An error code the panel can show (`Clipboard`, `NeedsPassword`, …).
 type CommandResult<T> = Result<T, String>;
 
 fn code_of(error: CoreError) -> String {
@@ -64,11 +64,6 @@ pub fn next_hotp(id: &str, vault: State<'_, AppCore>) -> CommandResult<PanelEntr
 pub fn unlock(password: String, vault: State<'_, AppCore>) -> PanelState {
     let password = zeroize::Zeroizing::new(password);
     vault.get().unlock(&password)
-}
-
-#[tauri::command]
-pub fn lock(vault: State<'_, AppCore>) {
-    vault.get().lock();
 }
 
 #[tauri::command]

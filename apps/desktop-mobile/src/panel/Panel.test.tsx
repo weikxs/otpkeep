@@ -129,25 +129,24 @@ describe("Panel", () => {
     expect(screen.getByText("添加账号")).toBeTruthy();
   });
 
-  it("unlocks with the master password and rejects a wrong one", async () => {
-    show(demoApi({ clock: () => STEADY, status: "locked" }));
+  it("has no lock button (ADR-019)", async () => {
+    show(demoApi({ clock: () => STEADY }));
+
+    await screen.findAllByTestId("entry");
+    expect(screen.queryByLabelText("锁定")).toBeNull();
+  });
+
+  it("asks for the master password once and rejects a wrong one", async () => {
+    show(demoApi({ clock: () => STEADY, status: "needsPassword" }));
     const password = await screen.findByLabelText("主口令");
 
     fireEvent.input(password, { target: { value: "nope" } });
-    fireEvent.click(screen.getByText("解锁"));
+    fireEvent.click(screen.getByText("打开"));
     expect(await screen.findByText("主口令不正确")).toBeTruthy();
 
     fireEvent.input(password, { target: { value: "demo" } });
-    fireEvent.click(screen.getByText("解锁"));
+    fireEvent.click(screen.getByText("打开"));
     expect(await screen.findAllByTestId("entry")).toHaveLength(6);
-  });
-
-  it("locks from the search bar", async () => {
-    show(demoApi({ clock: () => STEADY }));
-
-    fireEvent.click(await screen.findByLabelText("锁定"));
-
-    expect(await screen.findByText("OTPKeep 已锁定")).toBeTruthy();
   });
 
   it("sends the person to the main window when the data cannot be opened", async () => {
@@ -191,7 +190,7 @@ describe("Panel", () => {
 
 describe("strings", () => {
   it("falls back to English", () => {
-    expect(strings("en-US").lock).toBe("Lock");
+    expect(strings("en-US").unlock).toBe("Open");
     expect(strings("fr").copiedToast(0)).toBe("Copied");
   });
 });

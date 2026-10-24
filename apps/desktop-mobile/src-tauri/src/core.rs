@@ -55,11 +55,12 @@ pub enum EntryKind {
     Hotp,
 }
 
+/// There is no app lock (ADR-019): a vault protected by a master password asks for it once per run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum PanelStatus {
     Ready,
-    Locked,
+    NeedsPassword,
     Unavailable,
 }
 
@@ -94,8 +95,8 @@ pub struct PanelState {
 /// Why an action on one entry failed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum CoreError {
-    #[error("the data is locked")]
-    Locked,
+    #[error("the master password has not been entered yet")]
+    NeedsPassword,
     #[error("no such entry")]
     NotFound,
     #[error("no code has been generated for this entry yet")]
@@ -127,7 +128,8 @@ enum Vault {
         service: Box<VaultService>,
         read_only: bool,
     },
-    Locked,
+    /// Protected by a master password that has not been entered in this run.
+    NeedsPassword,
     Unavailable(Problem),
 }
 
@@ -156,7 +158,7 @@ impl Core {
             clock,
             lock_wait,
             uses_master_password: false,
-            vault: Vault::Locked,
+            vault: Vault::NeedsPassword,
         };
         core.open();
         core
@@ -173,7 +175,7 @@ impl Core {
             Startup::ReadOnly { open, .. } => self.opened(open, true),
             Startup::NeedsMasterPassword(_) => {
                 self.uses_master_password = true;
-                Vault::Locked
+                Vault::NeedsPassword
             }
             Startup::Stopped(reason) => Vault::Unavailable(problem(reason)),
         };
@@ -200,7 +202,7 @@ impl Core {
                 service.doc().group.is_some(),
                 *read_only,
             ),
-            Vault::Locked => (PanelStatus::Locked, Vec::new(), None, false, false),
+            Vault::NeedsPassword => (PanelStatus::NeedsPassword, Vec::new(), None, false, false),
             Vault::Unavailable(problem) => (
                 PanelStatus::Unavailable,
                 Vec::new(),
@@ -224,7 +226,7 @@ impl Core {
     ///
     /// # Errors
     ///
-    /// Returns [`CoreError`] when the vault is locked, the entry is gone or no code can be given.
+    /// Returns [`CoreError`] when the master password is still needed, the entry is gone or no code can be given.
     pub fn code(&self, id: &str) -> Result<Zeroizing<String>, CoreError> {
         let service = self.service()?;
         let entry = find(service, id)?;
@@ -240,7 +242,7 @@ impl Core {
     pub fn next_hotp(&mut self, id: &str) -> Result<PanelEntry, CoreError> {
         let now_ms = (self.clock)();
         let Vault::Open { service, read_only } = &mut self.vault else {
-            return Err(CoreError::Locked);
+            return Err(CoreError::NeedsPassword);
         };
         if *read_only {
             return Err(CoreError::ReadOnly);
@@ -253,16 +255,9 @@ impl Core {
             .ok_or(CoreError::NotFound)
     }
 
-    /// Unlocks with the master password, or opens again without one. Returns the new state.
+    /// Opens a vault protected by a master password; it then stays open for this run. Returns the new state.
     pub fn unlock(&mut self, password: &str) -> PanelState {
-        if !matches!(self.vault, Vault::Locked) {
-            return self.state("");
-        }
-        if !self.uses_master_password {
-            self.open();
-            return self.state("");
-        }
-        let Some(paths) = &self.paths else {
+        let (Vault::NeedsPassword, Some(paths)) = (&self.vault, &self.paths) else {
             return self.state("");
         };
         match unlock_with_password(paths, password, self.lock_wait) {
@@ -273,17 +268,10 @@ impl Core {
         self.state("")
     }
 
-    /// Closes the vault and forgets its key until the next unlock.
-    pub fn lock(&mut self) {
-        if matches!(self.vault, Vault::Open { .. }) {
-            self.vault = Vault::Locked;
-        }
-    }
-
     fn service(&self) -> Result<&VaultService, CoreError> {
         match &self.vault {
             Vault::Open { service, .. } => Ok(service),
-            _ => Err(CoreError::Locked),
+            _ => Err(CoreError::NeedsPassword),
         }
     }
 }

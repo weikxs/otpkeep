@@ -4,7 +4,6 @@ import type { Problem } from "./api";
 
 const zh = {
   search: "搜索名称、账号、备注或标签",
-  lock: "锁定",
   pinned: "置顶",
   all: "全部",
   results: "搜索结果",
@@ -20,11 +19,10 @@ const zh = {
   addShort: "添加",
   openMain: "打开主窗口",
   settings: "设置",
-  locked: "OTPKeep 已锁定",
+  needsPassword: "输入主口令以打开数据",
   password: "主口令",
-  unlock: "解锁",
+  unlock: "打开",
   wrongPassword: "主口令不正确",
-  systemUnlock: "用系统认证解锁",
   unavailable: "暂时无法打开数据",
   handleInMain: "在主窗口中处理",
   notInGroup: "未加入同步组",
@@ -49,7 +47,6 @@ export type Strings = typeof zh;
 
 const en: Strings = {
   search: "Search names, accounts, notes or tags",
-  lock: "Lock",
   pinned: "Pinned",
   all: "All",
   results: "Results",
@@ -65,11 +62,10 @@ const en: Strings = {
   addShort: "Add",
   openMain: "Open main window",
   settings: "Settings",
-  locked: "OTPKeep is locked",
+  needsPassword: "Enter the master password to open your data",
   password: "Master password",
-  unlock: "Unlock",
+  unlock: "Open",
   wrongPassword: "The master password is not correct",
-  systemUnlock: "Unlock with system authentication",
   unavailable: "The data cannot be opened right now",
   handleInMain: "Handle it in the main window",
   notInGroup: "Not in a sync group",

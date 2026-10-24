@@ -86,9 +86,6 @@ export function demoApi({ clock = Date.now, status = "ready", empty = false }: D
       if (password === "demo") current = "ready";
       return state("");
     },
-    lock: async () => {
-      current = "locked";
-    },
     openMain: async () => {},
     hide: async () => {},
   };

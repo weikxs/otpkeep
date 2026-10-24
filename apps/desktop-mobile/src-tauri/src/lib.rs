@@ -53,7 +53,6 @@ fn builder() -> tauri::Builder<tauri::Wry> {
             commands::copy_code,
             commands::next_hotp,
             commands::unlock,
-            commands::lock,
             commands::open_main,
             commands::hide_panel,
         ])

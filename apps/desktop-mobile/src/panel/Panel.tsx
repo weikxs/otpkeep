@@ -119,12 +119,9 @@ export function Panel({ api, text, isMac, clock = Date.now }: PanelProps) {
             aria-label={text.search}
             onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
           />
-          <button type="button" class="icon-button" title={text.lock} aria-label={text.lock} onClick={() => void api.lock().then(() => load(""))}>
-            <LockIcon />
-          </button>
         </header>
       )}
-      {state.status === "locked" && <Locked state={state} api={api} text={text} onUnlocked={setState} />}
+      {state.status === "needsPassword" && <PasswordPrompt api={api} text={text} onOpened={setState} />}
       {state.status === "unavailable" && (
         <section class="panel-message">
           <p class="message-title">{text.unavailable}</p>
@@ -305,53 +302,44 @@ function Ring({ remaining, period, ending, label }: { remaining: number; period:
   );
 }
 
-function Locked({
-  state,
-  api,
-  text,
-  onUnlocked,
-}: {
-  state: PanelState;
+interface PasswordPromptProps {
   api: PanelApi;
   text: Strings;
-  onUnlocked: (state: PanelState) => void;
-}) {
+  onOpened: (state: PanelState) => void;
+}
+
+/** Asked once per run when the data is protected by a master password. */
+function PasswordPrompt({ api, text, onOpened }: PasswordPromptProps) {
   const [password, setPassword] = useState("");
   const [wrong, setWrong] = useState(false);
   const submit = async (event: Event) => {
     event.preventDefault();
     const next = await api.unlock(password);
     setPassword("");
-    if (next.status === "locked") setWrong(true);
-    else onUnlocked(next);
+    if (next.status === "needsPassword") setWrong(true);
+    else onOpened(next);
   };
   return (
     <section class="panel-message">
-      <LockIcon large />
-      <p class="message-title">{text.locked}</p>
-      {state.usesMasterPassword ? (
-        <form class="unlock" onSubmit={(e) => void submit(e)}>
-          <input
-            type="password"
-            value={password}
-            placeholder={text.password}
-            aria-label={text.password}
-            autoFocus
-            onInput={(e) => {
-              setPassword((e.target as HTMLInputElement).value);
-              setWrong(false);
-            }}
-          />
-          <button type="submit" class="primary">
-            {text.unlock}
-          </button>
-          {wrong && <p class="error">{text.wrongPassword}</p>}
-        </form>
-      ) : (
-        <button type="button" class="primary" onClick={(e) => void submit(e)}>
-          {text.systemUnlock}
+      <KeyIcon />
+      <p class="message-title">{text.needsPassword}</p>
+      <form class="unlock" onSubmit={(e) => void submit(e)}>
+        <input
+          type="password"
+          value={password}
+          placeholder={text.password}
+          aria-label={text.password}
+          autoFocus
+          onInput={(e) => {
+            setPassword((e.target as HTMLInputElement).value);
+            setWrong(false);
+          }}
+        />
+        <button type="submit" class="primary">
+          {text.unlock}
         </button>
-      )}
+        {wrong && <p class="error">{text.wrongPassword}</p>}
+      </form>
     </section>
   );
 }
@@ -365,11 +353,11 @@ function SearchIcon() {
   );
 }
 
-function LockIcon({ large = false }: { large?: boolean }) {
+function KeyIcon() {
   return (
-    <svg class={large ? "icon icon-large" : "icon"} viewBox="0 0 16 16" aria-hidden="true">
-      <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" />
-      <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+    <svg class="icon icon-large" viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="5.5" cy="8" r="2.5" />
+      <path d="M8 8h6M12 8v2M14 8v1.5" />
     </svg>
   );
 }

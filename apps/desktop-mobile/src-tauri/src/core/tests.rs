@@ -236,11 +236,11 @@ fn starts_empty_without_creating_anything() {
 fn unlocks_with_the_master_password() {
     let dir = temp_dir();
     let mut app = password_core(dir.path());
-    assert_eq!(app.state("").status, PanelStatus::Locked);
+    assert_eq!(app.state("").status, PanelStatus::NeedsPassword);
     assert!(app.state("").uses_master_password);
-    assert_eq!(app.code("x"), Err(CoreError::Locked));
+    assert_eq!(app.code("x"), Err(CoreError::NeedsPassword));
 
-    assert_eq!(app.unlock("wrong").status, PanelStatus::Locked);
+    assert_eq!(app.unlock("wrong").status, PanelStatus::NeedsPassword);
     let state = app.unlock(PASSWORD);
 
     assert_eq!(state.status, PanelStatus::Ready);
@@ -248,26 +248,15 @@ fn unlocks_with_the_master_password() {
 }
 
 #[test]
-fn locks_and_opens_again() {
+fn stays_open_after_the_password_and_ignores_more_unlocks() {
     let dir = temp_dir();
     let mut app = password_core(dir.path());
     app.unlock(PASSWORD);
 
-    app.lock();
+    let state = app.unlock("wrong");
 
-    assert_eq!(app.state("").status, PanelStatus::Locked);
-    assert_eq!(app.unlock(PASSWORD).status, PanelStatus::Ready);
-}
-
-#[test]
-fn locking_a_keystore_vault_opens_it_again_without_a_password() {
-    let dir = temp_dir();
-    let mut app = keystore_core(dir.path(), STEADY_MS);
-
-    app.lock();
-    assert_eq!(app.state("").status, PanelStatus::Locked);
-
-    assert_eq!(app.unlock("").status, PanelStatus::Ready);
+    assert_eq!(state.status, PanelStatus::Ready);
+    assert_eq!(state.entries.len(), 3);
 }
 
 #[test]

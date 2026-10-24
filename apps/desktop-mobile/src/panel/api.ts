@@ -24,7 +24,8 @@ export interface PanelEntry {
   shortcut?: number;
 }
 
-export type PanelStatus = "ready" | "locked" | "unavailable";
+/** There is no app lock (ADR-019): a master password is asked for once per run. */
+export type PanelStatus = "ready" | "needsPassword" | "unavailable";
 
 export type Problem =
   | "DATA_MISSING"
@@ -41,7 +42,7 @@ export interface PanelState {
   entries: PanelEntry[];
   /** The core's clock when the state was made, to align countdowns. */
   nowMs: number;
-  /** The vault needs a master password to unlock (otherwise system authentication). */
+  /** The vault is protected by a master password (otherwise by the system keychain). */
   usesMasterPassword: boolean;
   /** Why the vault cannot be opened, when unavailable. */
   problem?: Problem;
@@ -61,7 +62,6 @@ export interface PanelApi {
   copy(id: string): Promise<CopyResult>;
   nextHotp(id: string): Promise<PanelEntry>;
   unlock(password: string): Promise<PanelState>;
-  lock(): Promise<void>;
   openMain(page?: "add" | "import" | "settings"): Promise<void>;
   hide(): Promise<void>;
 }
@@ -74,7 +74,6 @@ export async function tauriApi(): Promise<PanelApi> {
     copy: (id) => invoke<CopyResult>("copy_code", { id }),
     nextHotp: (id) => invoke<PanelEntry>("next_hotp", { id }),
     unlock: (password) => invoke<PanelState>("unlock", { password }),
-    lock: () => invoke<void>("lock"),
     openMain: (page) => invoke<void>("open_main", { page: page ?? null }),
     hide: () => invoke<void>("hide_panel"),
   };

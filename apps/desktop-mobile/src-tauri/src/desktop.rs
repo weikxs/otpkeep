@@ -8,7 +8,6 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, Rect, WebviewWindow, WindowEvent};
 
-use crate::commands::AppCore;
 use crate::icon;
 
 /// The quick panel's window label (tauri.conf.json).
@@ -37,10 +36,9 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "打开主窗口", true, None::<&str>)?;
     let sync = MenuItem::with_id(app, "sync", "同步…", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "设置…", true, None::<&str>)?;
-    let lock = MenuItem::with_id(app, "lock", "锁定", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出 OTPKeep", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&open, &sync, &settings, &lock, &separator, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &sync, &settings, &separator, &quit])?;
 
     TrayIconBuilder::with_id("otpkeep")
         .icon(Image::new_owned(
@@ -56,7 +54,6 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             "open" => show_main(app, None),
             "sync" => show_main(app, Some("sync")),
             "settings" => show_main(app, Some("settings")),
-            "lock" => lock_vault(app),
             "quit" => app.exit(0),
             _ => {}
         })
@@ -166,14 +163,4 @@ pub fn show_main(app: &AppHandle, page: Option<&str>) {
     if let Some(page) = page {
         let _ = main.emit("open-page", page);
     }
-}
-
-fn lock_vault(app: &AppHandle) {
-    if let Some(core) = app.try_state::<AppCore>() {
-        core.0
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .lock();
-    }
-    let _ = app.emit("locked", ());
 }
