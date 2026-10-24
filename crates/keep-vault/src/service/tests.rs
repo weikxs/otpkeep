@@ -445,3 +445,79 @@ fn refuses_documents_not_derived_from_the_current_one() {
         Some(ServiceError::NotDerived)
     );
 }
+
+#[test]
+fn a_synced_state_replaces_the_vault_and_keeps_what_it_overwrote_in_the_history() {
+    let clock = TestClock::at(MINUTE_MS);
+    let (dir, keystore, mut service) = service(&clock);
+    let kept = service
+        .add(new_entry("Old name", 1, CodeSpec::default()))
+        .unwrap();
+    let dropped = service
+        .add(new_entry("Deleted elsewhere", 2, CodeSpec::default()))
+        .unwrap();
+    let mut synced = service.doc().clone();
+    synced.entries.retain(|e| e.id != dropped);
+    synced.entries[0].title.value = "New name".to_owned();
+    synced.clock.wall_ms += 1;
+
+    service
+        .commit_synced(
+            synced,
+            &[(kept, HistoryField::Title, "Old name".to_owned())],
+        )
+        .unwrap();
+    let service = reopen(&dir, &keystore, service, &clock);
+
+    assert!(service.entry(dropped).is_none());
+    assert_eq!(service.entry(kept).unwrap().title.value, "New name");
+    let history = service.history(kept, HistoryField::Title);
+    assert_eq!(history.first().map(|v| v.value.as_str()), Some("Old name"));
+}
+
+#[test]
+fn a_synced_state_from_another_vault_or_the_past_is_refused() {
+    let clock = TestClock::at(MINUTE_MS);
+    let (_dir, _keystore, mut service) = service(&clock);
+    service.add(new_entry("A", 1, CodeSpec::default())).unwrap();
+    let mut other = service.doc().clone();
+    other.vault_id = [9; 16];
+    let mut older = service.doc().clone();
+    older.clock.wall_ms -= 1;
+
+    assert!(matches!(
+        service.commit_synced(other, &[]),
+        Err(ServiceError::NotDerived)
+    ));
+    assert!(matches!(
+        service.commit_synced(older, &[]),
+        Err(ServiceError::NotDerived)
+    ));
+}
+
+#[test]
+fn a_backup_before_pairing_is_written_encrypted_in_the_backups_folder() {
+    let clock = TestClock::at(MINUTE_MS);
+    let (dir, _keystore, mut service) = service(&clock);
+    service
+        .add(new_entry("Before pairing", 1, CodeSpec::default()))
+        .unwrap();
+
+    let path = service.backup_before_pairing().unwrap();
+
+    assert!(path.starts_with(dir.path().join("backups")));
+    let bytes = fs::read(&path).unwrap();
+    assert!(bytes.starts_with(b"OKV\0"));
+    assert!(
+        !bytes.windows(14).any(|w| w == b"Before pairing"),
+        "the backup is encrypted"
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+    }
+}

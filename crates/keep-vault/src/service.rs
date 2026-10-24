@@ -252,6 +252,56 @@ impl VaultService {
         self.commit(doc)
     }
 
+    /// Saves the state a sync or pairing computed from the current one, which may also delete entries; names and
+    /// notes it replaced go into this device's history (design/06-sync.md §6.2). It must be the same vault, with
+    /// a clock not behind the current one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ServiceError::NotDerived`] for another vault or an older state; nothing changes.
+    pub fn commit_synced(
+        &mut self,
+        doc: VaultDoc,
+        overwritten: &[(EntryId, HistoryField, String)],
+    ) -> Result<(), ServiceError> {
+        let current = self.doc();
+        if doc.vault_id != current.vault_id || doc.clock < current.clock {
+            return Err(ServiceError::NotDerived);
+        }
+        self.commit(doc)?;
+        let now = self.now();
+        let local = overwritten
+            .iter()
+            .fold(self.local.clone(), |local, (id, field, old)| {
+                local.record(*id, *field, old, now)
+            });
+        if local != self.local {
+            // The sync is saved; losing the history entry must not undo it.
+            let _ = self.save_local(local);
+        }
+        Ok(())
+    }
+
+    /// Writes the current vault, encrypted with this vault's key, to `backups/` before pairing replaces the
+    /// local entries (design/06-sync.md §4.2). Returns its path.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ServiceError::Save`] when it cannot be written.
+    pub fn backup_before_pairing(&self) -> Result<std::path::PathBuf, ServiceError> {
+        let sealed = self
+            .open
+            .seal_copy()
+            .map_err(|_| ServiceError::Save(SaveError::Seal))?;
+        let path = self
+            .open
+            .paths()
+            .backups()
+            .join(format!("pre-pairing-{}.okv", self.now()));
+        write_private(&path, &sealed).map_err(|_| ServiceError::Save(SaveError::Io))?;
+        Ok(path)
+    }
+
     /// The current passcode. TOTP codes follow the clock; an HOTP entry returns the code last generated with
     /// [`VaultService::next_hotp`] in this session, without changing the counter.
     ///

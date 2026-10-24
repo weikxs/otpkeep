@@ -113,6 +113,11 @@ impl OpenVault {
         seal(&header, &self.key, plaintext)
     }
 
+    /// The current vault sealed again with this vault's key, for a backup copy.
+    pub(crate) fn seal_copy(&self) -> Result<Vec<u8>, crate::sealed::SealError> {
+        seal(&self.header, &self.key, &encode_vault(&self.doc))
+    }
+
     /// Opens `local.okv` with this vault's key.
     pub(crate) fn open_local(&self, bytes: &[u8]) -> Option<Zeroizing<Vec<u8>>> {
         match open(bytes, &self.key) {
