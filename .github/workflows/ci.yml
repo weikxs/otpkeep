@@ -54,7 +54,7 @@ jobs:
             export TMPDIR=/tmp/otpkeep-test/
             mkdir -p "$TMPDIR"
           fi
-          cargo test --workspace
+          cargo test --workspace --no-fail-fast
 
   coverage:
     runs-on: ubuntu-latest

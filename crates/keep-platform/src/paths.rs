@@ -1,6 +1,6 @@
 //! Where each desktop platform keeps OTPKeep's data (design/02-data.md §3.1).
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Environment variable that points OTPKeep at another data directory (tests use one under `/tmp`).
 pub const DATA_DIR_OVERRIDE: &str = "OTPKEEP_DATA_DIR";
@@ -36,6 +36,22 @@ pub fn data_dir() -> Option<PathBuf> {
     data_dir_for(Os::current(), |name| std::env::var(name).ok())
 }
 
+/// Whether `path` is absolute by `os`'s rules, whichever system runs this (so every system can be tested
+/// anywhere): `/…` on macOS and Linux; a drive (`C:\…`) or a network path (`\\server\…`) on Windows.
+fn is_absolute_on(os: Os, path: &str) -> bool {
+    match os {
+        Os::MacOs | Os::Linux => path.starts_with('/'),
+        Os::Windows => {
+            let bytes = path.as_bytes();
+            let drive = bytes.len() >= 3
+                && bytes[0].is_ascii_alphabetic()
+                && bytes[1] == b':'
+                && matches!(bytes[2], b'\\' | b'/');
+            drive || path.starts_with(r"\\")
+        }
+    }
+}
+
 /// The data directory on `os`, reading the environment through `var`.
 ///
 /// Windows uses the local, not the roaming, application data: the data key does not roam with the profile, so
@@ -43,7 +59,7 @@ pub fn data_dir() -> Option<PathBuf> {
 pub fn data_dir_for(os: Os, var: impl Fn(&str) -> Option<String>) -> Option<PathBuf> {
     let absolute = |name: &str| {
         var(name)
-            .filter(|v| Path::new(v).is_absolute())
+            .filter(|v| is_absolute_on(os, v))
             .map(PathBuf::from)
     };
     if let Some(dir) = absolute(DATA_DIR_OVERRIDE) {
