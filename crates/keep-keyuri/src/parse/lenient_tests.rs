@@ -176,3 +176,24 @@ fn another_kind_of_link_is_still_a_wrong_scheme() {
         KeyUriFault::WrongScheme { .. }
     ));
 }
+
+#[test]
+fn reads_a_typed_secret_the_same_way() {
+    for typed in [
+        "JBSWY3DPEHPK3PXP",
+        "jbsw y3dp ehpk 3pxp",
+        "ＪＢＳＷ-Ｙ３ＤＰ-ＥＨＰＫ-３ＰＸＰ",
+        "JBSWY3DPEHPK3PXP====",
+    ] {
+        assert_eq!(
+            crate::parse_secret(typed).unwrap().expose(),
+            b"Hello!\xDE\xAD\xBE\xEF",
+            "{typed}"
+        );
+    }
+    assert_eq!(crate::parse_secret("  "), Err(KeyUriFault::SecretMissing));
+    assert_eq!(
+        crate::parse_secret("JBSW0"),
+        Err(KeyUriFault::SecretInvalid { at: 4, found: '0' })
+    );
+}

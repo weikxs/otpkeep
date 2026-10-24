@@ -9,7 +9,7 @@ mod sheet;
 mod write;
 
 pub use fault::{KeyUriFault, KeyUriNote};
-pub use parse::{ParsedKeyUri, parse_key_uri};
+pub use parse::{ParsedKeyUri, parse_key_uri, parse_secret};
 pub use sheet::{
     SheetEntry, SheetItem, SheetProblem, SheetProblemKind, SheetRead, read_sheet, write_sheet,
 };

@@ -143,5 +143,27 @@ pub struct VaultDoc {
     pub extra: Extra,
 }
 
+impl VaultDoc {
+    /// A document with no entries and no identity, to preview an import against before any vault exists. It
+    /// is never saved: a real vault gets its own random ids when it is created.
+    #[must_use]
+    pub fn blank() -> Self {
+        Self {
+            vault_id: [0; 16],
+            entries: Vec::new(),
+            tombstones: Vec::new(),
+            group: None,
+            device: None,
+            clock: Hlc {
+                wall_ms: 0,
+                logical: 0,
+                device: DeviceTag([0; 8]),
+            },
+            device_tag: DeviceTag([0; 8]),
+            extra: Extra::new(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests;

@@ -16,6 +16,14 @@ use keep_vault::{Entry, EntryId};
 use serde::Serialize;
 use zeroize::Zeroizing;
 
+use crate::staging::Staging;
+
+mod import;
+mod import_view;
+
+pub use import::{ImportProblem, ManualForm};
+pub use import_view::ImportView;
+
 /// The panel lists at most this many entries without a search (design/12 §3).
 pub const PANEL_LIMIT: usize = 20;
 /// Entries found by a search, at most.
@@ -122,6 +130,12 @@ pub enum CoreError {
     /// A field is not acceptable; the code says which rule (`TITLE_EMPTY`, `TITLE_TOO_LONG`, `NOTE_TOO_LONG`).
     #[error("the value is not acceptable: {0}")]
     Invalid(&'static str),
+    /// The typed secret has a character that is not Base32 at this position (from 0).
+    #[error("the secret has '{found}' at position {at}")]
+    SecretInvalid { at: usize, found: char },
+    /// An import could not be staged or committed.
+    #[error("the import could not go on: {0:?}")]
+    Import(ImportProblem),
 }
 
 impl From<ServiceError> for CoreError {
@@ -159,6 +173,7 @@ pub struct Core {
     lock_wait: Duration,
     uses_master_password: bool,
     vault: Vault,
+    staging: Staging,
 }
 
 impl Core {
@@ -177,6 +192,7 @@ impl Core {
             lock_wait,
             uses_master_password: false,
             vault: Vault::NeedsPassword,
+            staging: Staging::default(),
         };
         core.open();
         core

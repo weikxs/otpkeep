@@ -136,7 +136,11 @@ fn gate_error(error: CoreError) -> GateError {
         CoreError::NotFound => GateError::NotFound,
         CoreError::ReadOnly => GateError::ReadOnly,
         CoreError::Invalid(code) => GateError::Invalid(code),
-        CoreError::NoCodeYet | CoreError::Passcode | CoreError::Save => GateError::Save,
+        CoreError::NoCodeYet
+        | CoreError::Passcode
+        | CoreError::Save
+        | CoreError::SecretInvalid { .. }
+        | CoreError::Import(_) => GateError::Save,
     }
 }
 

@@ -15,9 +15,13 @@ mod hotkeys;
 #[cfg(desktop)]
 mod icon;
 #[cfg(desktop)]
+mod import_commands;
+#[cfg(desktop)]
 mod settings;
 #[cfg(desktop)]
 mod shortcuts;
+#[cfg(desktop)]
+mod staging;
 
 /// Starts the app and blocks until it exits.
 ///
@@ -68,6 +72,12 @@ fn builder() -> tauri::Builder<tauri::Wry> {
             commands::unlock,
             commands::open_main,
             commands::open_gate,
+            import_commands::stage_text,
+            import_commands::stage_file,
+            import_commands::stage_manual,
+            import_commands::staged_view,
+            import_commands::commit_import,
+            import_commands::cancel_import,
             commands::hide_panel,
         ])
         .setup(|app| {

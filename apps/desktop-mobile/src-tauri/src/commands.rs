@@ -13,7 +13,7 @@ use serde::Serialize;
 use tauri::{AppHandle, State, WebviewWindow};
 
 use crate::clipboard::{CLEAR_AFTER, copy_then_clear};
-use crate::core::{Core, CoreError, PanelEntry, PanelState};
+use crate::core::{Core, CoreError, ImportProblem, PanelEntry, PanelState};
 use crate::desktop;
 use crate::hotkeys::Hotkeys;
 use crate::shortcuts::ShortcutMap;
@@ -37,12 +37,61 @@ pub struct CopyResult {
     clears_in_s: u64,
 }
 
-/// An error code the panel can show (`Clipboard`, `NeedsPassword`, …).
-type CommandResult<T> = Result<T, String>;
-
-fn code_of(error: CoreError) -> String {
-    format!("{error:?}")
+/// What a command reports when it fails: a code the window words, and sometimes a detail (a rule, a
+/// position). Never a secret.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CommandError {
+    code: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    detail: Option<String>,
 }
+
+impl CommandError {
+    pub(crate) const fn code(code: &'static str) -> Self {
+        Self { code, detail: None }
+    }
+
+    fn with(code: &'static str, detail: String) -> Self {
+        Self {
+            code,
+            detail: Some(detail),
+        }
+    }
+}
+
+impl From<CoreError> for CommandError {
+    fn from(error: CoreError) -> Self {
+        match error {
+            CoreError::NeedsPassword => Self::code("NEEDS_PASSWORD"),
+            CoreError::NotFound => Self::code("NOT_FOUND"),
+            CoreError::NoCodeYet => Self::code("NO_CODE_YET"),
+            CoreError::Passcode => Self::code("PASSCODE"),
+            CoreError::ReadOnly => Self::code("READ_ONLY"),
+            CoreError::Save => Self::code("SAVE_FAILED"),
+            CoreError::Invalid(rule) => Self::with("INVALID", rule.to_owned()),
+            CoreError::SecretInvalid { at, found } => {
+                Self::with("SECRET_INVALID", format!("{}:{found}", at + 1))
+            }
+            CoreError::Import(problem) => Self::code(import_code(problem)),
+        }
+    }
+}
+
+const fn import_code(problem: ImportProblem) -> &'static str {
+    match problem {
+        ImportProblem::NeedsBackupPassword => "BACKUP_PASSWORD_NEEDED",
+        ImportProblem::WrongBackupPassword => "BACKUP_PASSWORD_WRONG",
+        ImportProblem::BackupDamaged => "BACKUP_DAMAGED",
+        ImportProblem::BackupNewer => "BACKUP_NEWER",
+        ImportProblem::ImageTooLarge => "IMAGE_TOO_LARGE",
+        ImportProblem::UnknownFormat => "UNKNOWN_FORMAT",
+        ImportProblem::NotStaged => "IMPORT_GONE",
+        ImportProblem::Changed => "IMPORT_CHANGED",
+        ImportProblem::NoKeystore => "NO_KEYSTORE",
+    }
+}
+
+type CommandResult<T> = Result<T, CommandError>;
 
 #[tauri::command]
 pub fn panel_state(
@@ -93,8 +142,8 @@ pub fn copy_code(id: &str, vault: State<'_, AppCore>) -> CommandResult<CopyResul
 
 /// Copies an entry's current code; it is cleared from the clipboard later.
 pub(crate) fn copy_entry(vault: &AppCore, id: &str) -> CommandResult<CopyResult> {
-    let code = vault.get().code(id).map_err(code_of)?;
-    copy_then_clear(code, CLEAR_AFTER).map_err(|_| "Clipboard".to_owned())?;
+    let code = vault.get().code(id).map_err(CommandError::from)?;
+    copy_then_clear(code, CLEAR_AFTER).map_err(|_| CommandError::code("CLIPBOARD"))?;
     Ok(CopyResult {
         clears_in_s: CLEAR_AFTER.as_secs(),
     })
@@ -102,7 +151,7 @@ pub(crate) fn copy_entry(vault: &AppCore, id: &str) -> CommandResult<CopyResult>
 
 #[tauri::command]
 pub fn next_hotp(id: &str, vault: State<'_, AppCore>) -> CommandResult<PanelEntry> {
-    vault.get().next_hotp(id).map_err(code_of)
+    vault.get().next_hotp(id).map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -124,4 +173,34 @@ pub fn open_gate(app: AppHandle) {
 #[tauri::command]
 pub fn hide_panel(window: WebviewWindow) {
     let _ = window.hide();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CommandError;
+    use crate::core::{CoreError, ImportProblem};
+
+    fn json(error: CoreError) -> String {
+        serde_json::to_string(&CommandError::from(error)).unwrap()
+    }
+
+    #[test]
+    fn errors_reach_the_window_as_codes_with_a_detail_where_useful() {
+        assert_eq!(
+            json(CoreError::NeedsPassword),
+            r#"{"code":"NEEDS_PASSWORD"}"#
+        );
+        assert_eq!(
+            json(CoreError::Invalid("DIGITS")),
+            r#"{"code":"INVALID","detail":"DIGITS"}"#
+        );
+        assert_eq!(
+            json(CoreError::SecretInvalid { at: 4, found: '0' }),
+            r#"{"code":"SECRET_INVALID","detail":"5:0"}"#
+        );
+        assert_eq!(
+            json(CoreError::Import(ImportProblem::NeedsBackupPassword)),
+            r#"{"code":"BACKUP_PASSWORD_NEEDED"}"#
+        );
+    }
 }

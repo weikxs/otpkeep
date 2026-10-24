@@ -114,6 +114,17 @@ fn choose_issuer(param: Option<&str>, in_label: String, notes: &mut Vec<KeyUriNo
     }
 }
 
+/// Reads a secret as people type it into a form: Base32 in any case, with spaces or dashes, with or without
+/// padding, full-width characters from a Chinese input method, invisible characters from copying.
+///
+/// # Errors
+///
+/// Returns [`KeyUriFault::SecretMissing`] for an empty text and [`KeyUriFault::SecretInvalid`] with the
+/// position of the first character that is not Base32.
+pub fn parse_secret(text: &str) -> Result<SecretKey, KeyUriFault> {
+    read_secret(Some(&without_invisible(text)))
+}
+
 fn read_secret(value: Option<&str>) -> Result<SecretKey, KeyUriFault> {
     let folded = fold_width(value.ok_or(KeyUriFault::SecretMissing)?);
     let bytes = base32::decode(&folded).map_err(|fault| match fault {
