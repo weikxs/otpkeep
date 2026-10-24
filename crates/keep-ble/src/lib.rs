@@ -13,6 +13,7 @@ use keep_sync::lan::announce::{Announcement, FoundWindow};
 use keep_sync::transport::Incoming;
 use tokio::sync::mpsc;
 
+pub mod gatt;
 #[cfg(target_os = "macos")]
 mod macos;
 
