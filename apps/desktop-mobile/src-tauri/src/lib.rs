@@ -9,6 +9,8 @@ mod core;
 #[cfg(desktop)]
 mod desktop;
 #[cfg(desktop)]
+mod export_commands;
+#[cfg(desktop)]
 mod gate;
 #[cfg(desktop)]
 mod hotkeys;
@@ -70,6 +72,7 @@ fn builder() -> tauri::Builder<tauri::Wry> {
     );
     tauri::Builder::default()
         .plugin(hotkeys::plugin())
+        .plugin(tauri_plugin_dialog::init())
         .manage(commands::AppCore(Mutex::new(core)))
         .manage(hotkeys)
         .manage(gate::GateServer::default())
@@ -104,6 +107,9 @@ fn builder() -> tauri::Builder<tauri::Wry> {
             key_commands::set_shortcut,
             settings_commands::get_settings,
             settings_commands::set_settings,
+            export_commands::export_file,
+            export_commands::export_google,
+            export_commands::entry_qr,
             commands::hide_panel,
         ])
         .setup(|app| {

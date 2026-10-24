@@ -128,6 +128,30 @@ export interface Settings {
 
 export type SettingsPatch = Partial<Pick<Settings, "language" | "theme" | "clipboardClearS" | "rowShortcuts">>;
 
+export type ExportFormat = "backup" | "links" | "goldenPassport";
+
+export interface LeftOut {
+  title: string;
+  /** `STEAM`, `HOTP`, `ALGORITHM`, `DIGITS`, `PERIOD` or `MD5`. */
+  reason: string;
+}
+
+export interface ExportDone {
+  count: number;
+  leftOut: LeftOut[];
+  fileName: string;
+}
+
+export interface QrImage {
+  svg: string;
+}
+
+export interface GoogleExport {
+  codes: QrImage[];
+  separate: { title: string; reason: string; svg: string }[];
+  checkAfter: string[];
+}
+
 export interface MainApi {
   state(query: string): Promise<MainState>;
   copy(id: string): Promise<CopyResult>;
@@ -142,6 +166,10 @@ export interface MainApi {
   purge(id: string): Promise<void>;
   trashList(): Promise<TrashItem[]>;
   history(id: string): Promise<History>;
+  /** Saves a file where the person chooses; plaintext ones are confirmed natively first. */
+  exportFile(format: ExportFormat, ids: string[] | null, password?: string): Promise<ExportDone>;
+  exportGoogle(ids: string[] | null): Promise<GoogleExport>;
+  entryQr(id: string): Promise<QrImage>;
   settings(): Promise<Settings>;
   setSettings(patch: SettingsPatch): Promise<Settings>;
   /** Calls `listener` when the settings changed (here or in another window). */
@@ -205,6 +233,9 @@ export async function tauriMainApi(): Promise<MainApi> {
     purge: (id) => call("purge_entry", { id }),
     trashList: () => call("trash_list"),
     history: (id) => call("entry_history", { id }),
+    exportFile: (format, ids, password) => call("export_file", { format, ids, password: password ?? null }),
+    exportGoogle: (ids) => call("export_google", { ids }),
+    entryQr: (id) => call("entry_qr", { id }),
     settings: () => call("get_settings"),
     setSettings: (patch) => call("set_settings", { patch }),
     onSettings: (listener) => subscribe<Settings>("settings-changed", listener),

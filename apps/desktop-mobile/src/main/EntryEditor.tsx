@@ -18,7 +18,7 @@ export interface EntryEditorProps {
   entry: Entry;
   text: MainStrings;
   isMac: boolean;
-  keyApi: Pick<MainApi, "keyInfo" | "previewKey" | "replaceKey" | "setShortcut">;
+  keyApi: Pick<MainApi, "keyInfo" | "previewKey" | "replaceKey" | "setShortcut" | "entryQr">;
   onChanged: (message: string) => void;
   /** The entries just above and below, for moving one place. */
   previous: string | undefined;

@@ -1,14 +1,15 @@
 import { useEffect, useState } from "preact/hooks";
 import { groupCode } from "../panel/format";
 import { ShortcutField } from "../shared/ShortcutField";
-import { CommandFailure, type Entry, type KeyForm, type KeyInfo, type MainApi } from "./api";
+import { CommandFailure, type Entry, type KeyForm, type KeyInfo, type MainApi, type QrImage } from "./api";
+import { SingleQr } from "./QrDialogs";
 import { type MainStrings, describe } from "./i18n";
 
 export interface AdvancedSectionProps {
   entry: Entry;
   text: MainStrings;
   isMac: boolean;
-  api: Pick<MainApi, "keyInfo" | "previewKey" | "replaceKey" | "setShortcut">;
+  api: Pick<MainApi, "keyInfo" | "previewKey" | "replaceKey" | "setShortcut" | "entryQr">;
   onChanged: (message: string) => void;
 }
 
@@ -17,8 +18,18 @@ export function AdvancedSection({ entry, text, isMac, api, onChanged }: Advanced
   const [info, setInfo] = useState<KeyInfo | null>(null);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [qr, setQr] = useState<QrImage | null>(null);
 
   useEffect(() => void api.keyInfo(entry.id).then(setInfo), [api, entry.id]);
+
+  const showQr = async () => {
+    try {
+      setQr(await api.entryQr(entry.id));
+    } catch (thrown) {
+      // Saying no to the native question is not an error.
+      if (!(thrown instanceof CommandFailure && thrown.code === "CANCELLED")) setError(explain(thrown));
+    }
+  };
 
   const explain = (thrown: unknown) => {
     const failure = thrown instanceof CommandFailure ? thrown : new CommandFailure("UNKNOWN");
@@ -58,6 +69,9 @@ export function AdvancedSection({ entry, text, isMac, api, onChanged }: Advanced
           </span>
         )}
         {info?.shortSecret && <span class="preview-note">{text.shortSecret}</span>}
+        <button type="button" class="link-button align-start" onClick={() => void showQr()}>
+          {text.showQr}
+        </button>
         {info && editing && (
           <KeyEditor
             info={info}
@@ -78,6 +92,7 @@ export function AdvancedSection({ entry, text, isMac, api, onChanged }: Advanced
           {error}
         </p>
       )}
+      {qr && <SingleQr qr={qr} title={entry.title} text={text} onClose={() => setQr(null)} />}
     </div>
   );
 }

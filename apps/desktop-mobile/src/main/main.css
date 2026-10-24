@@ -924,3 +924,107 @@ textarea {
   height: 18px;
   accent-color: var(--accent);
 }
+
+/* Export */
+.export-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.formats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.format {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.format.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.format input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.format-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.format-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.skipped-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.qr-dialog {
+  align-items: center;
+  text-align: center;
+}
+
+.qr-dialog .dialog-header {
+  align-self: stretch;
+}
+
+.qr {
+  width: min(320px, 70vw);
+  height: auto;
+  padding: 12px;
+  border-radius: 12px;
+  background: #ffffff;
+  image-rendering: pixelated;
+}
+
+.small-qr {
+  width: 160px;
+}
+
+.qr-steps {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.separate {
+  align-self: stretch;
+  text-align: left;
+}
+
+.separate ul {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.separate li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.align-start { align-self: flex-start; }

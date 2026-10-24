@@ -13,6 +13,9 @@ import {
 /** Made-up accounts and a pretend import, for the browser preview and tests. Codes come from the clock. */
 
 const BASE32 = /^[A-Z2-7]+$/u;
+/** A stand-in picture: the preview has no secrets to draw. */
+const DEMO_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21"><rect width="21" height="21" fill="#fff"/><path d="M1 1h7v7H1zM13 1h7v7h-7zM1 13h7v7H1zM10 10h3v3h-3z" fill="#000"/></svg>';
 const PERIOD_MS = 30_000;
 const NEXT_WINDOW_MS = 5_000;
 const TRASH_KEEP_MS = 30 * 24 * 60 * 60 * 1000;
@@ -220,6 +223,22 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
           purgeAtMs: (a.trashedAt ?? 0) + TRASH_KEEP_MS,
         })),
     history: async (id) => history.get(id) ?? { title: [], note: [] },
+    exportFile: async (format, ids, password) => {
+      if (format === "backup" && !password) throw new CommandFailure("INVALID", "BACKUP_PASSWORD_EMPTY");
+      const chosen = live().filter((a) => ids === null || ids.includes(a.id));
+      const leftOut = format === "goldenPassport" ? chosen.filter((a) => a.kind !== "totp").map((a) => ({ title: a.title, reason: a.kind === "steam" ? "STEAM" : "HOTP" })) : [];
+      const name = format === "backup" ? "otpkeep-backup.otpkeep" : format === "links" ? "otpkeep-links.txt" : "goldenpassport.secrets";
+      return { count: chosen.length - leftOut.length, leftOut, fileName: name };
+    },
+    exportGoogle: async (ids) => {
+      const chosen = live().filter((a) => ids === null || ids.includes(a.id));
+      return {
+        codes: [{ svg: DEMO_SVG }, { svg: DEMO_SVG }].slice(0, Math.max(1, Math.ceil(chosen.length / 3))),
+        separate: chosen.filter((a) => a.kind === "steam").map((a) => ({ title: a.title, reason: "STEAM", svg: DEMO_SVG })),
+        checkAfter: [],
+      };
+    },
+    entryQr: async () => ({ svg: DEMO_SVG }),
     settings: async () => settings,
     setSettings: async (patch) => {
       const seconds = patch.clipboardClearS;

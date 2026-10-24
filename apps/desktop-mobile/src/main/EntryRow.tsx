@@ -24,7 +24,7 @@ export interface EntryRowProps {
   sortable: boolean;
   onCopy: (entry: Entry) => void;
   onSave: (change: EntryChange) => Promise<void>;
-  keyApi: Pick<MainApi, "keyInfo" | "previewKey" | "replaceKey" | "setShortcut">;
+  keyApi: Pick<MainApi, "keyInfo" | "previewKey" | "replaceKey" | "setShortcut" | "entryQr">;
   onChanged: (message: string) => void;
   onMove: (to: MoveTo) => Promise<void>;
   onTrash: () => Promise<void>;

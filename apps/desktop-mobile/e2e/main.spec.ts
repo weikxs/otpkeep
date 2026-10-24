@@ -125,3 +125,16 @@ test("the settings switch the theme for the whole window", async ({ page }) => {
   expect(background).toBe("rgb(22, 23, 26)");
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/main-settings.png` });
 });
+
+test("the export dialog offers the formats and shows Google codes", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 760 });
+  await page.goto("/index.html");
+
+  await page.getByRole("button", { name: "导出", exact: true }).click();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/main-export.png` });
+  await page.getByText("Google 验证器转移码").click();
+  await page.getByText("显示二维码…").click();
+
+  await expect(page.getByText("第 1 / 2 张")).toBeVisible();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/main-google.png` });
+});

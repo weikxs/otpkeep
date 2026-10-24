@@ -4,6 +4,7 @@ import { CommandFailure, type Entry, type MainApi, type MainState, type Settings
 import type { EntryChange } from "./EntryEditor";
 import { ENTRY_DRAG_TYPE, EntryRow } from "./EntryRow";
 import { BatchBar } from "./BatchBar";
+import { ExportDialog } from "./ExportDialog";
 import { SettingsDialog } from "./SettingsDialog";
 import { TrashDialog } from "./TrashDialog";
 import { type MainStrings, describe } from "./i18n";
@@ -37,6 +38,8 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved }:
   const [trashOpen, setTrashOpen] = useState(false);
   const [trashCount, setTrashCount] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [exporting, setExporting] = useState<{ ids: string[] | null; count: number } | null>(null);
+  const [allCount, setAllCount] = useState(0);
   const [selecting, setSelecting] = useState(false);
   const [chosen, setChosen] = useState<string[]>([]);
 
@@ -46,6 +49,7 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved }:
       setOffset(next.nowMs - clock());
       setNow(clock());
       setState(next);
+      if (q === "") setAllCount(next.entries.length);
       if (next.status === "ready") setTrashCount((await api.trashList()).length);
     },
     [api, clock],
@@ -177,6 +181,11 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved }:
               {text.trashButton(trashCount)}
             </button>
           )}
+          {!empty && (
+            <button type="button" class="secondary" onClick={() => setExporting({ ids: null, count: allCount })}>
+              {text.exportButton}
+            </button>
+          )}
           <button type="button" class="secondary" onClick={() => setSettingsOpen(true)}>
             {text.settings}
           </button>
@@ -275,10 +284,21 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved }:
             if (action.action === "trash") setChosen([]);
             await load(query);
           }}
+          onExport={() => setExporting({ ids: chosen, count: chosen.length })}
           onDone={() => {
             setSelecting(false);
             setChosen([]);
           }}
+        />
+      )}
+      {exporting && (
+        <ExportDialog
+          api={api}
+          text={text}
+          ids={exporting.ids}
+          count={exporting.count}
+          onExported={setToast}
+          onClose={() => setExporting(null)}
         />
       )}
       {dragging && <div class="drop-veil">{text.dropHere}</div>}

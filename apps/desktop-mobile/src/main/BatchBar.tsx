@@ -10,13 +10,14 @@ export interface BatchBarProps {
   onSelectAll: () => void;
   onSelectNone: () => void;
   onApply: (action: BatchAction) => Promise<void>;
+  onExport: () => void;
   onDone: () => void;
 }
 
 type Mode = "idle" | "add" | "remove" | "trash";
 
 /** The actions for the chosen entries, at the bottom of the window (PRD FR-4.5). */
-export function BatchBar({ count, tags, text, onSelectAll, onSelectNone, onApply, onDone }: BatchBarProps) {
+export function BatchBar({ count, tags, text, onSelectAll, onSelectNone, onApply, onExport, onDone }: BatchBarProps) {
   const [mode, setMode] = useState<Mode>("idle");
   const [tag, setTag] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +92,9 @@ export function BatchBar({ count, tags, text, onSelectAll, onSelectNone, onApply
           </button>
           <button type="button" class="secondary small" disabled={count === 0 || tags.length === 0} onClick={() => setMode("remove")}>
             {text.removeTagFrom}
+          </button>
+          <button type="button" class="secondary small" disabled={count === 0} onClick={onExport}>
+            {text.exportSelected}
           </button>
           <button type="button" class="secondary small danger-link" disabled={count === 0} onClick={() => setMode("trash")}>
             {text.trash}

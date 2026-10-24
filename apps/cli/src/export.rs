@@ -2,14 +2,13 @@
 
 use std::path::Path;
 
-use keep_keyuri::{KeyUri, SheetEntry, write_key_uri, write_sheet};
 use keep_transfer::backup::write_backup;
-use keep_transfer::goldenpassport::{GpExportItem, GpIncompatible, write_secrets};
-use keep_transfer::migration::{BATCH_BUDGET_BYTES, ExportItem, Incompatible, encode_migration};
+use keep_transfer::export::{goldenpassport_file, google_codes, links_sheet, single_link};
+use keep_transfer::goldenpassport::GpIncompatible;
+use keep_transfer::migration::Incompatible;
 use keep_transfer::qr::{QrEcc, qr_svg};
 use keep_vault::Entry;
 use serde_json::json;
-use zeroize::Zeroizing;
 
 use crate::args::{ExportFormat, Options, Transfer};
 use crate::ask::{backup_password, confirm};
@@ -73,42 +72,8 @@ struct Note {
     left_out: bool,
 }
 
-fn key_uri(entry: &Entry) -> KeyUri {
-    let key = &entry.key.value;
-    KeyUri {
-        secret: key.secret.clone(),
-        spec: key.spec,
-        counter: key.counter,
-        issuer: entry.issuer.value.clone(),
-        account: entry.account.value.clone(),
-    }
-}
-
-fn links_sheet(entries: &[&Entry]) -> Zeroizing<String> {
-    let uris: Vec<KeyUri> = entries.iter().map(|e| key_uri(e)).collect();
-    let sheet: Vec<SheetEntry<'_>> = entries
-        .iter()
-        .zip(&uris)
-        .map(|(e, uri)| SheetEntry {
-            title: &e.title.value,
-            note: &e.note.value,
-            uri,
-        })
-        .collect();
-    write_sheet(&sheet)
-}
-
 fn goldenpassport(entries: &[&Entry], out: &Path) -> Result<Vec<Note>, CliError> {
-    let uris: Vec<KeyUri> = entries.iter().map(|e| key_uri(e)).collect();
-    let items: Vec<GpExportItem<'_>> = entries
-        .iter()
-        .zip(&uris)
-        .map(|(e, uri)| GpExportItem {
-            name: &e.title.value,
-            uri,
-        })
-        .collect();
-    let export = write_secrets(&items);
+    let export = goldenpassport_file(entries);
     write_new_file(out, &export.bytes)?;
     Ok(export
         .skipped
@@ -136,17 +101,7 @@ fn gp_reason(reason: GpIncompatible) -> &'static str {
 
 /// A folder with the transfer codes, and a single-account code for each account they cannot hold.
 fn google(entries: &[&Entry], out: &Path) -> Result<Vec<Note>, CliError> {
-    let items: Vec<ExportItem<'_>> = entries
-        .iter()
-        .map(|e| ExportItem {
-            secret: &e.key.value.secret,
-            spec: e.key.value.spec,
-            counter: e.key.value.counter,
-            issuer: &e.issuer.value,
-            account: &e.account.value,
-        })
-        .collect();
-    let export = encode_migration(&items, BATCH_BUDGET_BYTES).map_err(|_| random_unavailable())?;
+    let export = google_codes(entries).map_err(|_| random_unavailable())?;
     create_new_dir(out)?;
     let count = export.links.len();
     for (index, link) in export.links.iter().enumerate() {
@@ -159,7 +114,7 @@ fn google(entries: &[&Entry], out: &Path) -> Result<Vec<Note>, CliError> {
         let name = format!("single-{}.svg", number + 1);
         write_svg(
             &out.join(&name),
-            &write_key_uri(&key_uri(entries[*index])),
+            &single_link(entries[*index]),
             QrEcc::Medium,
         )?;
         notes.push(Note {
