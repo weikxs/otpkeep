@@ -32,6 +32,7 @@ body {
   font-size: 13px;
   border-radius: 12px;
   overflow: hidden;
+  background: var(--paper);
   background: color-mix(in srgb, var(--paper) var(--panel-opacity), transparent);
 }
 
@@ -88,6 +89,7 @@ button {
   flex: none;
   border: 1px solid var(--line);
   border-radius: 10px;
+  background: var(--card);
   background: color-mix(in srgb, var(--card) var(--panel-opacity), transparent);
   color: var(--muted);
 }
@@ -125,6 +127,7 @@ button {
   overflow-y: auto;
   border: 1px solid var(--line);
   border-radius: 10px;
+  background: var(--card);
   background: color-mix(in srgb, var(--card) var(--panel-opacity), transparent);
 }
 
