@@ -13,7 +13,7 @@ jobs:
     name: fuzz (10 minutes per target)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Find fuzz targets
         id: targets
         run: |

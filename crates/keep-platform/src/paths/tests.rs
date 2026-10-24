@@ -64,15 +64,38 @@ fn a_relative_or_empty_xdg_value_is_ignored() {
 
 #[test]
 fn the_override_wins_everywhere() {
-    for os in [Os::MacOs, Os::Windows, Os::Linux] {
-        let dir = data_dir_for(
+    for (os, dir) in [
+        (Os::MacOs, "/tmp/otpkeep-test/x"),
+        (Os::Linux, "/tmp/otpkeep-test/x"),
+        (Os::Windows, r"C:\Demo\otpkeep-test"),
+    ] {
+        let found = data_dir_for(
             os,
             env(&[
-                ("OTPKEEP_DATA_DIR", "/tmp/otpkeep-test/x"),
+                ("OTPKEEP_DATA_DIR", dir),
                 ("HOME", "/tmp/home"),
+                ("LOCALAPPDATA", r"C:\Demo\Local"),
             ]),
         );
-        assert_eq!(dir, Some(PathBuf::from("/tmp/otpkeep-test/x")), "{os:?}");
+        assert_eq!(found, Some(PathBuf::from(dir)), "{os:?}");
+    }
+}
+
+#[test]
+fn absolute_follows_the_target_system_not_the_one_running_the_test() {
+    for (os, path, absolute) in [
+        (Os::MacOs, "/Users/demo", true),
+        (Os::Linux, "/home/demo", true),
+        (Os::Linux, "relative/dir", false),
+        (Os::Linux, r"C:\Demo", false),
+        (Os::Windows, r"C:\Demo\Local", true),
+        (Os::Windows, "D:/Demo", true),
+        (Os::Windows, r"\\server\share", true),
+        (Os::Windows, "/tmp/demo", false),
+        (Os::Windows, "C:", false),
+        (Os::Windows, "", false),
+    ] {
+        assert_eq!(super::is_absolute_on(os, path), absolute, "{os:?} {path:?}");
     }
 }
 

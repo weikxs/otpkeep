@@ -8,6 +8,22 @@ use super::{Acceptor, BoxLink, Connecting, Connector, Incoming, Route, Via};
 use crate::flow::listen::Listeners;
 use crate::lan::interfaces::Eligible;
 
+/// Whether `route` stops accepting connections within `within`. Closing a listener is asynchronous (its accept
+/// task is aborted and the socket closes when the runtime next runs it, later on Windows), so tests wait for the
+/// refusal instead of expecting it at once or after a fixed sleep.
+pub(crate) async fn refused_within(route: &Route, within: Duration) -> bool {
+    let deadline = tokio::time::Instant::now() + within;
+    loop {
+        if route.connect(Duration::from_millis(200)).await.is_none() {
+            return true;
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return false;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+}
+
 /// A stand-in for a direct transport: each connection is an in-memory pipe handed to the window.
 pub(crate) struct FakeRadio(pub(crate) mpsc::Sender<Incoming>);
 
@@ -86,5 +102,8 @@ async fn nothing_can_connect_once_the_acceptor_is_gone() {
     drop(acceptor);
 
     assert!(radio.connect(Duration::from_millis(200)).await.is_none());
-    assert!(lan.connect(Duration::from_millis(200)).await.is_none());
+    assert!(
+        refused_within(&lan, Duration::from_secs(5)).await,
+        "the local network kept accepting"
+    );
 }

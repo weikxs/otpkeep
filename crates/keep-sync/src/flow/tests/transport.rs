@@ -13,7 +13,7 @@ use crate::flow::sync_open::{OpenerEvent, SyncWindow, WindowOutcome, run_sync_wi
 use crate::lan::announce::{Announcement, FoundWindow};
 use crate::lan::window::WindowKind;
 use crate::testing::{MINUTE_MS, add, identity, member_doc};
-use crate::transport::tests::FakeRadio;
+use crate::transport::tests::{FakeRadio, refused_within};
 use crate::transport::{Route, Via};
 
 /// Opens device 1's sync window on loopback and on a fake radio; requests are allowed when `allow`.
@@ -136,11 +136,9 @@ async fn a_code_verified_on_one_transport_closes_the_others() {
         )
         .await
     });
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
     assert!(
-        lan.connect(Duration::from_millis(300)).await.is_none(),
-        "the local network stopped listening"
+        refused_within(&lan, Duration::from_secs(20)).await,
+        "the local network kept listening after the code was verified"
     );
     window.abort();
     first.abort();

@@ -1,0 +1,4 @@
+# pnpm settings for this app (it is the only package here).
+# Xcode runs pnpm without a terminal and without CI=true while building for iOS; let pnpm rebuild node_modules
+# there instead of stopping to ask (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY).
+confirmModulesPurge: false

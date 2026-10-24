@@ -46,12 +46,15 @@ pub(crate) fn write_new_file(path: &Path, bytes: &[u8]) -> Result<(), CliError> 
 
 /// Creates the folder `path`, which must not exist.
 pub(crate) fn create_new_dir(path: &Path) -> Result<(), CliError> {
-    let mut builder = fs::DirBuilder::new();
+    let builder = fs::DirBuilder::new();
+    // Owner-only folders on Unix; Windows has no mode bits to set.
     #[cfg(unix)]
-    {
+    let builder = {
         use std::os::unix::fs::DirBuilderExt;
+        let mut builder = builder;
         builder.mode(DIR_MODE);
-    }
+        builder
+    };
     builder.create(path).map_err(|error| match error.kind() {
         std::io::ErrorKind::AlreadyExists => exists(path),
         _ => cannot_write(path),
