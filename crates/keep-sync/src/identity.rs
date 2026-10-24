@@ -27,6 +27,59 @@ pub enum IdentityError {
     RandomUnavailable,
 }
 
+/// Keys made for joining a group whose id is not known yet: the joiner needs them for the handshake and
+/// certifies them once the group is known.
+pub struct NewDevice {
+    signing_seed: Zeroizing<[u8; 32]>,
+    exchange: StaticSecret,
+}
+
+impl NewDevice {
+    /// New random keys.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IdentityError::RandomUnavailable`] when the system has no random bytes.
+    pub fn generate() -> Result<Self, IdentityError> {
+        let mut signing_seed = Zeroizing::new([0u8; 32]);
+        let mut exchange = Zeroizing::new([0u8; 32]);
+        getrandom::fill(signing_seed.as_mut()).map_err(|_| IdentityError::RandomUnavailable)?;
+        getrandom::fill(exchange.as_mut()).map_err(|_| IdentityError::RandomUnavailable)?;
+        Ok(Self {
+            signing_seed,
+            exchange: StaticSecret::from(*exchange),
+        })
+    }
+
+    /// The device id these keys give.
+    #[must_use]
+    pub fn device_id(&self) -> DeviceId {
+        DeviceId(
+            SigningKey::from_bytes(&self.signing_seed)
+                .verifying_key()
+                .to_bytes(),
+        )
+    }
+
+    /// The X25519 secret, for the handshake.
+    #[must_use]
+    pub fn exchange_secret(&self) -> &StaticSecret {
+        &self.exchange
+    }
+
+    /// The identity in `group_id`, with its certificate.
+    #[must_use]
+    pub fn into_identity(self, group_id: &[u8; 16]) -> DeviceIdentity {
+        DeviceIdentity::from_seeds(&self.signing_seed, &self.exchange.to_bytes(), group_id)
+    }
+}
+
+impl fmt::Debug for NewDevice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "NewDevice({})", short_fingerprint(self.device_id()))
+    }
+}
+
 /// This device's keys in one sync group.
 pub struct DeviceIdentity {
     signing: SigningKey,

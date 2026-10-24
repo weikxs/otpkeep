@@ -5,6 +5,7 @@ pub mod listen;
 pub mod peer;
 pub mod sync_join;
 pub mod sync_open;
+mod window_loop;
 
 #[cfg(test)]
 mod tests;

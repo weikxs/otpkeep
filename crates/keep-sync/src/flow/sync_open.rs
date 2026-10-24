@@ -11,24 +11,19 @@ use std::time::Duration;
 use keep_vault::{DeviceId, VaultDoc};
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, oneshot};
-use tokio::time::{Instant, interval, timeout};
+use tokio::time::interval;
 use x25519_dalek::StaticSecret;
 use zeroize::Zeroizing;
 
-use super::listen::{Incoming, Listeners};
+use super::listen::Listeners;
 use super::peer::{PeerInfo, check_member};
+use super::window_loop::{Progress, run_window};
 use crate::channel::code::{CodeCheck, CodeError, Secret, confirm_code};
 use crate::channel::hello::Hello;
 use crate::channel::message::{ErrorCode, Message};
-use crate::channel::noise::{Channel, Purpose, accept_noise, refuse_busy};
-use crate::lan::window::{
-    Accept, CloseReason, ConnectionId, LanWindow, Timers, WindowKind, WindowStatus,
-};
+use crate::channel::noise::{Channel, Purpose, accept_noise};
+use crate::lan::window::{CloseReason, Timers, WindowKind};
 use crate::session::exchange::{Exchanged, SessionError, exchange_as_opener};
-
-const TICK: Duration = Duration::from_millis(100);
-/// How long a refused connection may take to hear `BUSY`.
-const BUSY_REPLY: Duration = Duration::from_secs(2);
 
 /// Reads the vault as it is now; called when a connection needs it.
 pub type CurrentDoc = Arc<dyn Fn() -> VaultDoc + Send + Sync>;
@@ -91,15 +86,6 @@ pub struct SyncWindow {
     pub timers: Timers,
 }
 
-/// What a connection's task reports.
-enum Progress {
-    CodePassed,
-    CodeFailed,
-    Dropped,
-    Agreed,
-    Finished(WindowOutcome),
-}
-
 /// Runs a sync window until it closes. `announcing` is dropped as soon as no more connections are taken.
 pub async fn run_sync_window<A: Send>(
     window: SyncWindow,
@@ -109,118 +95,21 @@ pub async fn run_sync_window<A: Send>(
     wall: WallClock,
     events: mpsc::Sender<OpenerEvent>,
 ) -> WindowOutcome {
-    let started = Instant::now();
-    let now = || u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
-    let mut state = LanWindow::with_timers(WindowKind::Sync, window.wait_ms, now(), window.timers);
+    let (kind, wait_ms, timers) = (WindowKind::Sync, window.wait_ms, window.timers);
     let shared = Arc::new(window);
-    let mut listeners = Some(listeners);
-    let mut announcing = Some(announcing);
-    let mut current_task: Option<(
-        ConnectionId,
-        tokio::task::JoinHandle<()>,
-        mpsc::Receiver<Progress>,
-    )> = None;
-    let mut ticker = interval(TICK);
-    loop {
-        tokio::select! {
-            _ = ticker.tick() => {
-                if let Some(reason) = state.tick(now()) {
-                    abort(&mut current_task);
-                    return WindowOutcome::Closed(reason);
-                }
-                if state.status() == WindowStatus::Waiting && current_task.is_some() {
-                    abort(&mut current_task);
-                }
-            }
-            incoming = next_incoming(&mut listeners) => {
-                let Some(Incoming { stream, .. }) = incoming else { continue };
-                match state.accept(now()) {
-                    Accept::Handle(id) => {
-                        let (progress, reports) = mpsc::channel(8);
-                        let task = tokio::spawn(serve(
-                            stream, Arc::clone(&shared), Arc::clone(&current), Arc::clone(&wall), events.clone(), progress,
-                        ));
-                        current_task = Some((id, task, reports));
-                    }
-                    Accept::Busy => {
-                        tokio::spawn(async move { let _ = timeout(BUSY_REPLY, refuse_busy(stream)).await; });
-                    }
-                    Accept::Closed => {
-                        abort(&mut current_task);
-                        return WindowOutcome::Closed(closed_reason(&state));
-                    }
-                }
-            }
-            report = next_report(&mut current_task) => {
-                let Some((id, progress)) = report else { continue };
-                match progress {
-                    Progress::CodePassed => {
-                        state.code_passed(id, now());
-                        listeners = None;
-                        announcing = None;
-                    }
-                    Progress::CodeFailed => {
-                        current_task = None;
-                        if let Some(reason) = state.code_failed(id, now()) {
-                            return WindowOutcome::Closed(reason);
-                        }
-                    }
-                    Progress::Dropped => {
-                        current_task = None;
-                        state.dropped(id, now());
-                    }
-                    Progress::Agreed => state.person_agreed(now()),
-                    Progress::Finished(outcome) => {
-                        state.finish(now());
-                        drop(announcing);
-                        return outcome;
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn closed_reason(state: &LanWindow) -> CloseReason {
-    match state.status() {
-        WindowStatus::Closed(reason) => reason,
-        _ => CloseReason::Cancelled,
-    }
-}
-
-fn abort(
-    task: &mut Option<(
-        ConnectionId,
-        tokio::task::JoinHandle<()>,
-        mpsc::Receiver<Progress>,
-    )>,
-) {
-    if let Some((_, handle, _)) = task.take() {
-        handle.abort();
-    }
-}
-
-async fn next_incoming(listeners: &mut Option<Listeners>) -> Option<Incoming> {
-    match listeners {
-        Some(listeners) => listeners.next().await,
-        None => std::future::pending().await,
-    }
-}
-
-async fn next_report(
-    task: &mut Option<(
-        ConnectionId,
-        tokio::task::JoinHandle<()>,
-        mpsc::Receiver<Progress>,
-    )>,
-) -> Option<(ConnectionId, Progress)> {
-    match task {
-        Some((id, _, reports)) => {
-            let id = *id;
-            reports.recv().await.map(|p| (id, p))
-        }
-        None => std::future::pending().await,
-    }
+    let serve_one = |stream: TcpStream, progress: mpsc::Sender<Progress<WindowOutcome>>| {
+        tokio::spawn(serve(
+            stream,
+            Arc::clone(&shared),
+            Arc::clone(&current),
+            Arc::clone(&wall),
+            events.clone(),
+            progress,
+        ))
+    };
+    run_window(kind, wait_ms, timers, listeners, announcing, serve_one)
+        .await
+        .unwrap_or_else(WindowOutcome::Closed)
 }
 
 /// One connection, from the handshake to the end of the data phase.
@@ -230,9 +119,9 @@ async fn serve(
     current: CurrentDoc,
     wall: WallClock,
     events: mpsc::Sender<OpenerEvent>,
-    progress: mpsc::Sender<Progress>,
+    progress: mpsc::Sender<Progress<WindowOutcome>>,
 ) {
-    let report = |p: Progress| {
+    let report = |p: Progress<WindowOutcome>| {
         let progress = progress.clone();
         async move {
             let _ = progress.send(p).await;

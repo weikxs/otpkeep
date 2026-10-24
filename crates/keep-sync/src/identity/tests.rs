@@ -146,3 +146,21 @@ fn the_error_type_says_what_failed() {
         "the system random number generator is unavailable"
     );
 }
+
+#[test]
+fn a_new_device_knows_its_id_before_it_knows_the_group() {
+    let new = super::NewDevice::generate().unwrap();
+    let id = new.device_id();
+    let exchange_public = x25519_dalek::PublicKey::from(new.exchange_secret()).to_bytes();
+
+    let identity = new.into_identity(&GROUP);
+
+    assert_eq!(identity.device_id(), id);
+    assert_eq!(identity.dx_public(), exchange_public);
+    assert!(verify_dx_cert(
+        id,
+        &GROUP,
+        &identity.dx_public(),
+        &identity.dx_cert()
+    ));
+}
