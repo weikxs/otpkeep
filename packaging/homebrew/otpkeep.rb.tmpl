@@ -17,7 +17,7 @@ cask "otpkeep" do
 
   app "OTPKeep.app"
 
-  # The app is not signed by Apple yet: without this, macOS refuses to open it the first time.
+  # The app is not signed by Apple (and will not be): without this, macOS refuses to open it the first time.
   postflight do
     system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{appdir}/OTPKeep.app"]
   end

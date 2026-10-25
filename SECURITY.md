@@ -46,8 +46,19 @@ We credit reporters in the release notes unless they prefer to stay anonymous.
 Every release publishes `checksums.txt` with the SHA-256 of each package; the install script refuses a package that
 does not match it.
 
-The macOS app is not yet signed or notarized by Apple. The Homebrew cask and the install script therefore remove the
-quarantine attribute from the installed `OTPKeep.app` (`xattr -dr com.apple.quarantine`); otherwise macOS would
-refuse to open it the first time. If you prefer to keep Gatekeeper's check, download the disk image from the
-releases page, verify it against `checksums.txt`, and choose **Open Anyway** in System Settings → Privacy &
-Security when macOS asks.
+The macOS app is not signed with an Apple Developer ID or notarized by Apple, and there are no plans to sign it.
+It is built by GitHub Actions from this repository's source, and `checksums.txt` lets you confirm a download is the
+released file. The Homebrew cask and the install script check the checksum, then remove the quarantine attribute
+from the installed `OTPKeep.app` (`xattr -dr com.apple.quarantine`); otherwise macOS would refuse to open it the
+first time.
+
+If you install the disk image by hand:
+
+1. Check it: `shasum -a 256 otpkeep_<version>_darwin_universal.dmg` must match its line in `checksums.txt`.
+2. Copy `OTPKeep.app` into Applications and open it. When macOS says it cannot verify the app, click **Done**.
+3. In System Settings → Privacy & Security, under Security, click **Open Anyway** next to "OTPKeep was blocked",
+   then open OTPKeep again and choose **Open**. On macOS 14 and earlier, Control-click the app and choose **Open**
+   also works.
+
+Instead of steps 2–3 you can run `xattr -dr com.apple.quarantine /Applications/OTPKeep.app`. macOS remembers the
+choice until you replace the app by hand.
