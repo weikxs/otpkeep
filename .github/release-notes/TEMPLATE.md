@@ -124,7 +124,8 @@ Then open OTPKeep — it appears in the menu bar (macOS) or the system tray (Lin
 
 ## Notes
 
-- The macOS app is not signed by Apple yet; Homebrew and the install script remove the quarantine flag. See
+- The macOS app is not signed or notarized by Apple; Homebrew and the install script remove the quarantine flag. By
+  hand: **Open Anyway** in System Settings → Privacy & Security. See
   [SECURITY.md](https://github.com/weikxs/otpkeep/blob/vX.Y.Z/SECURITY.md).
 - **Full changelog:** [vA.B.C...vX.Y.Z](https://github.com/weikxs/otpkeep/compare/vA.B.C...vX.Y.Z) ·
   [CHANGELOG.md](https://github.com/weikxs/otpkeep/blob/vX.Y.Z/CHANGELOG.md)

@@ -140,8 +140,9 @@ brew upgrade --cask otpkeep          # 以后升级
 | `otpkeep_<版本>_linux_amd64.rpm` | Fedora、RHEL、openSUSE（x86_64） |
 | `otpkeep_<版本>_linux_amd64.AppImage` / `_arm64.AppImage` | 任何使用 glibc 的 Linux（x86_64 / arm64） |
 
-macOS 版暂时还没有苹果签名：安装脚本和 Homebrew 会替你处理；如果你自己打开磁盘镜像安装，第一次运行时请在
-"系统设置 → 隐私与安全性"里点"仍要打开"（详见 [SECURITY.md](SECURITY.md)）。
+macOS 版没有 Apple 签名，也没有经过 Apple 公证，今后也不打算签名。安装脚本和 Homebrew 会替你处理；如果你自己从磁盘镜像安装，
+请先用 `checksums.txt` 核对，打开一次 OTPKeep，再到"系统设置 → 隐私与安全性"里点"仍要打开"，然后再打开一次——或者运行
+`xattr -dr com.apple.quarantine /Applications/OTPKeep.app`。详见 [SECURITY.md](SECURITY.md#release-packages-and-macos)。
 
 ### 卸载
 

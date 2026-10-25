@@ -141,8 +141,10 @@ Download from the [latest release](https://github.com/weikxs/otpkeep/releases/la
 | `otpkeep_<version>_linux_amd64.rpm` | Fedora, RHEL, openSUSE (x86_64) |
 | `otpkeep_<version>_linux_amd64.AppImage` / `_arm64.AppImage` | Any Linux with glibc (x86_64 / arm64) |
 
-The macOS app is not signed by Apple yet: the script and Homebrew handle that for you; if you open the disk image
-yourself, choose **Open Anyway** in System Settings → Privacy & Security the first time (see [SECURITY.md](SECURITY.md)).
+The macOS app is not signed or notarized by Apple, and we do not plan to sign it. The script and Homebrew handle
+that for you. If you install the disk image yourself, check it against `checksums.txt`, open OTPKeep once, then
+choose **Open Anyway** in System Settings → Privacy & Security and open it again — or run
+`xattr -dr com.apple.quarantine /Applications/OTPKeep.app`. Details in [SECURITY.md](SECURITY.md#release-packages-and-macos).
 
 ### Uninstall
 

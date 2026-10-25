@@ -140,8 +140,9 @@ Then open OTPKeep — it appears in the menu bar (macOS) or the system tray (Lin
 
 ## Notes
 
-- The macOS app is not signed by Apple yet; Homebrew and the install script remove the quarantine flag. See
-  [SECURITY.md]($repo/blob/$tag/SECURITY.md).
+- The macOS app is not signed or notarized by Apple; Homebrew and the install script remove the quarantine flag. By
+  hand: **Open Anyway** in System Settings → Privacy & Security. See
+  [SECURITY.md]($repo/blob/$tag/SECURITY.md#release-packages-and-macos).
 EOF
 if [ -n "$previous" ]; then
 	printf -- '- **Full changelog:** [v%s...%s](%s/compare/v%s...%s) · [CHANGELOG.md](%s/blob/%s/CHANGELOG.md)\n' \
