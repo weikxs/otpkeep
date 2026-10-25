@@ -1,9 +1,16 @@
 name: CI
 
+# One job per pull request, on Linux: privacy, format, dependency policy and
+# advisories, clippy, the tests with coverage, and the interface's type check,
+# component and browser tests, one after another. A change to documentation
+# alone finishes in seconds without running them; a draft runs nothing.
+# Merging to main starts nothing, since the pull request was already tested.
+# macOS and Windows, the iOS and Android builds, the installer size and
+# fuzzing are in full.yml, once a week; the release workflow runs every check
+# again before it publishes anything. Branch rules require this job, `check`.
 on:
-  push:
-    branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -17,120 +24,45 @@ env:
   UI_DIR: apps/desktop-mobile
 
 jobs:
-  policy:
-    name: privacy, format and dependencies
+  check:
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
-      - name: Privacy
-        run: scripts/check-privacy.sh
-      - name: Format
-        run: cargo fmt --all --check
-      - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-deny,cargo-audit
-      - name: Dependency policy
-        run: cargo deny check
-      - name: Security advisories
-        run: cargo audit --ignore RUSTSEC-2024-0370
-
-  rust:
-    name: rust (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Test
-        shell: bash
+          fetch-depth: 0
+      - name: What changed
+        id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          # Tests write only under /tmp on Unix (docs/development/standards.md, section 2).
-          if [ "$RUNNER_OS" != "Windows" ]; then
-            export TMPDIR=/tmp/otpkeep-test/
-            mkdir -p "$TMPDIR"
-          fi
-          cargo test --workspace --no-fail-fast
-
-  coverage:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-      - uses: taiki-e/install-action@v2
+          files=$(git diff --name-only "$BASE"...HEAD)
+          printf '%s\n' "$files"
+          docs='\.md$|^docs/|^LICENSE|^\.github/(ISSUE_TEMPLATE|release-notes)/|^\.github/(CODEOWNERS|pull_request_template\.md)$'
+          if printf '%s\n' "$files" | grep -Ev "$docs" | grep -q .; then code=true; else code=false; fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" = false ]; then echo "documentation only: nothing to test"; fi
+      - name: Privacy
+        if: steps.diff.outputs.code == 'true'
+        run: scripts/check-privacy.sh
+      - if: steps.diff.outputs.code == 'true'
+        uses: ./.github/actions/setup
+      - if: steps.diff.outputs.code == 'true'
+        uses: taiki-e/install-action@v2
         with:
-          tool: cargo-llvm-cov
-      - name: Coverage (at least 80%)
+          tool: cargo-deny,cargo-audit,cargo-llvm-cov
+      - name: Format, dependency policy, advisories, clippy
+        if: steps.diff.outputs.code == 'true'
+        run: make fmt-check deny audit clippy
+      - name: Tests with coverage (at least 80%)
+        if: steps.diff.outputs.code == 'true'
         run: make cover
-
-  ui:
-    name: ui (typecheck, components, browser)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-        with:
-          rust: "false"
-      - name: Type check and component tests
+      - name: Interface type check and component tests
+        if: steps.diff.outputs.code == 'true'
         working-directory: ${{ env.UI_DIR }}
         run: pnpm typecheck && pnpm test
       - name: Browser tests (Chrome)
+        if: steps.diff.outputs.code == 'true'
         working-directory: ${{ env.UI_DIR }}
         run: pnpm e2e
-
-  ios:
-    name: ios (simulator build)
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-      - run: rustup target add aarch64-apple-ios-sim
-      - name: Build
-        working-directory: ${{ env.UI_DIR }}
-        run: pnpm tauri ios build --debug --target aarch64-sim --ci
-
-  android:
-    name: android (debug build)
-    runs-on: ubuntu-latest
-    env:
-      NDK_VERSION: 28.2.13676358
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: "17"
-      - name: Install the NDK
-        run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
-          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
-      - run: rustup target add aarch64-linux-android
-      - name: Build
-        working-directory: ${{ env.UI_DIR }}
-        run: pnpm tauri android build --debug --apk --target aarch64 --ci
-
-  size:
-    name: installer size (at most 20 MB)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-      - name: Build release bundles
-        working-directory: ${{ env.UI_DIR }}
-        run: pnpm tauri build --bundles deb --ci
-      - name: Check size
-        run: |
-          limit=$((20 * 1024 * 1024))
-          for file in target/release/bundle/deb/*.deb; do
-            size=$(stat -c %s "$file")
-            echo "$file: $size bytes"
-            if [ "$size" -gt "$limit" ]; then
-              echo "::error::$file is larger than 20 MB"
-              exit 1
-            fi
-          done
