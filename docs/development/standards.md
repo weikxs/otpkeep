@@ -39,7 +39,9 @@ the [OpenSSF Scorecard](https://scorecard.dev) checks for the supply chain.
   accounts only (§4), never real secrets, links, QR codes, backups or vault files.
 - **One pull request, one purpose.** Do not mix a fix, a refactor and a feature; split them.
 - **Review:** every change reaches `main` through a pull request with green required checks (§6). Contributors'
-  pull requests also need an approval from a code owner (`.github/CODEOWNERS`).
+  pull requests also need an approval from a code owner (`.github/CODEOWNERS`). Maintainers follow the same rule;
+  a maintainer may merge a documentation-only pull request (no code, tests, workflows or build files) without
+  waiting for the checks, only after `make check` passes locally.
 - **Response times** are best effort; security reports follow [SECURITY.md](../../SECURITY.md).
 
 ## 3. AI-assisted contributions (MUST)
@@ -113,8 +115,8 @@ CI) and review.
 
 | Rule | Level | Enforced by |
 |---|---|---|
-| `main` is protected: changes arrive through pull requests with green required checks; no force-push or deletion; linear history | MUST | repository ruleset |
-| Release tags `v*` are never moved or deleted once a release is published | MUST | repository ruleset |
+| `main` is protected: changes arrive through pull requests with green required checks; no force-push or deletion; linear history. Repository admins may bypass the checks inside a pull request, for documentation-only changes (§2) | MUST | repository ruleset |
+| Release tags `v*` are never moved or deleted once a release is published; nobody can bypass this | MUST | repository ruleset |
 | Workflows declare least-privilege `permissions` (read-only by default; `contents: write` only to publish a release) | MUST | review |
 | Dependencies are updated by Dependabot: one grouped pull request per ecosystem per week; major versions of crates and npm packages are upgraded on purpose | MUST | `.github/dependabot.yml` |
 | A new dependency needs a reason in the pull request: maintenance, size, permissive license (MIT, Apache-2.0, BSD, ISC, Zlib, Unicode; no GPL family) | MUST | `cargo deny`, review |
@@ -247,4 +249,5 @@ A change is done when:
 - [ ] errors are handled and messages are actionable, in both languages;
 - [ ] `CHANGELOG.md`, README (both languages) and help text are updated where relevant;
 - [ ] the author understands and has verified every line, including AI-assisted parts;
-- [ ] the pull request has green required checks and is squash-merged with a Conventional Commit title.
+- [ ] the pull request has green required checks (or, documentation only, `make check` passed locally) and is
+  squash-merged with a Conventional Commit title.
