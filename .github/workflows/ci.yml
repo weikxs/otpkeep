@@ -6,7 +6,7 @@ name: CI
 # alone finishes in seconds without running them; a draft runs nothing.
 # Merging to main starts nothing, since the pull request was already tested.
 # macOS and Windows, the iOS and Android builds, the installer size and
-# fuzzing are in full.yml, once a week; the release workflow runs every check
+# fuzzing are in full.yml, started by hand before a release; the release workflow runs every check
 # again before it publishes anything. Branch rules require this job, `check`.
 on:
   pull_request:

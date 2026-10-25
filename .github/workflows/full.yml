@@ -1,12 +1,14 @@
 name: Full
 
-# The runs a pull request leaves out, once a week and on demand (Actions >
+# The runs a pull request leaves out, on demand (Actions >
 # Full > Run workflow): clippy and the tests on macOS and Windows, the iOS and
 # Android builds, the installer size, and fuzzing. Nothing requires these jobs
 # to merge.
 on:
-  schedule:
-    - cron: "41 4 * * 1"
+  # The weekly run is off for now; only the Run workflow button starts it.
+  # To turn it back on, uncomment these two lines.
+  # schedule:
+  #   - cron: "41 4 * * 1"
   workflow_dispatch:
 
 permissions:

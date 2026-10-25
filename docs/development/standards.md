@@ -175,7 +175,7 @@ CI) and review.
 - **Coverage:** at least 80% of lines across the workspace (`make cover` fails below it); core crates aim at 90%.
 - **Style:** descriptive test names; Arrange–Act–Assert; property tests (`proptest`) for parsers and merge.
 - **Vectors:** all RFC 4226 / RFC 6238 test vectors pass.
-- **Fuzzing:** every parser has a `cargo-fuzz` target; the weekly full workflow runs each for 10 minutes.
+- **Fuzzing:** every parser has a `cargo-fuzz` target; the full workflow, started by hand before a release, runs each for 10 minutes.
 - **Sync simulation:** merge changes pass the deterministic multi-device simulation (`make sim`, 10 000 seeds;
   `make check` runs 300).
 - **Isolation:** no network outside loopback and in-memory test networks; no real home directory; no real
@@ -189,7 +189,7 @@ CI) and review.
   package, musl) and, by the release workflow, on real macOS and Linux x86_64 and arm64 machines that install and
   start every package before it is published.
 - **Platforms:** every change passes `make check` and the browser tests; CI runs clippy and the tests on Linux for
-  every pull request, and once a week on macOS, Linux and Windows, where it also builds Android and iOS.
+  every pull request, and before each release on macOS, Linux and Windows, where it also builds Android and iOS.
 
 ## 10. Git workflow
 
