@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Typing a code from the search panel no longer hides an open main window on macOS (the code is copied
+  instead), and when no key could be typed the panel comes back to say the code was copied instead.
 - An import preview you leave open is forgotten, with its secrets, after 10 minutes or when the main window
   closes; accounts kept in the trash for 30 days are deleted even when OTPKeep runs for weeks without a
   restart.

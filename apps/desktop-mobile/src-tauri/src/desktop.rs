@@ -242,6 +242,14 @@ pub fn show_search<R: Runtime>(app: &AppHandle<R>) {
     let _ = search.emit("search-shown", ());
 }
 
+/// Brings the search panel back where it was, without starting afresh, to tell the person something.
+pub fn show_search_again(app: &AppHandle) {
+    if let Some(search) = app.get_webview_window(SEARCH) {
+        let _ = search.show();
+        let _ = search.set_focus();
+    }
+}
+
 /// Centres the search panel across the pointer's screen, a little above the middle.
 fn place_centred<R: Runtime>(app: &AppHandle<R>, search: &WebviewWindow<R>) {
     let monitor = app

@@ -68,6 +68,8 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now, language 
       }),
     [api, reload],
   );
+  // Typing that failed after the window hid brings it back to say so.
+  useEffect(() => api.onTypingFailed(setFallback), [api]);
   useEffect(() => {
     document.querySelector(".entry.selected")?.scrollIntoView?.({ block: "nearest" });
   }, [selected]);
@@ -200,9 +202,7 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now, language 
           </span>
         ) : fallback ? (
           <span class="search-notice" role="status">
-            {fallback.fallback === "UNSUPPORTED"
-              ? words.unsupported(fallback.clearsInS)
-              : words.noPermission(fallback.clearsInS)}
+            {fallbackWords(words, fallback)}
             {fallback.fallback === "NO_PERMISSION" && (
               <button
                 type="button"
@@ -232,4 +232,18 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now, language 
       </footer>
     </div>
   );
+}
+
+/** Why a code was copied instead of typed, in the person's language. */
+function fallbackWords(words: SearchStrings, result: TypeResult): string {
+  switch (result.fallback) {
+    case "UNSUPPORTED":
+      return words.unsupported(result.clearsInS);
+    case "MAIN_OPEN":
+      return words.mainOpen(result.clearsInS);
+    case "FAILED":
+      return words.failed(result.clearsInS);
+    default:
+      return words.noPermission(result.clearsInS);
+  }
 }

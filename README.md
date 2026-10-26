@@ -211,7 +211,8 @@ Press `⌃⌥⌘Space` anywhere (macOS default; set or turn it off in Settings).
 
 - `Enter` copies the code and closes.
 - `⇧Enter` types the code into the field you were in. On macOS this needs **Accessibility** permission
-  (System Settings → Privacy & Security → Accessibility); without it, or on Wayland, the code is copied instead and the panel says so.
+  (System Settings → Privacy & Security → Accessibility); without it, on Wayland, while the main window is open (macOS), or
+  when no key could be sent, the code is copied instead and the panel says so.
 - `⌘E` (`Ctrl+E`) opens the account in the main window; `Esc` clears the search, then closes.
 
 ### Counter-based (HOTP) accounts

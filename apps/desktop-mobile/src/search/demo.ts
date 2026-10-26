@@ -17,5 +17,6 @@ export function demoSearchApi(options: DemoOptions = {}): SearchApi & { copied: 
       return typing;
     },
     onShown: () => () => undefined,
+    onTypingFailed: () => () => undefined,
   };
 }

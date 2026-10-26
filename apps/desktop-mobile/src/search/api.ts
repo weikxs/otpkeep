@@ -8,8 +8,11 @@ export type Typing = "ready" | "needsPermission" | "unsupported";
 export interface TypeResult {
   /** Being typed; the core has hidden the window already. */
   typed: boolean;
-  /** Why it was copied instead. */
-  fallback?: "NO_PERMISSION" | "UNSUPPORTED";
+  /**
+   * Why it was copied instead: no permission, not possible on this desktop, the main window is open (macOS
+   * would hide it to give focus back), or no key could be sent.
+   */
+  fallback?: "NO_PERMISSION" | "UNSUPPORTED" | "MAIN_OPEN" | "FAILED";
   /** When copied: seconds until the clipboard is cleared. */
   clearsInS: number;
 }
@@ -23,14 +26,16 @@ export interface SearchApi extends Pick<PanelApi, "state" | "copy" | "nextHotp" 
   askTypingPermission(): Promise<Typing>;
   /** Calls `listener` each time the search panel is shown; returns how to stop. */
   onShown(listener: () => void): () => void;
+  /** Calls `listener` when a code could not be typed after all and was copied instead; returns how to stop. */
+  onTypingFailed(listener: (result: TypeResult) => void): () => void;
 }
 
 /** The core, through Tauri commands. */
 export async function tauriSearchApi(): Promise<SearchApi> {
   const { invoke } = await import("@tauri-apps/api/core");
   const { listen } = await import("@tauri-apps/api/event");
-  const subscribe = (name: string, listener: () => void) => {
-    const stop = listen(name, () => listener());
+  const subscribe = <T>(name: string, listener: (payload: T) => void) => {
+    const stop = listen<T>(name, (event) => listener(event.payload));
     return () => void stop.then((unlisten) => unlisten());
   };
   return {
@@ -44,7 +49,8 @@ export async function tauriSearchApi(): Promise<SearchApi> {
     openMain: (page) => invoke<void>("open_main", { page: page ?? null }),
     // Hides the window that asks: here the search panel.
     hide: () => invoke<void>("hide_panel"),
-    onChange: (listener) => subscribe("vault-changed", listener),
-    onShown: (listener) => subscribe("search-shown", listener),
+    onChange: (listener) => subscribe("vault-changed", () => listener()),
+    onShown: (listener) => subscribe("search-shown", () => listener()),
+    onTypingFailed: (listener) => subscribe<TypeResult>("typing-failed", listener),
   };
 }
