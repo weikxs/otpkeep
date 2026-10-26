@@ -36,7 +36,7 @@ struct TrayLabels {
 const fn tray_labels(chinese: bool) -> TrayLabels {
     if chinese {
         TrayLabels {
-            panel: "显示快捷面板",
+            panel: "显示快速面板",
             open: "打开主窗口",
             manage: "在浏览器中管理…",
             sync: "同步…",
@@ -228,7 +228,7 @@ mod tests {
         assert_eq!(zh.open, "打开主窗口");
         assert_eq!(en.open, "Open main window");
         assert_eq!(en.panel, "Show quick panel");
-        assert_eq!(zh.panel, "显示快捷面板");
+        assert_eq!(zh.panel, "显示快速面板");
         assert_eq!(en.quit, "Quit OTPKeep");
         for label in [en.panel, en.open, en.quit] {
             assert!(label.is_ascii(), "{label}");

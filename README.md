@@ -198,7 +198,8 @@ OTPKeep starts in the **menu bar** (macOS) or the **system tray** (Windows, Linu
 quick panel and add your first account: paste a link, drop or paste a QR code image, or import a file.
 
 - **Left click** the icon: the quick panel.
-- **Right click** the icon: open the main window, manage in the browser, sync, settings, quit.
+- **Right click** the icon: show the quick panel, open the main window, manage in the browser, sync, settings, quit. On Linux
+  a click on the icon only opens this menu; choose **Show quick panel** there.
 
 ### Main window
 
