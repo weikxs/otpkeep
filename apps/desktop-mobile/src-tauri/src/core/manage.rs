@@ -182,8 +182,11 @@ impl Core {
         })
     }
 
-    /// Deletes what has been in the trash for more than 30 days; called whenever the data opens.
+    /// Deletes what has been in the trash for more than 30 days; called whenever the data opens, and daily.
     pub(super) fn tidy(&mut self) {
+        if matches!(self.vault, Vault::Open { .. }) {
+            self.tidied_ms = Some((self.clock)());
+        }
         if let Vault::Open {
             service,
             read_only: false,

@@ -13,6 +13,7 @@ use tauri::{
     WebviewWindowBuilder, WindowEvent,
 };
 
+use crate::commands::AppCore;
 use crate::icon;
 
 /// The quick panel's window label (tauri.conf.json).
@@ -213,12 +214,14 @@ fn open_main(app: &AppHandle, page: Option<&str>) {
     let _ = main.set_focus();
 }
 
-/// The main window is gone: the app goes back to living in the menu bar only.
+/// The main window is gone: imports it was previewing are dropped with their secrets, and the app goes back
+/// to living in the menu bar only.
 fn main_closed(app: &AppHandle) {
+    if let Some(vault) = app.try_state::<AppCore>() {
+        vault.get().cancel_all_staged();
+    }
     #[cfg(target_os = "macos")]
     let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-    #[cfg(not(target_os = "macos"))]
-    let _ = app;
 }
 
 /// Shows the search panel in the middle of the screen the pointer is on, or hides it when it is open.

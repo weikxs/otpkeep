@@ -29,6 +29,7 @@ mod search;
 #[cfg(desktop)]
 pub mod sync;
 mod update;
+mod upkeep;
 
 pub use batch::BatchAction;
 pub use export::{ExportFormat, GoogleExport, LeftOut, QrImage};
@@ -213,6 +214,8 @@ pub struct Core {
     vault: Vault,
     /// The vault could not be opened and has a previous version to put back.
     restorable: bool,
+    /// When the trash was last emptied of old entries.
+    tidied_ms: Option<u64>,
     staging: Staging,
     /// The clock of the data the latest sync session started from; the session's result is merged with the
     /// data once more when it changed since.
@@ -237,6 +240,7 @@ impl Core {
             uses_master_password: false,
             vault: Vault::NeedsPassword,
             restorable: false,
+            tidied_ms: None,
             staging: Staging::default(),
             #[cfg(desktop)]
             session_base: None,

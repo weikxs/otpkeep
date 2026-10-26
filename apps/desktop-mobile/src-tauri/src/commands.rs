@@ -134,7 +134,10 @@ pub fn panel_state(
     vault: State<'_, AppCore>,
     hotkeys: State<'_, Hotkeys>,
 ) -> PanelState {
-    let (state, places) = vault.get().state_and_places(query, false);
+    let mut core = vault.get();
+    core.upkeep();
+    let (state, places) = core.state_and_places(query, false);
+    drop(core);
     with_shortcuts(state, &hotkeys.map(), &places)
 }
 
@@ -164,7 +167,10 @@ pub fn main_state(
     vault: State<'_, AppCore>,
     hotkeys: State<'_, Hotkeys>,
 ) -> PanelState {
-    let (state, places) = vault.get().state_and_places(query, true);
+    let mut core = vault.get();
+    core.upkeep();
+    let (state, places) = core.state_and_places(query, true);
+    drop(core);
     with_shortcuts(state, &hotkeys.map(), &places)
 }
 

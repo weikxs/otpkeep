@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An import preview you leave open is forgotten, with its secrets, after 10 minutes or when the main window
+  closes; accounts kept in the trash for 30 days are deleted even when OTPKeep runs for weeks without a
+  restart.
 - Entering the master password in one window, or generating a counter code, now updates the other open
   windows straight away.
 - Copying the same code twice keeps it on the clipboard for the full time after the second copy, and a code
