@@ -1,51 +1,91 @@
-//! The accounts the menu bar menu lists: the pinned ones first, then the ones used most recently on this device
-//! (remembered in its settings, see [`crate::settings::Settings::recent_entries`]), then the rest in list order.
+//! The accounts the menu bar menu lists: on its first level the recently used ones (as this device remembers
+//! them, see [`crate::settings::Settings::recent_entries`]), filled up in list order; every other account in
+//! a "More accounts" submenu, in list order, up to [`MENU_LIMIT`].
+
+use std::collections::HashSet;
 
 use keep_vault::Entry;
 
-use super::{Core, PanelState, Vault, row};
+use super::{Core, PanelEntry, PanelState, Vault, row};
 
-/// The menu lists at most this many accounts; the search panel finds the others.
-pub const MENU_LIMIT: usize = 15;
+/// The "More accounts" submenu lists at most this many accounts, so a huge vault cannot make a menu the system
+/// struggles to draw; the menu says how many were left out, and the search panel finds them.
+pub const MENU_LIMIT: usize = 1000;
+
+/// What the menu bar menu shows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MenuView {
+    /// The state of the data, with the accounts of the menu's first level.
+    pub state: PanelState,
+    /// The other accounts, in list order (at most [`MENU_LIMIT`]).
+    pub more: Vec<PanelEntry>,
+    /// How many accounts did not fit in the menu.
+    pub left_out: usize,
+}
 
 impl Core {
-    /// What the menu bar menu shows: the state of the data and up to [`MENU_LIMIT`] accounts with their
-    /// codes. `recent` lists entry ids, most recently used first.
+    /// What the menu bar menu shows, with codes: `first_level` accounts, the ones in `recent` (entry ids, most
+    /// recently used first; ids of entries that are gone are skipped) first, then the others.
     #[must_use]
-    pub fn menu_state(&self, recent: &[String]) -> PanelState {
-        let state = self.state("");
+    pub fn menu_view(&self, recent: &[String], first_level: usize) -> MenuView {
+        let summary = self.state("");
         let Vault::Open { service, .. } = &self.vault else {
-            return state;
+            return MenuView {
+                state: PanelState {
+                    entries: Vec::new(),
+                    ..summary
+                },
+                more: Vec::new(),
+                left_out: 0,
+            };
         };
+        let now_ms = summary.now_ms;
         let ordered = service.ordered();
-        let entries = pick(&ordered, recent, MENU_LIMIT)
-            .into_iter()
-            .map(|entry| row(service, entry, state.now_ms))
-            .collect();
-        PanelState { entries, ..state }
+        let (first, rest) = split(&ordered, recent, first_level);
+        let to_row = |entry: &Entry| row(service, entry, now_ms);
+        MenuView {
+            state: PanelState {
+                entries: first.into_iter().map(to_row).collect(),
+                ..summary
+            },
+            more: rest
+                .iter()
+                .take(MENU_LIMIT)
+                .map(|entry| to_row(entry))
+                .collect(),
+            left_out: rest.len().saturating_sub(MENU_LIMIT),
+        }
     }
 }
 
-/// Up to `limit` of `ordered` (the entries in list order): pinned first, then those in `recent` in its order,
-/// then the others in list order.
-fn pick<'a>(ordered: &[&'a Entry], recent: &[String], limit: usize) -> Vec<&'a Entry> {
-    let unpinned: Vec<(String, &'a Entry)> = ordered
-        .iter()
-        .filter(|entry| !entry.pinned.value)
-        .map(|entry| (entry.id.to_string(), *entry))
-        .collect();
-    let pinned = ordered.iter().copied().filter(|entry| entry.pinned.value);
+/// The first `first_level` entries (those in `recent` first, then in list order) and the rest in list order.
+fn split<'a>(
+    ordered: &[&'a Entry],
+    recent: &[String],
+    first_level: usize,
+) -> (Vec<&'a Entry>, Vec<&'a Entry>) {
     let used = recent.iter().filter_map(|id| {
-        unpinned
+        ordered
             .iter()
-            .find(|(candidate, _)| candidate == id)
-            .map(|(_, entry)| *entry)
+            .copied()
+            .find(|entry| entry.id.to_string() == *id)
     });
-    let rest = unpinned
+    let mut first: Vec<&Entry> = Vec::new();
+    let mut taken = HashSet::new();
+    for entry in used.chain(ordered.iter().copied()) {
+        if first.len() == first_level {
+            break;
+        }
+        if taken.insert(entry.id) {
+            first.push(entry);
+        }
+    }
+    let rest = ordered
         .iter()
-        .filter(|(id, _)| !recent.contains(id))
-        .map(|(_, entry)| *entry);
-    pinned.chain(used).chain(rest).take(limit).collect()
+        .copied()
+        .filter(|entry| !taken.contains(&entry.id))
+        .collect();
+    (first, rest)
 }
 
 #[cfg(test)]

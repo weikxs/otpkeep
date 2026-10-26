@@ -1,5 +1,7 @@
-use super::{Action, Item, Line, lines, next_change_ms, same_shape};
-use crate::core::{EntryKind, PanelEntry, PanelState, PanelStatus, Problem};
+use std::time::Instant;
+
+use super::{Action, Line, items, lines, next_change_ms, same_shape, shorten};
+use crate::core::{EntryKind, MenuView, PanelEntry, PanelState, PanelStatus, Problem};
 
 const SEARCH: &str = "control+alt+super+Space";
 
@@ -35,14 +37,12 @@ fn state(status: PanelStatus, entries: Vec<PanelEntry>) -> PanelState {
     }
 }
 
-fn items(lines: &[Line]) -> Vec<&Item> {
-    lines
-        .iter()
-        .filter_map(|line| match line {
-            Line::Item(item) => Some(item),
-            Line::Separator => None,
-        })
-        .collect()
+fn view(status: PanelStatus, entries: Vec<PanelEntry>) -> MenuView {
+    MenuView {
+        state: state(status, entries),
+        more: Vec::new(),
+        left_out: 0,
+    }
 }
 
 fn ids(lines: &[Line]) -> Vec<&str> {
@@ -51,13 +51,21 @@ fn ids(lines: &[Line]) -> Vec<&str> {
         .map(|line| match line {
             Line::Item(item) => item.id.as_str(),
             Line::Separator => "-",
+            Line::Submenu { id, .. } => id.as_str(),
         })
         .collect()
 }
 
+fn texts(lines: &[Line]) -> Vec<&str> {
+    items(lines)
+        .into_iter()
+        .map(|item| item.text.as_str())
+        .collect()
+}
+
 #[test]
-fn lists_accounts_with_their_codes_then_the_actions() {
-    let shown = state(
+fn starts_with_search_then_the_accounts_then_the_actions() {
+    let shown = view(
         PanelStatus::Ready,
         vec![
             entry("e1", "Example Cloud", Some("123456")),
@@ -70,16 +78,121 @@ fn lists_accounts_with_their_codes_then_the_actions() {
     assert_eq!(
         ids(&menu),
         [
-            "copy:e1", "copy:e2", "-", "search", "open", "manage", "sync", "settings", "-", "quit"
+            "search",
+            "-",
+            "a|copy:e1",
+            "a|copy:e2",
+            "-",
+            "open",
+            "manage",
+            "sync",
+            "settings",
+            "-",
+            "quit"
         ]
     );
     let items = items(&menu);
-    assert_eq!(items[0].text, "Example Cloud   123 456");
-    assert_eq!(items[1].text, "Demo Git   1234 5678");
-    assert_eq!(items[2].text, "Search all accounts…");
-    assert_eq!(items[2].accelerator.as_deref(), Some(SEARCH));
+    assert_eq!(items[0].text, "Search…");
+    assert_eq!(items[0].accelerator.as_deref(), Some(SEARCH));
+    assert_eq!(items[1].text, "Example Cloud · demo@example.com   123 456");
+    assert_eq!(items[2].text, "Demo Git · demo@example.com   1234 5678");
     assert_eq!(items[3].text, "Open OTPKeep");
     assert_eq!(items.last().unwrap().text, "Quit OTPKeep");
+    assert_eq!(texts(&lines(&shown, None, true))[0], "搜索…");
+}
+
+#[test]
+fn lists_the_other_accounts_in_a_more_submenu() {
+    let mut shown = view(
+        PanelStatus::Ready,
+        vec![entry("e1", "Example Cloud", Some("123456"))],
+    );
+    shown.more = vec![
+        entry("e2", "Example Mail", Some("654321")),
+        entry("e3", "Demo Git", Some("111111")),
+    ];
+
+    let en = lines(&shown, None, false);
+    let zh = lines(&shown, None, true);
+
+    assert_eq!(ids(&en)[..5], ["search", "-", "a|copy:e1", "-", "more"]);
+    let Some(Line::Submenu {
+        text, lines: more, ..
+    }) = en.get(4)
+    else {
+        panic!("no submenu");
+    };
+    assert_eq!(text, "More accounts (2)");
+    assert_eq!(ids(more), ["m|copy:e2", "m|copy:e3"]);
+    let Some(Line::Submenu { text, .. }) = zh.get(4) else {
+        panic!("no submenu");
+    };
+    assert_eq!(text, "更多账号（2）");
+    assert_eq!(Action::of("m|copy:e3"), Some(Action::Copy("e3".to_owned())));
+}
+
+#[test]
+fn has_no_more_submenu_when_every_account_fits() {
+    let menu = lines(
+        &view(
+            PanelStatus::Ready,
+            vec![entry("e1", "Example Cloud", Some("123456"))],
+        ),
+        None,
+        false,
+    );
+
+    assert!(!menu.iter().any(|line| matches!(line, Line::Submenu { .. })));
+}
+
+#[test]
+fn says_how_many_accounts_did_not_fit() {
+    let mut shown = view(
+        PanelStatus::Ready,
+        vec![entry("e1", "Example Cloud", Some("123456"))],
+    );
+    shown.more = vec![entry("e2", "Example Mail", Some("654321"))];
+    shown.left_out = 3;
+
+    let en = lines(&shown, None, false);
+
+    let Some(Line::Submenu { text, .. }) = en.get(4) else {
+        panic!("no submenu");
+    };
+    assert_eq!(text, "More accounts (4)");
+    assert!(texts(&en).contains(&"3 more accounts not listed: use Search"));
+    assert!(texts(&lines(&shown, None, true)).contains(&"另有 3 个账号未列出，请用搜索"));
+}
+
+#[test]
+fn names_an_account_with_its_note_or_else_its_account_name() {
+    let mut noted = entry("e1", "Example Cloud", Some("123456"));
+    noted.note = "Backup  codes\nin the  drawer by the door".to_owned();
+    let mut chinese = entry("e2", "示例银行", Some("654321"));
+    chinese.note = "备用码放在书房抽屉里的蓝色信封中，千万别弄丢".to_owned();
+    let mut bare = entry("e3", "Demo & Git", None);
+    bare.account = String::new();
+
+    let menu = lines(
+        &view(PanelStatus::Ready, vec![noted, chinese, bare]),
+        None,
+        false,
+    );
+
+    let texts = texts(&menu);
+    assert_eq!(texts[1], "Example Cloud · Backup codes in the…   123 456");
+    assert_eq!(
+        texts[2],
+        "示例银行 · 备用码放在书房抽屉里的蓝色信封中，千万…   654 321"
+    );
+    assert_eq!(texts[3], "Demo && Git   (unavailable)");
+}
+
+#[test]
+fn shortens_by_characters() {
+    assert_eq!(shorten("short", 20), "short");
+    assert_eq!(shorten("一二三四五六", 4), "一二三…");
+    assert_eq!(shorten("abc def", 5), "abc…");
 }
 
 #[test]
@@ -94,19 +207,19 @@ fn shows_only_an_entrys_own_shortcut_that_works() {
     refused.own_shortcut = Some("control+alt+KeyJ".to_owned());
 
     let menu = lines(
-        &state(PanelStatus::Ready, vec![with_own, row_default, refused]),
+        &view(PanelStatus::Ready, vec![with_own, row_default, refused]),
         None,
         false,
     );
 
     let items = items(&menu);
-    assert_eq!(items[0].accelerator.as_deref(), Some(own.as_str()));
+    assert_eq!(items[0].accelerator, None, "no search shortcut");
+    assert_eq!(items[1].accelerator.as_deref(), Some(own.as_str()));
     assert_eq!(
-        items[1].accelerator, None,
+        items[2].accelerator, None,
         "row defaults follow the list, not the menu"
     );
-    assert_eq!(items[2].accelerator, None, "the system refused it");
-    assert_eq!(items[3].accelerator, None, "no search shortcut");
+    assert_eq!(items[3].accelerator, None, "the system refused it");
 }
 
 #[test]
@@ -115,72 +228,51 @@ fn a_counter_entry_makes_its_code_when_chosen() {
     counter.kind = EntryKind::Hotp;
     counter.period_s = None;
     counter.valid_until_ms = None;
+    counter.account = String::new();
 
     let en = lines(
-        &state(PanelStatus::Ready, vec![counter.clone()]),
+        &view(PanelStatus::Ready, vec![counter.clone()]),
         None,
         false,
     );
-    let zh = lines(&state(PanelStatus::Ready, vec![counter]), None, true);
+    let zh = lines(&view(PanelStatus::Ready, vec![counter]), None, true);
 
-    assert_eq!(items(&en)[0].id, "next:h1");
-    assert_eq!(items(&en)[0].text, "Example Bank   (press to get a code)");
-    assert_eq!(items(&zh)[0].text, "Example Bank   （点击获取验证码）");
-}
-
-#[test]
-fn tells_apart_accounts_with_the_same_name_and_keeps_ampersands() {
-    let mut second = entry("e2", "Example Cloud", Some("654321"));
-    second.account = "ops@example.com".to_owned();
-    let shown = state(
-        PanelStatus::Ready,
-        vec![
-            entry("e1", "Example Cloud", Some("123456")),
-            second,
-            entry("e3", "Demo & Git", None),
-        ],
-    );
-
-    let menu = lines(&shown, None, false);
-
-    let items = items(&menu);
-    assert_eq!(items[0].text, "Example Cloud (demo@example.com)   123 456");
-    assert_eq!(items[1].text, "Example Cloud (ops@example.com)   654 321");
-    assert_eq!(items[2].text, "Demo && Git   (unavailable)");
+    assert_eq!(items(&en)[1].id, "a|next:h1");
+    assert_eq!(items(&en)[1].text, "Example Bank   (press to get a code)");
+    assert_eq!(items(&zh)[1].text, "Example Bank   （点击获取验证码）");
 }
 
 #[test]
 fn an_empty_vault_says_so() {
-    let menu = lines(&state(PanelStatus::Ready, Vec::new()), None, true);
+    let menu = lines(&view(PanelStatus::Ready, Vec::new()), None, true);
 
     let items = items(&menu);
-    assert_eq!(items[0].text, "还没有账号");
-    assert!(!items[0].enabled);
-    assert_eq!(items[1].text, "搜索全部账号…");
+    assert_eq!(items[1].text, "还没有账号");
+    assert!(!items[1].enabled);
 }
 
 #[test]
 fn before_the_master_password_only_offers_to_unlock() {
     let menu = lines(
-        &state(PanelStatus::NeedsPassword, Vec::new()),
+        &view(PanelStatus::NeedsPassword, Vec::new()),
         Some(SEARCH),
         false,
     );
 
     assert_eq!(ids(&menu), ["unlock", "open", "-", "quit"]);
-    assert_eq!(items(&menu)[0].text, "Unlock…");
-    let zh = lines(&state(PanelStatus::NeedsPassword, Vec::new()), None, true);
-    assert_eq!(items(&zh)[0].text, "解锁…");
-    assert_eq!(items(&zh)[2].text, "退出 OTPKeep");
+    assert_eq!(texts(&menu)[0], "Unlock…");
+    let zh = lines(&view(PanelStatus::NeedsPassword, Vec::new()), None, true);
+    assert_eq!(texts(&zh)[0], "解锁…");
+    assert_eq!(texts(&zh)[2], "退出 OTPKeep");
 }
 
 #[test]
 fn data_that_cannot_be_opened_offers_what_can_help() {
-    let mut busy = state(PanelStatus::Unavailable, Vec::new());
-    busy.problem = Some(Problem::Busy);
-    let mut damaged = state(PanelStatus::Unavailable, Vec::new());
-    damaged.problem = Some(Problem::Damaged);
-    damaged.can_restore = true;
+    let mut busy = view(PanelStatus::Unavailable, Vec::new());
+    busy.state.problem = Some(Problem::Busy);
+    let mut damaged = view(PanelStatus::Unavailable, Vec::new());
+    damaged.state.problem = Some(Problem::Damaged);
+    damaged.state.can_restore = true;
 
     let busy = lines(&busy, None, false);
     let damaged = lines(&damaged, None, true);
@@ -197,7 +289,7 @@ fn data_that_cannot_be_opened_offers_what_can_help() {
             "quit"
         ]
     );
-    assert_eq!(items(&busy)[1].text, "Another OTPKeep is using this data");
+    assert_eq!(texts(&busy)[1], "Another OTPKeep is using this data");
     assert!(!items(&busy)[1].enabled);
     assert_eq!(
         ids(&damaged),
@@ -211,33 +303,41 @@ fn data_that_cannot_be_opened_offers_what_can_help() {
             "quit"
         ]
     );
-    assert_eq!(items(&damaged)[1].text, "数据文件已损坏");
+    assert_eq!(texts(&damaged)[1], "数据文件已损坏");
 }
 
 #[test]
 fn every_line_is_worded_in_both_languages() {
-    let mut problems = state(PanelStatus::Unavailable, Vec::new());
-    problems.problem = Some(Problem::DataMissing);
-    problems.can_restore = true;
+    let mut problems = view(PanelStatus::Unavailable, Vec::new());
+    problems.state.problem = Some(Problem::DataMissing);
+    problems.state.can_restore = true;
+    let mut ready = view(
+        PanelStatus::Ready,
+        vec![entry("e1", "Example Cloud", Some("1"))],
+    );
+    ready.more = vec![entry("e2", "Example Mail", Some("2"))];
+    ready.left_out = 2;
     for shown in [
-        state(PanelStatus::Ready, Vec::new()),
-        state(PanelStatus::NeedsPassword, Vec::new()),
+        view(PanelStatus::Ready, Vec::new()),
+        view(PanelStatus::NeedsPassword, Vec::new()),
         problems,
+        ready,
     ] {
         let en = lines(&shown, None, false);
         let zh = lines(&shown, None, true);
         for (en, zh) in items(&en).into_iter().zip(items(&zh)) {
             assert_eq!(en.id, zh.id);
-            assert_ne!(en.text, zh.text, "{}", en.id);
+            let account = en.id.contains("copy:");
+            assert!(account || en.text != zh.text, "{}", en.id);
         }
     }
 }
 
 #[test]
 fn each_item_says_what_it_does() {
-    assert_eq!(Action::of("copy:e1"), Some(Action::Copy("e1".to_owned())));
+    assert_eq!(Action::of("a|copy:e1"), Some(Action::Copy("e1".to_owned())));
     assert_eq!(
-        Action::of("next:h1"),
+        Action::of("m|next:h1"),
         Some(Action::NextCode("h1".to_owned()))
     );
     assert_eq!(Action::of("search"), Some(Action::Search));
@@ -245,7 +345,8 @@ fn each_item_says_what_it_does() {
     assert_eq!(Action::of("restore"), Some(Action::Restore));
     assert_eq!(Action::of("quit"), Some(Action::Quit));
     assert_eq!(Action::of("problem"), None);
-    assert_eq!(Action::of("none"), None);
+    assert_eq!(Action::of("more"), None);
+    assert_eq!(Action::of("left-out"), None);
 }
 
 #[test]
@@ -255,58 +356,60 @@ fn the_codes_change_when_the_first_shown_one_ends() {
     later.valid_until_ms = Some(1_700_000_060_000);
     let mut counter = entry("h1", "Example Bank", None);
     counter.valid_until_ms = None;
-    let shown = state(
-        PanelStatus::Ready,
-        vec![later, entry("e1", "Example Cloud", Some("123456")), counter],
-    );
+    let mut shown = view(PanelStatus::Ready, vec![later, counter]);
+    shown.more = vec![entry("e1", "Example Cloud", Some("123456"))];
 
     assert_eq!(next_change_ms(&shown), Some(1_700_000_040_000));
     assert_eq!(
-        next_change_ms(&state(PanelStatus::NeedsPassword, Vec::new())),
+        next_change_ms(&view(PanelStatus::NeedsPassword, Vec::new())),
         None
     );
 }
 
 #[test]
 fn new_codes_only_reword_the_menu() {
-    let before = lines(
-        &state(
+    let menu = |id: &str, code: &str, search: Option<&str>| {
+        let mut shown = view(
             PanelStatus::Ready,
-            vec![entry("e1", "Example Cloud", Some("123456"))],
-        ),
-        None,
-        false,
-    );
-    let new_code = lines(
-        &state(
-            PanelStatus::Ready,
-            vec![entry("e1", "Example Cloud", Some("654321"))],
-        ),
-        None,
-        false,
-    );
-    let other_entry = lines(
-        &state(
-            PanelStatus::Ready,
-            vec![entry("e2", "Example Cloud", Some("654321"))],
-        ),
-        None,
-        false,
-    );
-    let unlocked = lines(&state(PanelStatus::NeedsPassword, Vec::new()), None, false);
+            vec![entry("e0", "Demo Git", Some(code))],
+        );
+        shown.more = vec![entry(id, "Example Cloud", Some(code))];
+        lines(&shown, search, false)
+    };
+    let before = menu("e1", "123456", None);
 
-    assert!(same_shape(&before, &new_code));
-    assert!(!same_shape(&before, &other_entry));
-    assert!(!same_shape(&unlocked, &before));
-    assert!(!same_shape(
-        &before,
-        &lines(
-            &state(
-                PanelStatus::Ready,
-                vec![entry("e1", "Example Cloud", Some("123456"))]
-            ),
-            Some(SEARCH),
-            false
-        )
-    ));
+    assert!(same_shape(&before, &menu("e1", "654321", None)));
+    assert!(!same_shape(&before, &menu("e2", "654321", None)));
+    assert!(!same_shape(&before, &menu("e1", "123456", Some(SEARCH))));
+    let locked = lines(&view(PanelStatus::NeedsPassword, Vec::new()), None, false);
+    assert!(!same_shape(&locked, &before));
+}
+
+#[test]
+fn a_thousand_accounts_are_laid_out_quickly() {
+    let all: Vec<PanelEntry> = (0..1030)
+        .map(|n| {
+            entry(
+                &format!("e{n}"),
+                &format!("Example Cloud {n}"),
+                Some("123456"),
+            )
+        })
+        .collect();
+    let shown = MenuView {
+        state: state(PanelStatus::Ready, all[..30].to_vec()),
+        more: all[30..].to_vec(),
+        left_out: 0,
+    };
+
+    let started = Instant::now();
+    let menu = lines(&shown, Some(SEARCH), false);
+    let again = lines(&shown, Some(SEARCH), false);
+    let same = same_shape(&menu, &again);
+    let spent = started.elapsed();
+
+    assert!(same);
+    assert_eq!(items(&menu).len(), 1 + 1030 + 5);
+    // Twice the layout and one comparison take milliseconds; the bound is generous for slow machines.
+    assert!(spent.as_millis() < 500, "{spent:?}");
 }

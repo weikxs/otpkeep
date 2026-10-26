@@ -6,6 +6,8 @@ import { CommandFailure, type MainApi, type Settings, type SettingsPatch } from 
 import { type MainStrings, describe } from "./i18n";
 
 const CLEAR_CHOICES = [0, 10, 20, 30, 45, 60, 90, 120];
+/** How many accounts the menu bar menu may show on its first level. */
+const MENU_CHOICES = [10, 15, 20, 25, 30, 40, 50];
 
 export interface SettingsDialogProps {
   api: Pick<MainApi, "settings" | "setSettings" | "setSearchShortcut" | "typingStatus" | "askTypingPermission">;
@@ -79,6 +81,23 @@ export function SettingsDialog({ api, text, isMac, onSaved, onClose }: SettingsD
                 {CLEAR_CHOICES.map((s) => (
                   <option key={s} value={String(s)}>
                     {s === 0 ? text.clipboardOff : text.clipboardAfter(s)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label class="setting">
+              <span class="setting-name">
+                {text.menuAccounts}
+                <span class="muted">{text.menuAccountsHint}</span>
+              </span>
+              <select
+                value={String(settings.menuAccounts)}
+                aria-label={text.menuAccounts}
+                onChange={(e) => void change({ menuAccounts: Number(value(e)) })}
+              >
+                {MENU_CHOICES.map((n) => (
+                  <option key={n} value={String(n)}>
+                    {n}
                   </option>
                 ))}
               </select>

@@ -135,6 +135,8 @@ export interface Settings {
   clipboardClearS: number;
   rowShortcuts: boolean;
   rowShortcutsDefault: boolean;
+  /** How many accounts the menu bar menu shows on its first level (10–50); the rest are under "More accounts". */
+  menuAccounts: number;
   /** The search panel's global shortcut; null when it is off. */
   searchShortcut: string | null;
   /** What it is on this system when never changed; null where there is none. */
@@ -143,7 +145,7 @@ export interface Settings {
 }
 
 export type SettingsPatch = Partial<
-  Pick<Settings, "language" | "theme" | "clipboardClearS" | "rowShortcuts">
+  Pick<Settings, "language" | "theme" | "clipboardClearS" | "rowShortcuts" | "menuAccounts">
 >;
 
 export type ExportFormat = "backup" | "links" | "goldenPassport";

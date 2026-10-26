@@ -62,6 +62,17 @@ describe("settings", () => {
     await waitFor(() => expect(set).toHaveBeenCalledWith({ rowShortcuts: false }));
   });
 
+  it("sets how many accounts the menu bar menu shows", async () => {
+    const api = show();
+    const dialog = await openSettings();
+    const count = await dialog.findByLabelText(/菜单栏菜单中的账号数/u);
+
+    expect((count as HTMLSelectElement).value).toBe("30");
+    fireEvent.change(count, { target: { value: "15" } });
+
+    await waitFor(async () => expect((await api.settings()).menuAccounts).toBe(15));
+  });
+
   it("shows the version and that it works offline", async () => {
     show();
     const dialog = await openSettings();

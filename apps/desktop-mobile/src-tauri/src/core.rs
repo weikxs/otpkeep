@@ -38,6 +38,7 @@ pub use import::{ImportProblem, ManualForm, read_bytes};
 pub use import_view::ImportView;
 pub use key::{KeyForm, KeyInfo};
 pub use manage::{History, MoveTo, TrashItem};
+pub use menu::MenuView;
 pub use update::EntryUpdate;
 
 use search::{FindCache, select};

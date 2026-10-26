@@ -57,7 +57,7 @@ Codes at hand with one click or one shortcut. Your accounts stay on your devices
 ## Features
 
 - **Codes at hand**
-  - Menu bar / tray **menu**: your pinned and most recently used accounts with their current codes; choose one to copy its code. It is the system's own menu, so OTPKeep runs no web page while it waits in the menu bar.
+  - Menu bar / tray **menu**: your recently used accounts, then the others, with their current codes; choose one to copy its code. It is the system's own menu, so OTPKeep runs no web page while it waits in the menu bar.
   - **Global shortcuts**: `⌃⌥⌘1` … `⌃⌥⌘0` copy the first ten accounts (macOS); any account can have its own shortcut.
   - **Search panel** (`⌃⌥⌘Space`): type a name, press Enter to copy, `⇧Enter` to **type the code** into the app you are using.
   - **Command line**: `otpkeep code github` prints a code.
@@ -197,13 +197,18 @@ menu, choose **Open OTPKeep** and add your first account: paste a link, drop or 
 
 A click on the icon opens a menu drawn by the system (no web page runs for it):
 
-- Up to 15 accounts, pinned ones first, then the ones you used most recently, each with its current code
-  (`Example Cloud   123 456`) and its own shortcut, if it has one. The last 10 accounts whose codes you copied (from the menu, a
-  shortcut, the search panel, the main window or the management page) are remembered as ids only, in this device's settings
-  file; they are never synced. Choose an account to copy its code; the clipboard is cleared
-  as after any copy. Counter-based (HOTP) accounts read **(press to get a code)** and make a new code when chosen.
-- **Search all accounts…** opens the search panel (`⌃⌥⌘Space`), then **Open OTPKeep** (the main window), **Manage in the browser…**,
-  **Sync…**, **Settings…** and **Quit OTPKeep**.
+- **Search…** at the top opens the search panel (its shortcut, `⌃⌥⌘Space` on macOS, is shown beside it).
+- Then 30 accounts (10–50, set in Settings): the ones whose codes you copied last come first, the rest follow in the main
+  window's order, pinned ones first. Each reads `Name · Note   123 456`: the note is shortened to about 20 characters, the
+  account name stands in when there is no note, and the account's own shortcut is shown beside it, if it has one.
+- **More accounts (N)** is a submenu with every other account in the main window's order; it scrolls. Above 1000 accounts it says
+  how many were left out, and the search panel finds them.
+- Then **Open OTPKeep** (the main window), **Manage in the browser…**, **Sync…**, **Settings…** and **Quit OTPKeep**.
+
+Choose an account to copy its code; the clipboard is cleared as after any copy. Counter-based (HOTP) accounts read
+**(press to get a code)** and make a new code when chosen. The last 10 accounts whose codes you copied (from the menu, a shortcut,
+the search panel, the main window or the management page) are remembered as ids only, in this device's settings file; they are
+never synced.
 
 The codes are brought up to date when they change, when your accounts change and when the pointer reaches the icon.
 With a master password, the menu offers **Unlock…** until you enter it: a small window asks for the password and closes once the
@@ -265,7 +270,7 @@ Sync works only between devices near each other, over the same local network or 
 ### Settings
 
 Language (system, English, 中文), theme, clearing the clipboard after copying (default 30 seconds), shortcuts for the first ten accounts,
-the search panel shortcut, and typing permission.
+the search panel shortcut, how many accounts the menu bar menu shows, and typing permission.
 
 ## Keyboard shortcuts
 

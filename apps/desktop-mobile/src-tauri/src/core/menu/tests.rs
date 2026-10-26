@@ -57,10 +57,9 @@ fn core_with(dir: &Path, count: u8, pinned: &[u8]) -> Core {
     )
 }
 
-fn titles(core: &Core, recent: &[String]) -> Vec<String> {
-    core.menu_state(recent)
-        .entries
-        .into_iter()
+fn short(entries: &[crate::core::PanelEntry]) -> Vec<String> {
+    entries
+        .iter()
         .map(|entry| entry.title.replace("Example Cloud ", ""))
         .collect()
 }
@@ -75,40 +74,49 @@ fn id_of(core: &Core, title: &str) -> String {
 }
 
 #[test]
-fn lists_pinned_accounts_first_then_the_recently_used_then_the_rest() {
+fn lists_the_recently_used_first_then_fills_up_in_list_order() {
     let dir = temp_dir();
-    let core = core_with(dir.path(), 5, &[3]);
+    let core = core_with(dir.path(), 6, &[3]);
     let recent = vec![
-        id_of(&core, "Example Cloud 04"),
+        id_of(&core, "Example Cloud 05"),
+        "gone".to_owned(),
         id_of(&core, "Example Cloud 01"),
-        // A pinned one used recently stays with the pinned ones.
-        id_of(&core, "Example Cloud 03"),
     ];
 
-    assert_eq!(titles(&core, &recent), ["03", "04", "01", "00", "02"]);
+    let view = core.menu_view(&recent, 4);
+
+    assert_eq!(view.state.status, PanelStatus::Ready);
+    assert_eq!(short(&view.state.entries), ["05", "01", "03", "00"]);
+    assert_eq!(short(&view.more), ["02", "04"]);
+    assert!(view.state.entries.iter().all(|entry| entry.code.is_some()));
+    assert_eq!(
+        view.state.entries[0].valid_until_ms,
+        Some(1_700_000_040_000)
+    );
+    assert_eq!(view.left_out, 0);
 }
 
 #[test]
-fn lists_at_most_the_menu_limit_with_codes() {
+fn has_nothing_more_when_every_account_fits() {
     let dir = temp_dir();
-    let core = core_with(dir.path(), 20, &[]);
-    let last = id_of(&core, "Example Cloud 19");
+    let core = core_with(dir.path(), 3, &[]);
 
-    let state = core.menu_state(std::slice::from_ref(&last));
+    let view = core.menu_view(&[], 30);
 
-    assert_eq!(state.status, PanelStatus::Ready);
-    assert_eq!(state.entries.len(), MENU_LIMIT);
-    assert_eq!(state.entries[0].id, last, "a recent one far down is listed");
-    assert!(state.entries.iter().all(|entry| entry.code.is_some()));
-    assert_eq!(state.entries[0].valid_until_ms, Some(1_700_000_040_000));
+    assert_eq!(short(&view.state.entries), ["00", "01", "02"]);
+    assert!(view.more.is_empty());
 }
 
 #[test]
-fn ignores_recent_entries_that_are_gone() {
+fn lists_every_other_account_however_many() {
     let dir = temp_dir();
-    let core = core_with(dir.path(), 2, &[]);
+    let core = core_with(dir.path(), 40, &[]);
 
-    assert_eq!(titles(&core, &["gone".to_owned()]), ["00", "01"]);
+    let view = core.menu_view(&[], 10);
+
+    assert_eq!(view.state.entries.len(), 10);
+    assert_eq!(view.more.len(), 30);
+    const { assert!(MENU_LIMIT >= 1000) };
 }
 
 #[test]
@@ -131,8 +139,9 @@ fn lists_nothing_before_the_master_password() {
         WAIT,
     );
 
-    let state = core.menu_state(&[]);
+    let view = core.menu_view(&["e1".to_owned()], 30);
 
-    assert_eq!(state.status, PanelStatus::NeedsPassword);
-    assert!(state.entries.is_empty());
+    assert_eq!(view.state.status, PanelStatus::NeedsPassword);
+    assert!(view.state.entries.is_empty());
+    assert!(view.more.is_empty());
 }

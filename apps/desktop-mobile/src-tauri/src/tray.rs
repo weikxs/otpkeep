@@ -2,22 +2,23 @@
 //! `AppIndicator` on Linux), so no web page runs while the app rests in the menu bar. What the menu lists is
 //! worked out in [`crate::tray_menu`].
 //!
-//! The codes in it are brought up to date when a shown code ends (one timer, set for that moment), when the
+//! The codes in it (several hundred items for a large vault: menus scroll) are brought up to date when a shown code ends (one timer, set for that moment), when the
 //! data changes (`vault-changed`: an edit, a sync merge, unlocking), when the settings change, and when the
 //! pointer comes onto the icon (macOS, Windows), just before the menu can open. Nothing ticks otherwise.
 
 use std::sync::{Mutex, MutexGuard, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tauri::async_runtime::JoinHandle;
 use tauri::image::Image;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Listener, Manager, Wry};
 
 use crate::commands::{AppCore, copy_entry};
-use crate::core::{PanelState, PanelStatus};
+use crate::core::{MenuView, PanelEntry, PanelState, PanelStatus};
 use crate::hotkeys::Hotkeys;
+use crate::settings::DEFAULT_MENU_ACCOUNTS;
 use crate::tray_menu::{self, Action, Line};
 use crate::{desktop, icon, panels, unlock};
 
@@ -54,7 +55,7 @@ impl TrayMenu {
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     app.manage(TrayMenu::default());
     let lines = tray_menu::lines(
-        &menu_state(app),
+        &menu_view(app),
         search_shortcut(app).as_deref(),
         chinese(app),
     );
@@ -102,12 +103,13 @@ pub fn refresh(app: &AppHandle) {
 
 /// Brings the menu up to date with the data and sets the timer for the next change of codes.
 fn draw(app: &AppHandle) {
-    let state = menu_state(app);
-    if state.status != PanelStatus::NeedsPassword {
+    let started = Instant::now();
+    let view = menu_view(app);
+    if view.state.status != PanelStatus::NeedsPassword {
         // Unlocked here or in another window: the password window has done its work.
         unlock::close(app);
     }
-    let lines = tray_menu::lines(&state, search_shortcut(app).as_deref(), chinese(app));
+    let lines = tray_menu::lines(&view, search_shortcut(app).as_deref(), chinese(app));
     let Some(menu) = app.try_state::<TrayMenu>() else {
         return;
     };
@@ -127,27 +129,24 @@ fn draw(app: &AppHandle) {
     if let Some(timer) = drawn.timer.take() {
         timer.abort();
     }
-    drawn.timer = tray_menu::next_change_ms(&state).map(|at| {
-        let wait = Duration::from_millis(at.saturating_sub(state.now_ms)) + AFTER_CHANGE;
+    let now_ms = view.state.now_ms;
+    drawn.timer = tray_menu::next_change_ms(&view).map(|at| {
+        let wait = Duration::from_millis(at.saturating_sub(now_ms)) + AFTER_CHANGE;
         let app = app.clone();
         tauri::async_runtime::spawn(async move {
             tokio::time::sleep(wait).await;
             refresh(&app);
         })
     });
+    let items = drawn.items.len();
+    tracing::debug!(items, spent = ?started.elapsed(), "the menu bar menu was brought up to date");
 }
 
 /// Changes only the words of items whose words changed (new codes), keeping the menu as it is, even open.
 fn reword(drawn: &Drawn, lines: &[Line]) {
-    let items = lines.iter().filter_map(|line| match line {
-        Line::Item(item) => Some(item),
-        Line::Separator => None,
-    });
-    let before = drawn.lines.iter().filter_map(|line| match line {
-        Line::Item(item) => Some(item),
-        Line::Separator => None,
-    });
-    for ((new, old), item) in items.zip(before).zip(&drawn.items) {
+    let items = tray_menu::items(lines);
+    let before = tray_menu::items(&drawn.lines);
+    for ((new, old), item) in items.into_iter().zip(before).zip(&drawn.items) {
         if new.text != old.text {
             let _ = item.set_text(&new.text);
         }
@@ -163,52 +162,90 @@ fn replace(app: &AppHandle, lines: &[Line]) -> tauri::Result<Vec<MenuItem<Wry>>>
     Ok(items)
 }
 
+/// Makes the menu for `lines`, with its items in the order of [`tray_menu::items`].
 fn build(app: &AppHandle, lines: &[Line]) -> tauri::Result<(Menu<Wry>, Vec<MenuItem<Wry>>)> {
     let menu = Menu::new(app)?;
     let mut items = Vec::new();
     for line in lines {
-        match line {
-            Line::Separator => menu.append(&PredefinedMenuItem::separator(app)?)?,
-            Line::Item(item) => {
-                let made = MenuItem::with_id(
-                    app,
-                    item.id.as_str(),
-                    &item.text,
-                    item.enabled,
-                    item.accelerator.as_deref(),
-                )?;
-                menu.append(&made)?;
-                items.push(made);
-            }
-        }
+        menu.append(make(app, line, &mut items)?.as_item())?;
     }
     Ok((menu, items))
 }
 
+/// One made line of the menu.
+enum Made {
+    Item(MenuItem<Wry>),
+    Separator(PredefinedMenuItem<Wry>),
+    Submenu(Submenu<Wry>),
+}
+
+impl Made {
+    fn as_item(&self) -> &dyn IsMenuItem<Wry> {
+        match self {
+            Self::Item(item) => item,
+            Self::Separator(separator) => separator,
+            Self::Submenu(submenu) => submenu,
+        }
+    }
+}
+
+/// Makes one line, a submenu with its lines; each item made is added to `items`.
+fn make(app: &AppHandle, line: &Line, items: &mut Vec<MenuItem<Wry>>) -> tauri::Result<Made> {
+    Ok(match line {
+        Line::Separator => Made::Separator(PredefinedMenuItem::separator(app)?),
+        Line::Item(item) => {
+            let made = MenuItem::with_id(
+                app,
+                item.id.as_str(),
+                &item.text,
+                item.enabled,
+                item.accelerator.as_deref(),
+            )?;
+            items.push(made.clone());
+            Made::Item(made)
+        }
+        Line::Submenu { id, text, lines } => {
+            let submenu = Submenu::with_id(app, id.as_str(), text, true)?;
+            for line in lines {
+                submenu.append(make(app, line, items)?.as_item())?;
+            }
+            Made::Submenu(submenu)
+        }
+    })
+}
+
 /// What the menu shows, with each entry's own shortcut where the system accepted it.
-fn menu_state(app: &AppHandle) -> PanelState {
+fn menu_view(app: &AppHandle) -> MenuView {
     let Some(hotkeys) = app.try_state::<Hotkeys>() else {
-        return app.state::<AppCore>().get().menu_state(&[]);
+        return app
+            .state::<AppCore>()
+            .get()
+            .menu_view(&[], usize::from(DEFAULT_MENU_ACCOUNTS));
     };
-    let state = app
+    let settings = hotkeys.settings();
+    let view = app
         .state::<AppCore>()
         .get()
-        .menu_state(&hotkeys.settings().recent_entries);
+        .menu_view(&settings.recent_entries, settings.menu_accounts());
     let (map, active) = (hotkeys.map(), hotkeys.active());
-    let entries = state
-        .entries
-        .into_iter()
-        .map(|entry| {
-            let own = map.own(&entry.id).map(str::to_owned);
-            let shortcut = own.clone().filter(|own| active.contains(own));
-            crate::core::PanelEntry {
-                shortcut,
-                own_shortcut: own,
-                ..entry
-            }
-        })
-        .collect();
-    PanelState { entries, ..state }
+    let with_shortcut = |entry: PanelEntry| {
+        let own = map.own(&entry.id).map(str::to_owned);
+        let shortcut = own.clone().filter(|own| active.contains(own));
+        PanelEntry {
+            shortcut,
+            own_shortcut: own,
+            ..entry
+        }
+    };
+    let entries = view.state.entries.into_iter().map(with_shortcut).collect();
+    MenuView {
+        state: PanelState {
+            entries,
+            ..view.state
+        },
+        more: view.more.into_iter().map(with_shortcut).collect(),
+        left_out: view.left_out,
+    }
 }
 
 /// The search panel's shortcut, when the system accepted it.

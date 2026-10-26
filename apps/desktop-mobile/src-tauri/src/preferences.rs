@@ -2,10 +2,12 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::settings::{DEFAULT_CLEAR_S, Settings};
+use crate::settings::{DEFAULT_CLEAR_S, DEFAULT_MENU_ACCOUNTS, Settings};
 
 /// Shortest and longest clipboard clearing time; 0 turns clearing off.
 const CLEAR_RANGE: std::ops::RangeInclusive<u16> = 10..=120;
+/// Fewest and most accounts on the menu bar menu's first level.
+const MENU_ACCOUNTS_RANGE: std::ops::RangeInclusive<u8> = 10..=50;
 
 /// The settings as the window shows them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -17,6 +19,8 @@ pub struct SettingsView {
     pub theme: String,
     /// 0 when copied codes are never cleared.
     pub clipboard_clear_s: u16,
+    /// How many accounts the menu bar menu shows on its first level.
+    pub menu_accounts: u8,
     pub row_shortcuts: bool,
     /// What `row_shortcuts` is on this system when never changed.
     pub row_shortcuts_default: bool,
@@ -34,6 +38,7 @@ pub struct SettingsPatch {
     pub language: Option<String>,
     pub theme: Option<String>,
     pub clipboard_clear_s: Option<u16>,
+    pub menu_accounts: Option<u8>,
     pub row_shortcuts: Option<bool>,
 }
 
@@ -49,6 +54,7 @@ pub fn view(settings: &Settings) -> SettingsView {
             .clone()
             .unwrap_or_else(|| "system".to_owned()),
         clipboard_clear_s: settings.clipboard_clear_s.unwrap_or(DEFAULT_CLEAR_S),
+        menu_accounts: settings.menu_accounts.unwrap_or(DEFAULT_MENU_ACCOUNTS),
         row_shortcuts: settings.row_shortcuts_on(),
         row_shortcuts_default: cfg!(target_os = "macos"),
         search_shortcut: settings.search_shortcut_on(),
@@ -62,7 +68,7 @@ pub fn view(settings: &Settings) -> SettingsView {
 ///
 /// # Errors
 ///
-/// Returns the rule that a value breaks: `LANGUAGE`, `THEME` or `CLIPBOARD`.
+/// Returns the rule that a value breaks: `LANGUAGE`, `THEME`, `CLIPBOARD` or `MENU_ACCOUNTS`.
 pub fn apply(settings: &Settings, patch: &SettingsPatch) -> Result<Settings, &'static str> {
     let mut next = settings.clone();
     if let Some(language) = &patch.language {
@@ -84,6 +90,12 @@ pub fn apply(settings: &Settings, patch: &SettingsPatch) -> Result<Settings, &'s
             return Err("CLIPBOARD");
         }
         next.clipboard_clear_s = Some(seconds);
+    }
+    if let Some(count) = patch.menu_accounts {
+        if !MENU_ACCOUNTS_RANGE.contains(&count) {
+            return Err("MENU_ACCOUNTS");
+        }
+        next.menu_accounts = Some(count);
     }
     if let Some(on) = patch.row_shortcuts {
         next.row_shortcuts = Some(on);
@@ -120,6 +132,7 @@ mod tests {
             language: Some("en".to_owned()),
             theme: Some("dark".to_owned()),
             clipboard_clear_s: Some(0),
+            menu_accounts: None,
             row_shortcuts: Some(false),
         };
 
@@ -175,6 +188,25 @@ mod tests {
             })
             .is_ok()
         );
+    }
+
+    #[test]
+    fn the_menu_shows_10_to_50_accounts_on_its_first_level() {
+        assert_eq!(view(&Settings::default()).menu_accounts, 30);
+        let at = |count| {
+            apply(
+                &Settings::default(),
+                &SettingsPatch {
+                    menu_accounts: Some(count),
+                    ..Default::default()
+                },
+            )
+        };
+
+        assert_eq!(at(10).unwrap().menu_accounts(), 10);
+        assert_eq!(at(50).unwrap().menu_accounts(), 50);
+        assert_eq!(at(9), Err("MENU_ACCOUNTS"));
+        assert_eq!(at(51), Err("MENU_ACCOUNTS"));
     }
 
     #[test]

@@ -20,12 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Open windows use far less CPU: countdowns update once a second, on the second, and the rings empty by
   themselves instead of being redrawn on every tick; the main window and the panels draw only the accounts on
   screen, so a long list stays light.
-- The menu bar / tray icon now opens the system's own menu instead of the quick panel: up to 15 accounts,
-  pinned ones first, then the most recently used (the last 10 accounts whose codes you copied, remembered as
-  ids in this device's settings and never synced), each with its current code (and its own shortcut); choosing
-  one copies the code, and counter-based accounts make a new code when chosen. Then **Search all accounts…**,
-  **Open OTPKeep**, **Manage in the browser…**, **Sync…**, **Settings…** and **Quit OTPKeep**. The codes are
-  brought up to date when they change, when the accounts change and when the pointer reaches the icon.
+- The menu bar / tray icon now opens the system's own menu instead of the quick panel: **Search…** (with the
+  search panel's shortcut), then 30 accounts (10–50, a new setting), the most recently used first (the last 10
+  accounts whose codes you copied, remembered as ids in this device's settings and never synced) and the rest in
+  the main window's order, then **More accounts (N)** with every other account, then **Open OTPKeep**,
+  **Manage in the browser…**, **Sync…**, **Settings…** and **Quit OTPKeep**. Each account shows its name, its note
+  (shortened) or account name, its current code and its own shortcut; choosing one copies the code, and
+  counter-based accounts make a new code when chosen. The codes are brought up to date when they change, when the
+  accounts change and when the pointer reaches the icon.
 - With a master password, the menu offers **Unlock…**, which opens a small password window that closes once the
   data is open; a shortcut pressed before the password was entered opens the same window.
 - OTPKeep resting in the menu bar runs no web page: the search panel and the main window are made when asked

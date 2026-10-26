@@ -12,6 +12,8 @@ const FILE: &str = "settings.json";
 pub const DEFAULT_CLEAR_S: u16 = 30;
 /// How many recently used entries the menu bar menu remembers.
 pub const RECENT_LIMIT: usize = 10;
+/// How many accounts the menu bar menu shows on its first level when the setting says nothing.
+pub const DEFAULT_MENU_ACCOUNTS: u8 = 30;
 
 /// The settings this version knows; fields from newer versions are kept as they are.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -39,6 +41,10 @@ pub struct Settings {
     /// [`RECENT_LIMIT`]). Ids only: no names, codes or secrets. Never synced.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub recent_entries: Vec<String>,
+    /// How many accounts the menu bar menu shows on its first level (10–50); absent is
+    /// [`DEFAULT_MENU_ACCOUNTS`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub menu_accounts: Option<u8>,
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
 }
@@ -72,6 +78,12 @@ impl Settings {
             recent_entries,
             ..self.clone()
         }
+    }
+
+    /// How many accounts the menu bar menu shows on its first level.
+    #[must_use]
+    pub fn menu_accounts(&self) -> usize {
+        usize::from(self.menu_accounts.unwrap_or(DEFAULT_MENU_ACCOUNTS))
     }
 
     /// The search panel's shortcut in effect, if any.

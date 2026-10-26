@@ -61,6 +61,8 @@ const zh = {
   clipboardOff: "不清除",
   clipboardAfter: (s: number) => `${s} 秒后`,
   clipboardHint: "只有剪贴板里仍是这个验证码时才会清除",
+  menuAccounts: "菜单栏菜单中的账号数",
+  menuAccountsHint: "最近使用的账号排在前面，其余的在“更多账号”里",
   rowShortcuts: "前 10 个账号的快捷键",
   rowShortcutsHint: (mac: boolean): string =>
     mac ? "⌃⌥⌘1 … ⌃⌥⌘0 复制列表中第 1–10 个账号的验证码" : "Ctrl+Alt+Win+1 … 0 复制列表中第 1–10 个账号的验证码",
@@ -288,6 +290,7 @@ const zh = {
     NOTHING_TO_EXPORT: "没有可导出的账号",
     QR_TOO_LONG: "内容太长，无法放进二维码",
     CLIPBOARD: "清除时间应为 10–120 秒，或选择不清除",
+    MENU_ACCOUNTS: "菜单中的账号数应为 10–50",
     LANGUAGE: "不支持这种语言",
     THEME: "不支持这种主题",
     TOO_MANY_TAGS: "最多 20 个标签",
@@ -365,6 +368,7 @@ const en: MainStrings = {
     NOTHING_TO_EXPORT: "There is nothing to export",
     QR_TOO_LONG: "Too long to fit in a QR code",
     CLIPBOARD: "The clearing time must be 10–120 seconds, or never",
+    MENU_ACCOUNTS: "The menu shows 10–50 accounts",
     LANGUAGE: "This language is not supported",
     THEME: "This theme is not supported",
     TOO_MANY_TAGS: "At most 20 tags",
@@ -420,6 +424,8 @@ const en: MainStrings = {
   clipboardOff: "Never",
   clipboardAfter: (s) => `After ${s} seconds`,
   clipboardHint: "Only when the clipboard still holds that code",
+  menuAccounts: "Accounts in the menu bar menu",
+  menuAccountsHint: "Recently used ones first; the others are under More accounts",
   rowShortcuts: "Shortcuts for the first 10 accounts",
   rowShortcutsHint: (mac) =>
     mac ? "⌃⌥⌘1 … ⌃⌥⌘0 copy the code of accounts 1–10 in the list" : "Ctrl+Alt+Win+1 … 0 copy the code of accounts 1–10 in the list",

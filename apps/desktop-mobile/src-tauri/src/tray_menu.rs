@@ -1,17 +1,28 @@
 //! What the menu bar menu lists, worked out from the state of the data alone so it can be tested; drawing it
 //! with the system's menu is in [`crate::tray`].
 //!
-//! Unlocked, the menu lists accounts with their current codes (at most 15) and the app's
-//! actions; before the master password it offers only to unlock; when the data cannot be opened, what can be
-//! done about it.
+//! Unlocked, the menu starts with Search, then lists the recently used accounts filled up in list order (as many
+//! as the setting says), every other account in a "More accounts" submenu (native menus scroll), each with its
+//! current code, and the app's actions. Before the master
+//! password it offers only to unlock; when the data cannot be opened, what can be done about it.
 
-use crate::core::{EntryKind, PanelEntry, PanelState, PanelStatus, Problem};
+use crate::core::{EntryKind, MenuView, PanelEntry, PanelState, PanelStatus};
+
+mod words;
+
+use words::{EN, Words, ZH, problem_text, retryable};
 
 /// One line of the menu.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Line {
     Item(Item),
     Separator,
+    /// A submenu: its title and its lines.
+    Submenu {
+        id: String,
+        text: String,
+        lines: Vec<Line>,
+    },
 }
 
 /// A menu item: its id says what choosing it does (see [`Action::of`]).
@@ -45,11 +56,14 @@ pub enum Action {
 
 const COPY: &str = "copy:";
 const NEXT_CODE: &str = "next:";
+const SECTION: char = '|';
 
 impl Action {
     /// The action of the item with `id`; `None` for lines that only inform.
     #[must_use]
     pub fn of(id: &str) -> Option<Self> {
+        // An account listed in several places has one item in each, told apart by a section before `|`.
+        let id = id.split_once(SECTION).map_or(id, |(_, rest)| rest);
         if let Some(entry) = id.strip_prefix(COPY) {
             return Some(Self::Copy(entry.to_owned()));
         }
@@ -71,96 +85,16 @@ impl Action {
     }
 }
 
-/// The menu's words in one language.
-struct Words {
-    search: &'static str,
-    open: &'static str,
-    manage: &'static str,
-    sync: &'static str,
-    settings: &'static str,
-    quit: &'static str,
-    unlock: &'static str,
-    press_for_code: &'static str,
-    no_code: &'static str,
-    no_accounts: &'static str,
-    unavailable: &'static str,
-    retry: &'static str,
-    restore: &'static str,
-}
-
-const ZH: Words = Words {
-    search: "搜索全部账号…",
-    open: "打开 OTPKeep",
-    manage: "在浏览器中管理…",
-    sync: "同步…",
-    settings: "设置…",
-    quit: "退出 OTPKeep",
-    unlock: "解锁…",
-    press_for_code: "（点击获取验证码）",
-    no_code: "（无法计算）",
-    no_accounts: "还没有账号",
-    unavailable: "暂时无法打开数据",
-    retry: "重试",
-    restore: "恢复上一个版本…",
-};
-
-const EN: Words = Words {
-    search: "Search all accounts…",
-    open: "Open OTPKeep",
-    manage: "Manage in the browser…",
-    sync: "Sync…",
-    settings: "Settings…",
-    quit: "Quit OTPKeep",
-    unlock: "Unlock…",
-    press_for_code: "(press to get a code)",
-    no_code: "(unavailable)",
-    no_accounts: "No accounts yet",
-    unavailable: "The data cannot be opened right now",
-    retry: "Try again",
-    restore: "Restore the previous version…",
-};
-
-/// Why the data cannot be opened, as the windows say it.
-const fn problem_text(problem: Problem, chinese: bool) -> &'static str {
-    match (problem, chinese) {
-        (Problem::DataMissing, true) => "数据文件不见了。如果移动过它，请放回原处后点“重试”",
-        (Problem::DataMissing, false) => {
-            "The data file is missing. If you moved it, put it back and choose Try again"
-        }
-        (Problem::KeyMissing, true) => "本机找不到这份数据的密钥",
-        (Problem::KeyMissing, false) => "This device does not have the key for this data",
-        (Problem::Damaged, true) => "数据文件已损坏",
-        (Problem::Damaged, false) => "The data file is damaged",
-        (Problem::NewerFormat, true) => "数据由更新版本的 OTPKeep 写入，请先更新",
-        (Problem::NewerFormat, false) => "A newer OTPKeep wrote this data; please update first",
-        (Problem::KeystoreUnavailable, true) => "系统钥匙串暂时不可用",
-        (Problem::KeystoreUnavailable, false) => "The system keychain is unavailable right now",
-        (Problem::Busy, true) => "另一个 OTPKeep 正在使用这些数据",
-        (Problem::Busy, false) => "Another OTPKeep is using this data",
-        (Problem::Io, true) => "无法读取数据目录",
-        (Problem::Io, false) => "The data directory cannot be read",
-        (Problem::NoDataDir, true) => "找不到数据目录",
-        (Problem::NoDataDir, false) => "The data directory cannot be found",
-    }
-}
-
-/// Problems that can pass on their own, as in the windows: trying again can help.
-const fn retryable(problem: Problem) -> bool {
-    matches!(
-        problem,
-        Problem::Busy | Problem::KeystoreUnavailable | Problem::Io | Problem::DataMissing
-    )
-}
-
 /// Gap between an account's name and its code.
 const GAP: &str = "   ";
 
-/// The menu for `state`. `search_shortcut` is the search panel's shortcut, shown beside its item.
+/// The menu for `view`. `search_shortcut` is the search panel's shortcut, shown beside its item.
 #[must_use]
-pub fn lines(state: &PanelState, search_shortcut: Option<&str>, chinese: bool) -> Vec<Line> {
+pub fn lines(view: &MenuView, search_shortcut: Option<&str>, chinese: bool) -> Vec<Line> {
     let words = if chinese { &ZH } else { &EN };
+    let state = &view.state;
     match state.status {
-        PanelStatus::Ready => ready(state, search_shortcut, words),
+        PanelStatus::Ready => ready(view, search_shortcut, words),
         PanelStatus::NeedsPassword => vec![
             item("unlock", words.unlock),
             item("open", words.open),
@@ -171,32 +105,50 @@ pub fn lines(state: &PanelState, search_shortcut: Option<&str>, chinese: bool) -
     }
 }
 
-fn ready(state: &PanelState, search_shortcut: Option<&str>, words: &Words) -> Vec<Line> {
-    let accounts: Vec<Line> = if state.entries.is_empty() {
-        vec![informing("none", words.no_accounts)]
-    } else {
-        state
-            .entries
-            .iter()
-            .map(|entry| account(entry, &state.entries, words))
-            .collect()
-    };
+fn ready(view: &MenuView, search_shortcut: Option<&str>, words: &Words) -> Vec<Line> {
     let search = Line::Item(Item {
         accelerator: search_shortcut.map(str::to_owned),
         ..plain("search", words.search)
     });
-    accounts
-        .into_iter()
-        .chain([
+    let mut lines = vec![search, Line::Separator];
+    let first = &view.state.entries;
+    if first.is_empty() {
+        lines.push(informing("none", words.no_accounts));
+    } else {
+        lines.extend(accounts("a", first, words));
+    }
+    let more = view.more.len() + view.left_out;
+    if more > 0 {
+        let mut listed = accounts("m", &view.more, words);
+        if view.left_out > 0 {
+            listed.push(informing("left-out", &(words.left_out)(view.left_out)));
+        }
+        lines.extend([
             Line::Separator,
-            search,
-            item("open", words.open),
-            item("manage", words.manage),
-            item("sync", words.sync),
-            item("settings", words.settings),
-            Line::Separator,
-            item("quit", words.quit),
-        ])
+            Line::Submenu {
+                id: "more".to_owned(),
+                text: (words.more)(more),
+                lines: listed,
+            },
+        ]);
+    }
+    lines.extend([
+        Line::Separator,
+        item("open", words.open),
+        item("manage", words.manage),
+        item("sync", words.sync),
+        item("settings", words.settings),
+        Line::Separator,
+        item("quit", words.quit),
+    ]);
+    lines
+}
+
+/// The accounts of `listed` in section `section`.
+fn accounts(section: &str, listed: &[PanelEntry], words: &Words) -> Vec<Line> {
+    listed
+        .iter()
+        .map(|entry| account(section, entry, words))
         .collect()
 }
 
@@ -220,11 +172,11 @@ fn unavailable(state: &PanelState, chinese: bool, words: &Words) -> Vec<Line> {
     lines
 }
 
-/// One account: its name and current code, or what choosing it does when there is no code to show. Only the
-/// entry's own shortcut is shown: the default ones follow the list's order, not the menu's.
-fn account(entry: &PanelEntry, shown: &[PanelEntry], words: &Words) -> Line {
-    let name = name(entry, shown);
-    let (id, detail) = match (entry.kind, &entry.code) {
+/// One account: its name, what tells it apart (its note, or else its account name) and its current code, or
+/// what choosing it does when there is no code to show. Only the entry's own shortcut is shown: the default ones
+/// follow the list's order, not the menu's.
+fn account(section: &str, entry: &PanelEntry, words: &Words) -> Line {
+    let (id, code) = match (entry.kind, &entry.code) {
         (EntryKind::Hotp, _) => (
             format!("{NEXT_CODE}{}", entry.id),
             words.press_for_code.to_owned(),
@@ -237,23 +189,38 @@ fn account(entry: &PanelEntry, shown: &[PanelEntry], words: &Words) -> Line {
         .as_ref()
         .filter(|active| entry.own_shortcut.as_ref() == Some(*active));
     Line::Item(Item {
-        id,
-        text: format!("{}{GAP}{detail}", escape(&name)),
+        id: format!("{section}{SECTION}{id}"),
+        text: format!("{}{GAP}{code}", escape(&label(entry))),
         accelerator: own.cloned(),
         enabled: true,
     })
 }
 
-/// The entry's name, with its account when another listed entry has the same name.
-fn name(entry: &PanelEntry, shown: &[PanelEntry]) -> String {
-    let shared = shown
-        .iter()
-        .any(|other| other.id != entry.id && other.title == entry.title);
-    if shared && !entry.account.is_empty() {
-        format!("{} ({})", entry.title, entry.account)
+/// Longest note shown beside a name, in characters.
+const NOTE_CHARS: usize = 20;
+
+/// `Name · Note`, `Name · account` without a note, or the name alone.
+fn label(entry: &PanelEntry) -> String {
+    let note = entry.note.split_whitespace().collect::<Vec<_>>().join(" ");
+    let detail = if note.is_empty() {
+        entry.account.trim().to_owned()
     } else {
+        shorten(&note, NOTE_CHARS)
+    };
+    if detail.is_empty() {
         entry.title.clone()
+    } else {
+        format!("{} · {detail}", entry.title)
     }
+}
+
+/// `text` cut to `most` characters (not bytes), ending in `…` when cut.
+fn shorten(text: &str, most: usize) -> String {
+    if text.chars().count() <= most {
+        return text.to_owned();
+    }
+    let kept: String = text.chars().take(most.saturating_sub(1)).collect();
+    format!("{}…", kept.trim_end())
 }
 
 /// Codes in groups, as the windows show them: 3 + 3, 3 + 4 or 4 + 4 digits.
@@ -284,16 +251,42 @@ pub fn same_shape(old: &[Line], new: &[Line]) -> bool {
             (Line::Item(old), Line::Item(new)) => {
                 old.id == new.id && old.accelerator == new.accelerator && old.enabled == new.enabled
             }
+            (
+                Line::Submenu {
+                    id: old_id,
+                    text: old_text,
+                    lines: old_lines,
+                },
+                Line::Submenu {
+                    id: new_id,
+                    text: new_text,
+                    lines: new_lines,
+                },
+            ) => old_id == new_id && old_text == new_text && same_shape(old_lines, new_lines),
             _ => false,
         })
 }
 
+/// Every item, submenus' items included, in the order they are drawn.
+#[must_use]
+pub fn items(lines: &[Line]) -> Vec<&Item> {
+    lines
+        .iter()
+        .flat_map(|line| match line {
+            Line::Item(item) => vec![item],
+            Line::Separator => Vec::new(),
+            Line::Submenu { lines, .. } => items(lines),
+        })
+        .collect()
+}
+
 /// When the codes shown next change: the earliest end of a shown time-based code.
 #[must_use]
-pub fn next_change_ms(state: &PanelState) -> Option<u64> {
-    state
+pub fn next_change_ms(view: &MenuView) -> Option<u64> {
+    view.state
         .entries
         .iter()
+        .chain(&view.more)
         .filter(|entry| entry.code.is_some())
         .filter_map(|entry| entry.valid_until_ms)
         .min()
