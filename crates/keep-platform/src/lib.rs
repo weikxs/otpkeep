@@ -1,5 +1,7 @@
 //! Traits for platform services: keystore, unlock, clipboard, LAN discovery and clock.
 
+#[cfg(unix)]
+pub mod app_socket;
 mod keystore;
 mod paths;
 

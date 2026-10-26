@@ -62,6 +62,17 @@ describe("settings", () => {
     await waitFor(() => expect(set).toHaveBeenCalledWith({ rowShortcuts: false }));
   });
 
+  it("lets scripts get codes from the running app", async () => {
+    const api = show();
+    const dialog = await openSettings();
+    const allow = (await dialog.findByLabelText(/允许脚本/u)) as HTMLInputElement;
+
+    expect(allow.checked).toBe(true);
+    fireEvent.click(allow);
+
+    await waitFor(async () => expect((await api.settings()).scripts).toBe(false));
+  });
+
   it("sets how many accounts the menu bar menu shows", async () => {
     const api = show();
     const dialog = await openSettings();

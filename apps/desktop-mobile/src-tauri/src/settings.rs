@@ -45,6 +45,10 @@ pub struct Settings {
     /// [`DEFAULT_MENU_ACCOUNTS`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub menu_accounts: Option<u8>,
+    /// Whether scripts may get codes from the running app (docs/scripting.md); absent follows
+    /// [`Settings::scripts_allowed`]'s default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scripts: Option<bool>,
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
 }
@@ -78,6 +82,14 @@ impl Settings {
             recent_entries,
             ..self.clone()
         }
+    }
+
+    /// Whether scripts may get codes from the running app. When never chosen: yes for a vault whose key is in
+    /// the system keychain (the command line could read it directly anyway), no for one with a master password
+    /// (otherwise any program of this user would get codes without it).
+    #[must_use]
+    pub fn scripts_allowed(&self, uses_master_password: bool) -> bool {
+        self.scripts.unwrap_or(!uses_master_password)
     }
 
     /// How many accounts the menu bar menu shows on its first level.
@@ -236,6 +248,24 @@ mod tests {
 
         let pruned = many.with_recent("14", |id| id != "13" && id != "12");
         assert_eq!(pruned.recent_entries[..3], ["14", "11", "10"]);
+    }
+
+    #[test]
+    fn scripts_are_allowed_by_default_only_without_a_master_password() {
+        let unset = Settings::default();
+        let on = Settings {
+            scripts: Some(true),
+            ..Settings::default()
+        };
+        let off = Settings {
+            scripts: Some(false),
+            ..Settings::default()
+        };
+
+        assert!(unset.scripts_allowed(false));
+        assert!(!unset.scripts_allowed(true));
+        assert!(on.scripts_allowed(true));
+        assert!(!off.scripts_allowed(false));
     }
 
     #[test]

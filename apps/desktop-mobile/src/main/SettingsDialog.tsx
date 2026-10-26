@@ -104,6 +104,18 @@ export function SettingsDialog({ api, text, isMac, onSaved, onClose }: SettingsD
             </label>
             <label class="setting">
               <span class="setting-name">
+                {text.scripts}
+                <span class="muted">{text.scriptsHint}</span>
+              </span>
+              <input
+                type="checkbox"
+                class="switch"
+                checked={settings.scripts}
+                onChange={(e) => void change({ scripts: (e.target as HTMLInputElement).checked })}
+              />
+            </label>
+            <label class="setting">
+              <span class="setting-name">
                 {text.rowShortcuts}
                 <span class="muted">{text.rowShortcutsHint(isMac)}</span>
               </span>

@@ -7,7 +7,7 @@
     reason = "the signatures Tauri commands take"
 )]
 
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::commands::CommandError;
 use crate::hotkeys::{Hotkeys, UpdateError, set_search_shortcut, update_settings};
@@ -15,8 +15,16 @@ use crate::key_commands::shortcut_error;
 use crate::preferences::{SettingsPatch, SettingsView, view};
 
 #[tauri::command]
-pub fn get_settings(hotkeys: State<'_, Hotkeys>) -> SettingsView {
-    view(&hotkeys.settings())
+pub fn get_settings(hotkeys: State<'_, Hotkeys>, app: AppHandle) -> SettingsView {
+    shown(&app, &hotkeys.settings())
+}
+
+/// The settings as the windows show them, for this vault.
+pub(crate) fn shown(app: &AppHandle, settings: &crate::settings::Settings) -> SettingsView {
+    let master = app
+        .try_state::<crate::commands::AppCore>()
+        .is_some_and(|core| core.get().uses_master_password());
+    view(settings, master)
 }
 
 #[tauri::command]
@@ -43,7 +51,7 @@ pub fn set_search_panel_shortcut(
 }
 
 fn announce(app: &AppHandle, settings: &crate::settings::Settings) -> SettingsView {
-    let shown = view(settings);
-    let _ = app.emit("settings-changed", shown.clone());
-    shown
+    let view = shown(app, settings);
+    let _ = app.emit("settings-changed", view.clone());
+    view
 }

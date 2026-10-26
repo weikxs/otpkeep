@@ -26,6 +26,8 @@ mod key;
 mod manage;
 mod menu;
 mod reopen;
+#[cfg(unix)]
+mod script;
 mod search;
 #[cfg(desktop)]
 pub mod sync;
@@ -458,6 +460,12 @@ impl Core {
             }
         }
         self.state("")
+    }
+
+    /// Whether the vault is protected by a master password (rather than a key in the system keychain).
+    #[must_use]
+    pub const fn uses_master_password(&self) -> bool {
+        self.uses_master_password
     }
 
     /// How many changes the open vault has saved in this run, to count writes in tests.

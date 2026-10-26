@@ -253,7 +253,7 @@ OTPKeep 启动后常驻在**菜单栏**（macOS）或**系统托盘**（Windows�
 
 ### 设置
 
-语言（跟随系统 / English / 中文）、主题、复制后清除剪贴板（默认 30 秒）、前 10 个账号的快捷键、搜索面板快捷键、菜单栏菜单中的账号数、自动输入授权。
+语言（跟随系统 / English / 中文）、主题、复制后清除剪贴板（默认 30 秒）、前 10 个账号的快捷键、搜索面板快捷键、菜单栏菜单中的账号数、是否允许脚本从运行中的 OTPKeep 获取验证码、自动输入授权。
 
 ## 快捷键
 
@@ -279,6 +279,25 @@ $ otpkeep sync join            # 与打开了同步窗口的设备同步
 
 运行 `otpkeep help` 查看全部命令（`init`、`import`、`export`、`sync wait|join`、`pair open|join`、`devices`、`group leave`、`rename` 等）。
 所有读写数据的命令都支持 `--json`（机器可读输出）和 `--password-stdin`（从标准输入读主口令）。
+
+### 在脚本中使用
+
+App 运行时 `otpkeep code` 同样可用（macOS 和 Linux）：由 App 通过私有的本地套接字回答，命令行不必等待数据。
+由 设置 → **允许脚本从运行中的 OTPKeep 获取验证码** 控制：没有主口令时默认开启；有主口令时默认关闭（需手动开启），
+因为开启后脚本可以不输口令取得验证码。脚本取得的验证码不算作最近使用。
+
+```sh
+otpkeep code github --json | jq -r .data.code
+```
+
+```python
+import json, subprocess
+reply = json.loads(subprocess.run(["otpkeep", "code", "github", "--json"], capture_output=True, text=True).stdout)
+print(reply["data"]["code"] if reply["ok"] else reply["error"]["code"])
+```
+
+匹配规则、全部退出码和错误代码、Node.js、fish、快捷指令 / Raycast / Alfred 示例、套接字协议和安全说明见
+**[在脚本中使用 OTPKeep](docs/scripting.zh-CN.md)**。
 
 ## 数据安全与隐私
 

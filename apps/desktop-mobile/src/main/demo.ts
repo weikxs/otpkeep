@@ -78,6 +78,8 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
     rowShortcuts: true,
     rowShortcutsDefault: true,
     menuAccounts: 30,
+    scripts: true,
+    scriptsDefault: true,
     searchShortcut: "control+alt+super+Space",
     searchShortcutDefault: "control+alt+super+Space",
     version: "0.1.0",

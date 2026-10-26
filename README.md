@@ -273,7 +273,8 @@ Sync works only between devices near each other, over the same local network or 
 ### Settings
 
 Language (system, English, 中文), theme, clearing the clipboard after copying (default 30 seconds), shortcuts for the first ten accounts,
-the search panel shortcut, how many accounts the menu bar menu shows, and typing permission.
+the search panel shortcut, how many accounts the menu bar menu shows, whether scripts may get codes from the running app,
+and typing permission.
 
 ## Keyboard shortcuts
 
@@ -299,6 +300,26 @@ $ otpkeep sync join            # sync with a device that opened a sync window
 
 Run `otpkeep help` for every command (`init`, `import`, `export`, `sync wait|join`, `pair open|join`, `devices`, `group leave`, `rename`, …).
 Every vault command accepts `--json` for machine-readable output and `--password-stdin` for a master password from standard input.
+
+### Use from scripts
+
+`otpkeep code` works while the app runs too (macOS and Linux): the app answers through a private local socket
+instead of the command line waiting for the data. Settings → **Allow scripts to get codes from the running app**
+controls it; it is on by default without a master password and off (opt-in) with one, since scripts would then
+get codes without the password. Codes given to scripts do not count as recently used.
+
+```sh
+otpkeep code github --json | jq -r .data.code
+```
+
+```python
+import json, subprocess
+reply = json.loads(subprocess.run(["otpkeep", "code", "github", "--json"], capture_output=True, text=True).stdout)
+print(reply["data"]["code"] if reply["ok"] else reply["error"]["code"])
+```
+
+Matching rules, every exit and error code, Node.js, fish, Shortcuts / Raycast / Alfred examples, the socket
+protocol and the security notes are in **[Using OTPKeep from scripts](docs/scripting.md)**.
 
 ## Data, security and privacy
 

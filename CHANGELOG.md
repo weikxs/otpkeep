@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `otpkeep code` works while the app runs (macOS, Linux): the app answers through a private local socket in the
+  data folder instead of the command line waiting 5 seconds and failing with `BUSY`. A new setting, **Allow
+  scripts to get codes from the running app**, is on by default without a master password and off (opt-in)
+  with one; when off, the command line answers `DISABLED` (exit code 12). Codes given to scripts do not count
+  as recently used. See [Using OTPKeep from scripts](docs/scripting.md).
 - Warnings and errors are kept in a small log file (at most 1 MB plus one older file) to help with problem
   reports; it never holds secrets, codes or account names.
 - When the data cannot be opened because another OTPKeep, the keychain or the disk is busy, the panels and the

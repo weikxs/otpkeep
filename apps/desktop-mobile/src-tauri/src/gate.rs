@@ -11,7 +11,7 @@ use crate::core::{CoreError, EntryInfo, EntryKind, PanelEntry};
 use crate::hotkeys::{
     Hotkeys, SetError, UpdateError, set_entry_shortcut, taken_detail, update_settings,
 };
-use crate::preferences::{SettingsPatch, view};
+use crate::preferences::SettingsPatch;
 
 /// The page server, while it runs.
 #[derive(Default)]
@@ -149,7 +149,10 @@ impl Backend for AppBackend {
             UpdateError::Save => GateError::Save,
         })?;
         // OTPKeep's windows and menu follow at once.
-        let _ = self.app.emit("settings-changed", view(&settings));
+        let _ = self.app.emit(
+            "settings-changed",
+            crate::settings_commands::shown(&self.app, &settings),
+        );
         Ok(settings.language.unwrap_or_else(|| "system".to_owned()))
     }
 

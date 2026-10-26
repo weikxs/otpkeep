@@ -34,6 +34,8 @@ mod panels;
 mod preferences;
 #[cfg(desktop)]
 mod private_file;
+#[cfg(all(desktop, unix))]
+mod script_socket;
 #[cfg(desktop)]
 mod settings;
 #[cfg(desktop)]
@@ -86,6 +88,8 @@ fn on_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
             }
             #[cfg(target_os = "macos")]
             native_unlock::stop(app);
+            #[cfg(unix)]
+            script_socket::stop(app);
         }
         _ => {}
     }
@@ -129,7 +133,7 @@ fn builder() -> tauri::Builder<tauri::Wry> {
     let dir = data_dir();
     let hotkeys = hotkeys::Hotkeys::load(settings::SettingsFile::new(dir.as_deref()));
     let core = Arc::new(Mutex::new(core::Core::start(
-        dir.map(|dir| VaultPaths::new(&dir)),
+        dir.as_deref().map(VaultPaths::new),
         keystore,
         Arc::new(system_now_ms),
         LOCK_WAIT,
@@ -198,19 +202,36 @@ fn builder() -> tauri::Builder<tauri::Wry> {
             commands::hide_panel,
         ])
         .setup(move |app| {
-            use tauri::Manager;
             log.attach_to(app.handle());
-            let notify = Arc::new(sync_commands::AppNotify(app.handle().clone()));
-            app.manage(sync::Syncer::new(
-                session_core,
-                keep_link::Network::System,
-                notify,
-                Arc::new(system_now_ms),
-            ));
-            desktop::setup(app.handle())?;
-            hotkeys::register_all(app.handle());
+            start_desktop(app.handle(), session_core, dir.as_deref())?;
             Ok(())
         })
+}
+
+/// Starts what runs beside the windows: sync, the menu bar icon, the scripts' socket and the shortcuts.
+#[cfg(desktop)]
+fn start_desktop(
+    app: &tauri::AppHandle,
+    core: sync::SharedCore,
+    data_dir: Option<&std::path::Path>,
+) -> tauri::Result<()> {
+    use tauri::Manager;
+    let notify = std::sync::Arc::new(sync_commands::AppNotify(app.clone()));
+    app.manage(sync::Syncer::new(
+        core,
+        keep_link::Network::System,
+        notify,
+        std::sync::Arc::new(keep_vault::service::system_now_ms),
+    ));
+    desktop::setup(app)?;
+    #[cfg(unix)]
+    if let Some(dir) = data_dir {
+        script_socket::start(app, dir);
+    }
+    #[cfg(not(unix))]
+    let _ = data_dir;
+    hotkeys::register_all(app);
+    Ok(())
 }
 
 #[cfg(mobile)]
