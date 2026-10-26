@@ -37,5 +37,7 @@ export function useLiveState(api: Pick<PanelApi, "state" | "onChange">, query: s
     return () => clearInterval(timer);
   }, [clock]);
 
-  return { state, setState, coreNow };
+  const reload = useCallback(() => load(query), [load, query]);
+
+  return { state, setState, coreNow, reload };
 }

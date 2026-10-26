@@ -29,6 +29,7 @@ const zh = {
   followSystem: "跟随系统",
   unavailable: "暂时无法打开数据",
   handleInMain: "在主窗口中处理",
+  retry: "重试",
   notInGroup: "未加入同步组",
   inGroup: "已加入同步组",
   readOnly: "只读：新版本 OTPKeep 正在使用这些数据",
@@ -36,7 +37,7 @@ const zh = {
   seconds: (s: number) => `${s} 秒`,
   noCode: "无法计算",
   problems: {
-    DATA_MISSING: "数据文件不见了，可以从备份恢复",
+    DATA_MISSING: "数据文件不见了。如果移动过它，请放回原处后点“重试”",
     KEY_MISSING: "本机找不到这份数据的密钥",
     DAMAGED: "数据文件已损坏",
     NEWER_FORMAT: "数据由更新版本的 OTPKeep 写入，请先更新",
@@ -76,6 +77,7 @@ const en: Strings = {
   followSystem: "System",
   unavailable: "The data cannot be opened right now",
   handleInMain: "Handle it in the main window",
+  retry: "Try again",
   notInGroup: "Not in a sync group",
   inGroup: "In a sync group",
   readOnly: "Read-only: a newer OTPKeep uses this data",
@@ -83,7 +85,7 @@ const en: Strings = {
   seconds: (s: number) => `${s}s`,
   noCode: "Unavailable",
   problems: {
-    DATA_MISSING: "The data file is missing; it can be restored from a backup",
+    DATA_MISSING: "The data file is missing. If you moved it, put it back and choose Try again",
     KEY_MISSING: "This device does not have the key for this data",
     DAMAGED: "The data file is damaged",
     NEWER_FORMAT: "A newer OTPKeep wrote this data; please update first",

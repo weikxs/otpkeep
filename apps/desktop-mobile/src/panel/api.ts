@@ -55,6 +55,8 @@ export interface PanelState {
   inGroup: boolean;
   /** A newer OTPKeep uses the data, so nothing may be changed. */
   readOnly: boolean;
+  /** The vault file is damaged and its previous version can be put back (main window). */
+  canRestore?: boolean;
 }
 
 export interface CopyResult {
@@ -67,6 +69,8 @@ export interface PanelApi {
   copy(id: string): Promise<CopyResult>;
   nextHotp(id: string): Promise<PanelEntry>;
   unlock(password: string): Promise<PanelState>;
+  /** Tries again to open data that could not be opened; every window is told when it opened. */
+  retryOpen(): Promise<void>;
   openMain(page?: "add" | "import" | "settings"): Promise<void>;
   /** Opens the management page in the default browser. */
   openGate(): Promise<void>;
@@ -84,6 +88,7 @@ export async function tauriApi(): Promise<PanelApi> {
     copy: (id) => invoke<CopyResult>("copy_code", { id }),
     nextHotp: (id) => invoke<PanelEntry>("next_hotp", { id }),
     unlock: (password) => invoke<PanelState>("unlock", { password }),
+    retryOpen: () => invoke<void>("retry_open"),
     openMain: (page) => invoke<void>("open_main", { page: page ?? null }),
     hide: () => invoke<void>("hide_panel"),
     openGate: () => invoke<void>("open_gate"),

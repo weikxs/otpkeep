@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- When the data cannot be opened because another OTPKeep, the keychain or the disk is busy, the panels and the
+  main window offer **Try again**; a damaged vault file can be put back to its previous version from the main
+  window after a confirmation (the damaged file is kept).
+
 ### Fixed
 
 - A rename, edit or counter code made while a sync was running is no longer lost when the sync finishes, and an

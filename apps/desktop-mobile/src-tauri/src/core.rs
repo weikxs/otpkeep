@@ -24,6 +24,7 @@ mod import;
 pub mod import_view;
 mod key;
 mod manage;
+mod reopen;
 mod search;
 #[cfg(desktop)]
 pub mod sync;
@@ -124,6 +125,10 @@ pub enum Problem {
 }
 
 /// Everything the panel shows.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "independent facts the windows read as they are, not a state machine"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PanelState {
@@ -135,6 +140,8 @@ pub struct PanelState {
     pub problem: Option<Problem>,
     pub in_group: bool,
     pub read_only: bool,
+    /// The vault file is damaged and its previous version can be put back.
+    pub can_restore: bool,
 }
 
 /// Why an action on one entry failed.
@@ -204,6 +211,8 @@ pub struct Core {
     lock_wait: Duration,
     uses_master_password: bool,
     vault: Vault,
+    /// The vault could not be opened and has a previous version to put back.
+    restorable: bool,
     staging: Staging,
     /// The clock of the data the latest sync session started from; the session's result is merged with the
     /// data once more when it changed since.
@@ -227,6 +236,7 @@ impl Core {
             lock_wait,
             uses_master_password: false,
             vault: Vault::NeedsPassword,
+            restorable: false,
             staging: Staging::default(),
             #[cfg(desktop)]
             session_base: None,
@@ -236,6 +246,7 @@ impl Core {
     }
 
     fn open(&mut self) {
+        self.restorable = false;
         let Some(paths) = &self.paths else {
             self.vault = Vault::Unavailable(Problem::NoDataDir);
             return;
@@ -248,9 +259,20 @@ impl Core {
                 self.uses_master_password = true;
                 Vault::NeedsPassword
             }
-            Startup::Stopped(reason) => Vault::Unavailable(problem(reason)),
+            Startup::Stopped(reason) => self.stopped(reason),
         };
         self.tidy();
+    }
+
+    /// Why the vault cannot be opened; remembers whether a previous version can be put back.
+    fn stopped(&mut self, reason: StopReason) -> Vault {
+        self.restorable = matches!(
+            reason,
+            StopReason::Damaged {
+                previous_available: true
+            }
+        );
+        Vault::Unavailable(problem(reason))
     }
 
     fn opened(&self, open: keep_vault::open::OpenVault, read_only: bool) -> Vault {
@@ -324,6 +346,7 @@ impl Core {
             problem,
             in_group,
             read_only,
+            can_restore: self.restorable && problem == Some(Problem::Damaged),
         };
         (state, places)
     }
@@ -423,7 +446,7 @@ impl Core {
                     self.tidy();
                 }
                 Some(Err(UnlockError::Stopped(reason))) => {
-                    self.vault = Vault::Unavailable(problem(reason));
+                    self.vault = self.stopped(reason);
                 }
                 Some(Err(UnlockError::WrongPassword)) | None => {}
             }

@@ -186,8 +186,26 @@ describe("Panel", () => {
 
     fireEvent.click(await screen.findByText("在主窗口中处理"));
 
-    expect(screen.getByText("数据文件不见了，可以从备份恢复")).toBeTruthy();
+    expect(screen.getByText("数据文件不见了。如果移动过它，请放回原处后点“重试”")).toBeTruthy();
     expect(openMain).toHaveBeenCalledWith();
+  });
+
+  it("tries to open the data again once another OTPKeep let it go", async () => {
+    const api = demoApi({ clock: () => STEADY, status: "unavailable", problem: "BUSY" });
+    const retry = vi.spyOn(api, "retryOpen");
+    show(api);
+
+    fireEvent.click(await screen.findByRole("button", { name: "重试" }));
+
+    expect(await screen.findAllByTestId("entry")).toHaveLength(6);
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers no retry for a problem that trying again cannot fix", async () => {
+    show(demoApi({ clock: () => STEADY, status: "unavailable", problem: "KEY_MISSING" }));
+
+    expect(await screen.findByText("本机找不到这份数据的密钥")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "重试" })).toBeNull();
   });
 
   it("shows the sync status or read-only in the footer", async () => {

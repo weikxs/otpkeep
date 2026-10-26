@@ -340,6 +340,9 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
       if (password === "demo") locked = false;
       return state("");
     },
+    // The demo data always opens.
+    retryOpen: async () => {},
+    restorePrevious: async () => {},
     stageText: async (text) => {
       const lines = text.split("\n").map((l) => l.trim()).filter((l) => l !== "");
       const skipped: ImportView["skipped"] = [];

@@ -95,6 +95,8 @@ fn builder() -> tauri::Builder<tauri::Wry> {
             commands::copy_code,
             commands::next_hotp,
             commands::unlock,
+            commands::retry_open,
+            commands::restore_previous,
             commands::open_main,
             commands::open_gate,
             import_commands::stage_text,

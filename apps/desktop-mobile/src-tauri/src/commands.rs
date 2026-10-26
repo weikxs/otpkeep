@@ -233,6 +233,22 @@ pub(crate) async fn unlock_with(
     Ok(vault.get().finish_unlock(opened))
 }
 
+/// Tries again to open data that could not be opened (another OTPKeep, the keychain or the disk is back);
+/// every window reloads.
+#[tauri::command(async)]
+pub fn retry_open(vault: State<'_, AppCore>, app: AppHandle) {
+    vault.get().retry_open();
+    let _ = app.emit("vault-changed", ());
+}
+
+/// Puts back the previous version of a damaged vault, after the person confirmed in the main window.
+#[tauri::command(async)]
+pub fn restore_previous(vault: State<'_, AppCore>, app: AppHandle) -> CommandResult<()> {
+    vault.get().restore_previous()?;
+    let _ = app.emit("vault-changed", ());
+    Ok(())
+}
+
 #[tauri::command]
 pub fn open_main(page: Option<String>, app: AppHandle) {
     desktop::show_main(&app, page.as_deref());

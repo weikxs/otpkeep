@@ -180,6 +180,10 @@ export interface MainApi extends SyncApi {
   /** Saves every changed field of one entry at once: all of them or, when one is refused, none. */
   update(id: string, change: EntryUpdate): Promise<void>;
   unlock(password: string): Promise<MainState>;
+  /** Tries again to open data that could not be opened. */
+  retryOpen(): Promise<void>;
+  /** Puts back the previous version of a damaged vault; the damaged file is kept beside it. */
+  restorePrevious(): Promise<void>;
   setPinned(id: string, pinned: boolean): Promise<void>;
   setTags(id: string, tags: string[]): Promise<void>;
   move(id: string, to: MoveTo): Promise<void>;
@@ -254,6 +258,8 @@ export async function tauriMainApi(): Promise<MainApi> {
     edit: (id, change) => call("edit_entry", { id, title: change.title ?? null, note: change.note ?? null }),
     update: (id, change) => call("update_entry", { id, update: change }),
     unlock: (password) => call("unlock", { password }),
+    retryOpen: () => call("retry_open"),
+    restorePrevious: () => call("restore_previous"),
     setPinned: (id, pinned) => call("set_pinned", { id, pinned }),
     setTags: (id, tags) => call("set_tags", { id, tags }),
     move: (id, to) => call("move_entry", { id, to }),

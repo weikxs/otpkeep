@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { PanelEntry } from "../panel/api";
 import type { Strings } from "../panel/i18n";
 import { useLiveState } from "../panel/live";
+import { Unavailable } from "../panel/Unavailable";
 import { EntryList, PasswordPrompt, SearchIcon, generateIfNeeded } from "../panel/Panel";
 import { type LanguageControl, LanguageSelect } from "../shared/LanguageSelect";
 import type { SearchApi, TypeResult } from "./api";
@@ -50,7 +51,7 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now, language 
   const [failed, setFailed] = useState(false);
   const [fallback, setFallback] = useState<TypeResult | null>(null);
   const input = useRef<HTMLInputElement>(null);
-  const { state, setState, coreNow } = useLiveState(api, query, clock);
+  const { state, setState, coreNow, reload } = useLiveState(api, query, clock);
   const entries = state?.entries ?? [];
 
   useEffect(() => input.current?.focus(), [state?.status]);
@@ -160,13 +161,15 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now, language 
       )}
       {state.status === "needsPassword" && <PasswordPrompt api={api} text={text} onOpened={setState} />}
       {state.status === "unavailable" && (
-        <section class="panel-message">
-          <p class="message-title">{text.unavailable}</p>
-          {state.problem && <p class="message-body">{text.problems[state.problem]}</p>}
-          <button type="button" class="primary" onClick={() => void api.openMain()}>
-            {text.handleInMain}
-          </button>
-        </section>
+        <Unavailable
+          state={state}
+          text={text}
+          onRetry={async () => {
+            await api.retryOpen();
+            await reload();
+          }}
+          onOpenMain={() => void api.openMain()}
+        />
       )}
       {state.status === "ready" && entries.length === 0 && (
         <p class="panel-none">{query === "" ? text.emptyTitle : text.noMatch}</p>

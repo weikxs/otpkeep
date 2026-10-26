@@ -7,6 +7,7 @@ import { formatShortcut } from "../shared/shortcut";
 import { groupCode, monogram, tileColor } from "./format";
 import type { Strings } from "./i18n";
 import { useLiveState } from "./live";
+import { Unavailable } from "./Unavailable";
 
 /** Codes ending within this many seconds also show the next one (FR-1.4). */
 const NEXT_CODE_WINDOW_S = 5;
@@ -30,7 +31,7 @@ export function Panel({ api, text, isMac, clock = Date.now, language }: PanelPro
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const search = useRef<HTMLInputElement>(null);
-  const { state, setState, coreNow } = useLiveState(api, query, clock);
+  const { state, setState, coreNow, reload } = useLiveState(api, query, clock);
 
   useEffect(() => search.current?.focus(), [state?.status]);
 
@@ -102,13 +103,15 @@ export function Panel({ api, text, isMac, clock = Date.now, language }: PanelPro
       )}
       {state.status === "needsPassword" && <PasswordPrompt api={api} text={text} onOpened={setState} />}
       {state.status === "unavailable" && (
-        <section class="panel-message">
-          <p class="message-title">{text.unavailable}</p>
-          {state.problem && <p class="message-body">{text.problems[state.problem]}</p>}
-          <button type="button" class="primary" onClick={() => void api.openMain()}>
-            {text.handleInMain}
-          </button>
-        </section>
+        <Unavailable
+          state={state}
+          text={text}
+          onRetry={async () => {
+            await api.retryOpen();
+            await reload();
+          }}
+          onOpenMain={() => void api.openMain()}
+        />
       )}
       {state.status === "ready" && entries.length === 0 && query === "" && (
         <section class="panel-message">

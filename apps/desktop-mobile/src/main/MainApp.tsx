@@ -11,6 +11,7 @@ import { syncStrings } from "./sync/i18n";
 import { SyncDialog } from "./sync/SyncDialog";
 import { ToolButton } from "./Toolbar";
 import { TrashDialog } from "./TrashDialog";
+import { MainUnavailable } from "./Unavailable";
 import { type MainStrings, describe } from "./i18n";
 
 const TICK_MS = 250;
@@ -196,12 +197,23 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
     );
   }
   if (state.status === "unavailable") {
+    const settle = async (action: Promise<void>) => {
+      try {
+        await action;
+      } catch (thrown) {
+        show(thrown);
+      }
+      await load(query);
+    };
     return (
-      <main class="welcome" role="alert">
-        {languageMenu && <span class="corner-language">{languageMenu}</span>}
-        <h1>{text.unavailable}</h1>
-        {state.problem && <p class="muted">{text.problems[state.problem]}</p>}
-      </main>
+      <MainUnavailable
+        state={state}
+        text={text}
+        corner={languageMenu}
+        notice={toast}
+        onRetry={() => settle(api.retryOpen())}
+        onRestore={() => settle(api.restorePrevious())}
+      />
     );
   }
 

@@ -457,6 +457,19 @@ textarea {
   font-size: 22px;
 }
 
+.welcome-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 440px;
+}
+
+.welcome-confirm p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
 .welcome-choices {
   display: grid;
   grid-template-columns: repeat(3, minmax(160px, 200px));

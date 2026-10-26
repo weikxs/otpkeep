@@ -10,6 +10,9 @@ const zh = {
   sep: "：",
   unavailable: panelStrings("zh").unavailable,
   problems: panelStrings("zh").problems,
+  retry: panelStrings("zh").retry,
+  restorePrevious: "恢复上一个版本",
+  restoreConfirm: "将放回上一次保存前的数据，之后的最后一次改动会丢失。损坏的文件会保留在数据目录中。",
   search: "搜索名称、账号、备注或标签",
   add: "添加",
   manage: "在浏览器中管理",
@@ -306,6 +309,10 @@ const en: MainStrings = {
   sep: ": ",
   unavailable: panelStrings("en").unavailable,
   problems: panelStrings("en").problems,
+  retry: panelStrings("en").retry,
+  restorePrevious: "Restore the previous version",
+  restoreConfirm:
+    "This puts back the data as it was before the last save; the last change is lost. The damaged file is kept in the data folder.",
   reasons: {
     NOT_A_LINK: "not an otpauth:// link",
     WRONG_SCHEME: "not a two-factor link",
