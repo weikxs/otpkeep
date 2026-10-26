@@ -198,7 +198,9 @@ menu, choose **Open OTPKeep** and add your first account: paste a link, drop or 
 A click on the icon opens a menu drawn by the system (no web page runs for it):
 
 - Up to 15 accounts, pinned ones first, then the ones you used most recently, each with its current code
-  (`Example Cloud   123 456`) and its own shortcut, if it has one. Choose an account to copy its code; the clipboard is cleared
+  (`Example Cloud   123 456`) and its own shortcut, if it has one. The last 10 accounts whose codes you copied (from the menu, a
+  shortcut, the search panel, the main window or the management page) are remembered as ids only, in this device's settings
+  file; they are never synced. Choose an account to copy its code; the clipboard is cleared
   as after any copy. Counter-based (HOTP) accounts read **(press to get a code)** and make a new code when chosen.
 - **Search all accounts…** opens the search panel (`⌃⌥⌘Space`), then **Open OTPKeep** (the main window), **Manage in the browser…**,
   **Sync…**, **Settings…** and **Quit OTPKeep**.

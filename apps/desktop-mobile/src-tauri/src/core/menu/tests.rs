@@ -10,7 +10,7 @@ use keep_vault::sealed::KdfParams;
 use keep_vault::service::VaultService;
 use keep_vault::store::VaultPaths;
 
-use super::{MENU_LIMIT, with_used};
+use super::MENU_LIMIT;
 use crate::core::{Core, PanelStatus};
 
 const WAIT: Duration = Duration::from_millis(200);
@@ -135,21 +135,4 @@ fn lists_nothing_before_the_master_password() {
 
     assert_eq!(state.status, PanelStatus::NeedsPassword);
     assert!(state.entries.is_empty());
-}
-
-#[test]
-fn remembers_each_used_entry_once_most_recent_first() {
-    let recent = with_used(&[], "a");
-    let recent = with_used(&recent, "b");
-    let recent = with_used(&recent, "a");
-
-    assert_eq!(recent, ["a", "b"]);
-}
-
-#[test]
-fn remembers_a_bounded_number_of_entries() {
-    let many = (0..80).fold(Vec::new(), |recent, n| with_used(&recent, &n.to_string()));
-
-    assert_eq!(many.len(), 50);
-    assert_eq!(many[0], "79");
 }

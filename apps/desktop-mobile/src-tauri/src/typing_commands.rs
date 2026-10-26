@@ -42,7 +42,7 @@ pub fn type_code(
 ) -> Result<TypeResult, CommandError> {
     let clear_after = hotkeys.settings().clear_after();
     if let Some(reason) = typing::status().fallback_code().or_else(|| main_open(&app)) {
-        let copied = copy_entry(&vault, id, clear_after)?;
+        let copied = copy_entry(&vault, &hotkeys, id)?;
         return Ok(TypeResult {
             typed: false,
             fallback: Some(reason),
@@ -50,7 +50,7 @@ pub fn type_code(
         });
     }
     let code = vault.get().code(id).map_err(CommandError::from)?;
-    vault.used(id);
+    vault.used(&hotkeys, id);
     crate::tray::refresh(&app);
     crate::panels::hide(&app, &window);
     // Hiding the app gives focus back to the app the person was typing in.

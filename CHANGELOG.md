@@ -21,7 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   themselves instead of being redrawn on every tick; the main window and the panels draw only the accounts on
   screen, so a long list stays light.
 - The menu bar / tray icon now opens the system's own menu instead of the quick panel: up to 15 accounts,
-  pinned ones first, then the most recently used, each with its current code (and its own shortcut); choosing
+  pinned ones first, then the most recently used (the last 10 accounts whose codes you copied, remembered as
+  ids in this device's settings and never synced), each with its current code (and its own shortcut); choosing
   one copies the code, and counter-based accounts make a new code when chosen. Then **Search all accounts…**,
   **Open OTPKeep**, **Manage in the browser…**, **Sync…**, **Settings…** and **Quit OTPKeep**. The codes are
   brought up to date when they change, when the accounts change and when the pointer reaches the icon.

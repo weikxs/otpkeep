@@ -1,5 +1,5 @@
-//! The accounts the menu bar menu lists: the pinned ones first, then the ones used most recently in this run,
-//! then the rest in list order. Which codes were used is kept in memory only, never saved.
+//! The accounts the menu bar menu lists: the pinned ones first, then the ones used most recently on this device
+//! (remembered in its settings, see [`crate::settings::Settings::recent_entries`]), then the rest in list order.
 
 use keep_vault::Entry;
 
@@ -7,8 +7,6 @@ use super::{Core, PanelState, Vault, row};
 
 /// The menu lists at most this many accounts; the search panel finds the others.
 pub const MENU_LIMIT: usize = 15;
-/// How many recently used entries are remembered.
-const RECENT_LIMIT: usize = 50;
 
 impl Core {
     /// What the menu bar menu shows: the state of the data and up to [`MENU_LIMIT`] accounts with their
@@ -48,15 +46,6 @@ fn pick<'a>(ordered: &[&'a Entry], recent: &[String], limit: usize) -> Vec<&'a E
         .filter(|(id, _)| !recent.contains(id))
         .map(|(_, entry)| *entry);
     pinned.chain(used).chain(rest).take(limit).collect()
-}
-
-/// `recent` after `id` was used: `id` first, each entry once, at most [`RECENT_LIMIT`] of them.
-#[must_use]
-pub fn with_used(recent: &[String], id: &str) -> Vec<String> {
-    std::iter::once(id.to_owned())
-        .chain(recent.iter().filter(|other| *other != id).cloned())
-        .take(RECENT_LIMIT)
-        .collect()
 }
 
 #[cfg(test)]

@@ -7,8 +7,7 @@
 )]
 
 use std::collections::HashSet;
-use std::sync::{Mutex, MutexGuard, PoisonError};
-use std::time::Duration;
+use std::sync::{MutexGuard, PoisonError};
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State, WebviewWindow};
@@ -34,8 +33,6 @@ pub struct AppCore {
     unlocking: tokio::sync::Mutex<()>,
     /// Where codes are copied, and cleared from later.
     clipboard: Clipboard,
-    /// Entries whose codes were used in this run, most recent first, for the menu bar menu. Kept in memory only.
-    recent: Mutex<Vec<String>>,
 }
 
 impl AppCore {
@@ -44,24 +41,17 @@ impl AppCore {
             core,
             unlocking: tokio::sync::Mutex::new(()),
             clipboard: Clipboard::default(),
-            recent: Mutex::new(Vec::new()),
         }
     }
 
-    /// Remembers that the code of `id` was just used.
-    pub(crate) fn used(&self, id: &str) {
-        let mut recent = self.recent.lock().unwrap_or_else(PoisonError::into_inner);
-        *recent = crate::core::with_used(&recent, id);
-    }
-
-    /// What the menu bar menu shows (see [`Core::menu_state`]).
-    pub(crate) fn menu_state(&self) -> PanelState {
-        let recent = self
-            .recent
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone();
-        self.get().menu_state(&recent)
+    /// Remembers on this device that the code of `id` was just used, for the menu bar menu.
+    pub(crate) fn used(&self, hotkeys: &Hotkeys, id: &str) {
+        let existing: HashSet<String> = self
+            .get()
+            .list("")
+            .map(|all| all.into_iter().map(|entry| entry.id).collect())
+            .unwrap_or_default();
+        hotkeys.record_use(id, |entry| existing.contains(entry));
     }
 
     pub(crate) const fn clipboard(&self) -> &Clipboard {
@@ -234,23 +224,25 @@ pub fn copy_code(
     hotkeys: State<'_, Hotkeys>,
     app: AppHandle,
 ) -> CommandResult<CopyResult> {
-    let copied = copy_entry(&vault, id, hotkeys.settings().clear_after());
+    let copied = copy_entry(&vault, &hotkeys, id);
     crate::tray::refresh(&app);
     copied
 }
 
-/// Copies an entry's current code; it is cleared from the clipboard later.
+/// Copies an entry's current code; it is cleared from the clipboard later, and the entry becomes the most
+/// recently used one.
 pub(crate) fn copy_entry(
     vault: &AppCore,
+    hotkeys: &Hotkeys,
     id: &str,
-    clear_after: Option<Duration>,
 ) -> CommandResult<CopyResult> {
+    let clear_after = hotkeys.settings().clear_after();
     let code = vault.get().code(id).map_err(CommandError::from)?;
     vault
         .clipboard
         .copy_then_clear(code, clear_after)
         .map_err(|_| CommandError::code("CLIPBOARD"))?;
-    vault.used(id);
+    vault.used(hotkeys, id);
     Ok(CopyResult {
         clears_in_s: clear_after.map_or(0, |d| d.as_secs()),
     })

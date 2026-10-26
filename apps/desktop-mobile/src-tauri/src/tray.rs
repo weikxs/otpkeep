@@ -187,10 +187,13 @@ fn build(app: &AppHandle, lines: &[Line]) -> tauri::Result<(Menu<Wry>, Vec<MenuI
 
 /// What the menu shows, with each entry's own shortcut where the system accepted it.
 fn menu_state(app: &AppHandle) -> PanelState {
-    let state = app.state::<AppCore>().menu_state();
     let Some(hotkeys) = app.try_state::<Hotkeys>() else {
-        return state;
+        return app.state::<AppCore>().get().menu_state(&[]);
     };
+    let state = app
+        .state::<AppCore>()
+        .get()
+        .menu_state(&hotkeys.settings().recent_entries);
     let (map, active) = (hotkeys.map(), hotkeys.active());
     let entries = state
         .entries
@@ -247,7 +250,7 @@ fn copy(app: &AppHandle, entry: &str) {
     else {
         return;
     };
-    if copy_entry(&core, entry, hotkeys.settings().clear_after()).is_err() {
+    if copy_entry(&core, &hotkeys, entry).is_err() {
         tracing::info!("the chosen menu entry had no code to copy");
     }
     // It is now the most recently used.

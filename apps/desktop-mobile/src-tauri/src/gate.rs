@@ -116,12 +116,8 @@ impl Backend for AppBackend {
     }
 
     fn copy(&self, id: &str) -> Result<Copied, GateError> {
-        let clear_after = self
-            .app
-            .try_state::<Hotkeys>()
-            .ok_or(GateError::Save)?
-            .settings()
-            .clear_after();
+        let hotkeys = self.app.try_state::<Hotkeys>().ok_or(GateError::Save)?;
+        let clear_after = hotkeys.settings().clear_after();
         let vault = self.core()?;
         let code = vault.get().code(id).map_err(gate_error)?;
         // Same rules as the panel: kept out of clipboard history, cleared later.
@@ -129,7 +125,7 @@ impl Backend for AppBackend {
             .clipboard()
             .copy_then_clear(code, clear_after)
             .map_err(|_| GateError::Clipboard)?;
-        vault.used(id);
+        vault.used(&hotkeys, id);
         crate::tray::refresh(&self.app);
         Ok(Copied {
             clears_in_s: clear_after.map_or(0, |d| d.as_secs()),

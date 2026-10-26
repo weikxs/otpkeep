@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 const FILE: &str = "settings.json";
 /// How long a copied code stays on the clipboard when the setting says nothing (design/10-reference.md §2).
 pub const DEFAULT_CLEAR_S: u16 = 30;
+/// How many recently used entries the menu bar menu remembers.
+pub const RECENT_LIMIT: usize = 10;
 
 /// The settings this version knows; fields from newer versions are kept as they are.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -33,6 +35,10 @@ pub struct Settings {
     /// The search panel's shortcut; absent is the system's default (`⌃⌥⌘Space` on macOS), empty is off.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub search_shortcut: Option<String>,
+    /// Ids of the entries whose codes were used most recently on this device, newest first (at most
+    /// [`RECENT_LIMIT`]). Ids only: no names, codes or secrets. Never synced.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recent_entries: Vec<String>,
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
 }
@@ -44,6 +50,27 @@ impl Settings {
         match self.clipboard_clear_s.unwrap_or(DEFAULT_CLEAR_S) {
             0 => None,
             seconds => Some(Duration::from_secs(u64::from(seconds))),
+        }
+    }
+
+    /// The settings after the code of `id` was used: `id` first, each entry once, only entries for which
+    /// `exists` holds, at most [`RECENT_LIMIT`] of them.
+    #[must_use]
+    pub fn with_recent(&self, id: &str, exists: impl Fn(&str) -> bool) -> Self {
+        let older = self
+            .recent_entries
+            .iter()
+            .map(String::as_str)
+            .filter(|entry| *entry != id);
+        let recent_entries = std::iter::once(id)
+            .chain(older)
+            .filter(|entry| exists(entry))
+            .take(RECENT_LIMIT)
+            .map(str::to_owned)
+            .collect();
+        Self {
+            recent_entries,
+            ..self.clone()
         }
     }
 
@@ -174,6 +201,42 @@ mod tests {
         file.save(&file.load()).unwrap();
 
         assert_eq!(file.load().extra["panelOpacity"], 80);
+    }
+
+    #[test]
+    fn remembers_recently_used_entries_newest_first_once_each() {
+        let all = |_: &str| true;
+        let settings = Settings::default()
+            .with_recent("a", all)
+            .with_recent("b", all)
+            .with_recent("a", all);
+
+        assert_eq!(settings.recent_entries, ["a", "b"]);
+    }
+
+    #[test]
+    fn remembers_at_most_ten_entries_and_drops_those_gone() {
+        let many = (0..15).fold(Settings::default(), |s, n| {
+            s.with_recent(&n.to_string(), |_| true)
+        });
+        assert_eq!(many.recent_entries.len(), 10);
+        assert_eq!(many.recent_entries[0], "14");
+
+        let pruned = many.with_recent("14", |id| id != "13" && id != "12");
+        assert_eq!(pruned.recent_entries[..3], ["14", "11", "10"]);
+    }
+
+    #[test]
+    fn keeps_recent_entries_in_the_file() {
+        let dir = temp_dir();
+        let file = SettingsFile::new(Some(dir.path()));
+
+        file.save(&Settings::default().with_recent("e1", |_| true))
+            .unwrap();
+
+        let text = std::fs::read_to_string(dir.path().join("settings.json")).unwrap();
+        assert!(text.contains("\"recentEntries\""));
+        assert_eq!(file.load().recent_entries, ["e1"]);
     }
 
     #[test]
