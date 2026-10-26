@@ -20,9 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Open windows use far less CPU: countdowns update once a second, on the second, and the rings empty by
   themselves instead of being redrawn on every tick; the main window draws only the accounts on screen, so a
   long list stays light.
+- OTPKeep resting in the menu bar uses less memory: the search panel is opened when its shortcut is pressed and
+  closed shortly after it hides, and the quick panel is closed after 10 minutes unused and opened again when
+  asked for.
 
 ### Fixed
 
+- Linux: the tray menu has **Show quick panel**, since clicking the tray icon there only opens the menu; the
+  panel and the search panel open in the middle of the screen instead of with their corner there; and a panel
+  closed through the window manager opens again next time.
 - When the computer's clock is set back, the main window and panels fetch fresh codes instead of showing
   countdowns that never end.
 - The menu bar icon's menu follows the language setting (it was always in Chinese) and changes with it.

@@ -31,6 +31,7 @@ interface WindowConfig {
   label: string;
   url?: string;
   visible?: boolean;
+  create?: boolean;
   decorations?: boolean;
 }
 
@@ -45,6 +46,10 @@ describe("desktop window settings", () => {
   it("starts in the menu bar: the panels made hidden, the main window only when asked for", () => {
     expect(macos.map((w) => w.label)).toEqual(["panel", "search"]);
     expect(macos.every((w) => w.visible === false)).toBe(true);
+  });
+
+  it("leaves making the panels to the app, which closes them while they are not used", () => {
+    expect(macos.every((w) => w.create === false)).toBe(true);
   });
 
   it("shows the panel without a title bar", () => {

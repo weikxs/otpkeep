@@ -50,7 +50,7 @@ pub fn type_code(
         });
     }
     let code = vault.get().code(id).map_err(CommandError::from)?;
-    let _ = window.hide();
+    crate::panels::hide(&app, &window);
     // Hiding the app gives focus back to the app the person was typing in.
     #[cfg(target_os = "macos")]
     let _ = app.hide();
@@ -89,8 +89,8 @@ fn copy_instead(app: &AppHandle, code: Zeroizing<String>, clear_after: Option<Du
         fallback: Some("FAILED"),
         clears_in_s: clear_after.map_or(0, |d| d.as_secs()),
     };
-    crate::desktop::show_search_again(app);
-    let _ = app.emit_to(crate::desktop::SEARCH, "typing-failed", result);
+    crate::panels::show_search_again(app);
+    let _ = app.emit_to(crate::panels::SEARCH, "typing-failed", result);
 }
 
 /// Whether codes can be typed here, for the settings page.

@@ -354,7 +354,7 @@ fn pressed<R: Runtime>(app: &AppHandle<R>, id: u32) {
         return;
     };
     if target == Target::Search {
-        crate::desktop::show_search(app);
+        crate::panels::show_search(app);
         return;
     }
     let clear_after = hotkeys.settings().clear_after();
@@ -363,7 +363,7 @@ fn pressed<R: Runtime>(app: &AppHandle<R>, id: u32) {
     };
     // Before the master password the panel asks for it, rather than the shortcut doing nothing.
     if core.get().unlock_target().is_some() {
-        crate::desktop::show_panel(app);
+        crate::panels::show_panel(app);
         return;
     }
     let entry = match target {

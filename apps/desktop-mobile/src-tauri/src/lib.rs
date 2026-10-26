@@ -27,6 +27,8 @@ mod manage_commands;
 #[cfg(desktop)]
 mod native;
 #[cfg(desktop)]
+mod panels;
+#[cfg(desktop)]
 mod preferences;
 #[cfg(desktop)]
 mod private_file;

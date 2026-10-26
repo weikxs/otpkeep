@@ -299,8 +299,8 @@ pub fn open_gate(app: AppHandle) {
 }
 
 #[tauri::command]
-pub fn hide_panel(window: WebviewWindow) {
-    let _ = window.hide();
+pub fn hide_panel(window: WebviewWindow, app: AppHandle) {
+    crate::panels::hide(&app, &window);
 }
 
 #[cfg(test)]

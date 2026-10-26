@@ -3,6 +3,7 @@
     "windows": [
       {
         "label": "panel",
+        "create": false,
         "title": "OTPKeep",
         "url": "panel.html",
         "width": 340,
@@ -28,6 +29,7 @@
       },
       {
         "label": "search",
+        "create": false,
         "title": "OTPKeep",
         "url": "search.html",
         "width": 620,
