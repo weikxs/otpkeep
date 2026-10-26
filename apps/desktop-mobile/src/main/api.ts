@@ -116,6 +116,16 @@ export interface KeyForm {
   counter: number;
 }
 
+/** The fields of one entry the editor changed; absent fields stay as they are. */
+export interface EntryUpdate {
+  title?: string;
+  note?: string;
+  issuer?: string;
+  account?: string;
+  tags?: string[];
+  pinned?: boolean;
+}
+
 export type BatchAction = { action: "trash" } | { action: "addTag"; tag: string } | { action: "removeTag"; tag: string };
 
 export interface Settings {
@@ -167,6 +177,8 @@ export interface MainApi extends SyncApi {
   copy(id: string): Promise<CopyResult>;
   nextHotp(id: string): Promise<PanelEntry>;
   edit(id: string, change: { title?: string; note?: string }): Promise<void>;
+  /** Saves every changed field of one entry at once: all of them or, when one is refused, none. */
+  update(id: string, change: EntryUpdate): Promise<void>;
   unlock(password: string): Promise<MainState>;
   setPinned(id: string, pinned: boolean): Promise<void>;
   setTags(id: string, tags: string[]): Promise<void>;
@@ -240,6 +252,7 @@ export async function tauriMainApi(): Promise<MainApi> {
     copy: (id) => call("copy_code", { id }),
     nextHotp: (id) => call("next_hotp", { id }),
     edit: (id, change) => call("edit_entry", { id, title: change.title ?? null, note: change.note ?? null }),
+    update: (id, change) => call("update_entry", { id, update: change }),
     unlock: (password) => call("unlock", { password }),
     setPinned: (id, pinned) => call("set_pinned", { id, pinned }),
     setTags: (id, tags) => call("set_tags", { id, tags }),

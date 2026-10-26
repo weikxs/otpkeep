@@ -20,12 +20,12 @@ async function openAdvanced(title: string, api = demoMain({ clock: () => STEADY 
 describe("the editor's advanced part", () => {
   it("renames the service and account with the rest of the form", async () => {
     const { api, editor } = await openAdvanced("GitHub");
-    const rename = vi.spyOn(api, "rename");
+    const update = vi.spyOn(api, "update");
 
     fireEvent.input(editor.getByLabelText("服务商"), { target: { value: "GitHub Enterprise" } });
     fireEvent.click(editor.getByText("保存"));
 
-    await waitFor(() => expect(rename).toHaveBeenCalledWith("a1", { issuer: "GitHub Enterprise" }));
+    await waitFor(() => expect(update).toHaveBeenCalledWith("a1", { issuer: "GitHub Enterprise" }));
   });
 
   it("sets the entry's own shortcut and names a default it collides with", async () => {

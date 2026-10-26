@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { type LanguageControl, LanguageSelect } from "../shared/LanguageSelect";
 import { type AddTab, AddDialog } from "./AddDialog";
-import { CommandFailure, type Entry, type MainApi, type MainState, type Settings } from "./api";
+import { CommandFailure, type Entry, type MainApi, type MainState, type MoveTo, type Settings } from "./api";
 import type { EntryChange } from "./EntryEditor";
 import { ENTRY_DRAG_TYPE, EntryRow } from "./EntryRow";
 import { BatchBar } from "./BatchBar";
@@ -52,14 +52,15 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
   /** An entry the search panel asked to edit; its row opens its editor once shown. */
   const [editId, setEditId] = useState<string | null>(null);
 
+  /** Asks for the list again; the trash only changes with the data, so a code rolling over skips it. */
   const load = useCallback(
-    async (q: string) => {
+    async (q: string, withTrash = true) => {
       const next = await api.state(q);
       setOffset(next.nowMs - clock());
       setNow(clock());
       setState(next);
       if (q === "") setAllCount(next.entries.length);
-      if (next.status === "ready") setTrashCount((await api.trashList()).length);
+      if (withTrash && next.status === "ready") setTrashCount((await api.trashList()).length);
     },
     [api, clock],
   );
@@ -95,7 +96,7 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
   const coreNow = now + offset;
   const expired = state?.entries.some((e) => e.validUntilMs !== undefined && e.validUntilMs <= coreNow) ?? false;
   useEffect(() => {
-    if (expired) void load(query);
+    if (expired) void load(query, false);
   }, [expired, load, query]);
 
   const show = (thrown: unknown) => {
@@ -119,13 +120,8 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
   };
 
   const save = async (id: string, change: EntryChange) => {
-    const { tags, pinned, issuer, account, ...names } = change;
-    if (names.title !== undefined || names.note !== undefined) await api.edit(id, names);
-    if (issuer !== undefined || account !== undefined) {
-      await api.rename(id, { ...(issuer === undefined ? {} : { issuer }), ...(account === undefined ? {} : { account }) });
-    }
-    if (tags !== undefined) await api.setTags(id, tags);
-    if (pinned !== undefined) await api.setPinned(id, pinned);
+    // One call for every changed field: the vault is written once.
+    await api.update(id, change);
     setToast(text.saved);
     await load(query);
   };
@@ -150,6 +146,43 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
     if (file) setDialog({ tab: "file", dropped: new Uint8Array(await file.arrayBuffer()) });
   };
 
+  const entries = state?.entries;
+  const allTags = useMemo(
+    () => [...new Set((entries ?? []).flatMap((e) => e.tags))].sort((a, b) => a.localeCompare(b)),
+    [entries],
+  );
+  const shown = useMemo(
+    () => (tag === null ? (entries ?? []) : (entries ?? []).filter((e) => e.tags.includes(tag))),
+    [entries, tag],
+  );
+  const chosenTags = useMemo(
+    () => [...new Set(shown.filter((e) => chosen.includes(e.id)).flatMap((e) => e.tags))].sort(),
+    [shown, chosen],
+  );
+  const toggle = (id: string) =>
+    setChosen((current) => (current.includes(id) ? current.filter((c) => c !== id) : [...current, id]));
+  // Rows are drawn again only when what they show changes (EntryRow's sameRow), so their handlers go through
+  // this reference to the current render's functions instead of the ones from when the row was last drawn.
+  const current = useRef({ copy, save, after, load: () => load(query), setToast, setEditId, toggle });
+  current.current = { copy, save, after, load: () => load(query), setToast, setEditId, toggle };
+  const rowActions = useMemo(
+    () => ({
+      copy: (entry: Entry) => void current.current.copy(entry),
+      save: (id: string, change: EntryChange) => current.current.save(id, change),
+      changed: (message: string) => {
+        current.current.setToast(message);
+        void current.current.load();
+      },
+      move: (id: string, to: MoveTo) => current.current.after(api.move(id, to)),
+      trash: (id: string) => current.current.after(api.trash(id), text.trashed),
+      dropRow: (id: string, moved: string, place: "before" | "after") =>
+        void current.current.after(api.move(moved, { to: place, other: id })),
+      toggle: (id: string) => current.current.toggle(id),
+      editStarted: () => current.current.setEditId(null),
+    }),
+    [api, text],
+  );
+
   if (state === null) return <div class="main" aria-busy="true" />;
   const languageMenu = language && (
     <LanguageSelect control={language} systemLabel={text.languages.system} label={text.language} />
@@ -173,12 +206,7 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
   }
 
   const empty = state.entries.length === 0 && query === "" && trashCount === 0;
-  const allTags = [...new Set(state.entries.flatMap((e) => e.tags))].sort((a, b) => a.localeCompare(b));
-  const shown = tag === null ? state.entries : state.entries.filter((e) => e.tags.includes(tag));
   const sortable = query === "" && tag === null && !selecting;
-  const toggle = (id: string) =>
-    setChosen((current) => (current.includes(id) ? current.filter((c) => c !== id) : [...current, id]));
-  const chosenTags = [...new Set(shown.filter((e) => chosen.includes(e.id)).flatMap((e) => e.tags))].sort();
   const grouped = sortable && shown.some((e) => e.pinned);
   return (
     <div
@@ -265,20 +293,17 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
                   sortable={sortable}
                   previous={shown[index - 1]?.id}
                   next={shown[index + 1]?.id}
-                  onCopy={(e) => void copy(e)}
-                  onSave={(change) => save(entry.id, change)}
+                  onCopy={rowActions.copy}
+                  onSave={(change) => rowActions.save(entry.id, change)}
                   keyApi={api}
-                  onChanged={(message) => {
-                    setToast(message);
-                    void load(query);
-                  }}
-                  onMove={(to) => after(api.move(entry.id, to))}
-                  onTrash={() => after(api.trash(entry.id), text.trashed)}
+                  onChanged={rowActions.changed}
+                  onMove={(to) => rowActions.move(entry.id, to)}
+                  onTrash={() => rowActions.trash(entry.id)}
                   loadHistory={() => api.history(entry.id)}
-                  onDropRow={(moved, place) => void after(api.move(moved, { to: place, other: entry.id }))}
-                  selection={selecting ? { chosen: chosen.includes(entry.id), onToggle: () => toggle(entry.id) } : undefined}
+                  onDropRow={(moved, place) => rowActions.dropRow(entry.id, moved, place)}
+                  selection={selecting ? { chosen: chosen.includes(entry.id), onToggle: () => rowActions.toggle(entry.id) } : undefined}
                   startEditing={editId === entry.id}
-                  onEditStarted={() => setEditId(null)}
+                  onEditStarted={rowActions.editStarted}
                 />
               );
               return heading === null

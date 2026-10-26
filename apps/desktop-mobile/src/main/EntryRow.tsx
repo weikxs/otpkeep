@@ -1,3 +1,4 @@
+import { memo } from "preact/compat";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { groupCode, monogram, tileColor } from "../panel/format";
 import { Ring } from "../shared/Ring";
@@ -38,8 +39,32 @@ export interface EntryRowProps {
   onEditStarted?: () => void;
 }
 
+/** Whole seconds left of the code shown, as the row's countdown shows them. */
+function remainingSeconds(entry: Entry, coreNow: number): number | undefined {
+  return entry.validUntilMs === undefined ? undefined : Math.max(0, Math.ceil((entry.validUntilMs - coreNow) / 1000));
+}
+
+/**
+ * Whether a row would look the same: its data, place and countdown second. The window ticks four times a second,
+ * so most ticks change nothing a row shows. Handlers are not compared: the window passes ones that always act on
+ * its current state.
+ */
+export function sameRow(before: EntryRowProps, after: EntryRowProps): boolean {
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)] as (keyof EntryRowProps)[]);
+  for (const key of keys) {
+    const [a, b] = [before[key], after[key]];
+    if (typeof a === "function" || typeof b === "function" || key === "coreNow" || key === "selection") continue;
+    if (a !== b) return false;
+  }
+  if (before.selection?.chosen !== after.selection?.chosen) return false;
+  return remainingSeconds(before.entry, before.coreNow) === remainingSeconds(after.entry, after.coreNow);
+}
+
+/** One account in the main window, drawn again only when what it shows changes (see {@link sameRow}). */
+export const EntryRow = memo(EntryRowView, sameRow);
+
 /** One account in the main window: click to copy; names and the note are edited in place. */
-export function EntryRow(props: EntryRowProps) {
+function EntryRowView(props: EntryRowProps) {
   const { entry, coreNow, copied, text, isMac, sortable, onCopy, onDropRow, selection } = props;
   const [editing, setEditing] = useState(false);
   const [dropAt, setDropAt] = useState<"before" | "after" | null>(null);
@@ -55,8 +80,7 @@ export function EntryRow(props: EntryRowProps) {
   }, [editing]);
   // One line under the name: service, account and the note, cut short with "…" (rows keep one height).
   const details = [entry.issuer, entry.account, entry.note].filter((s) => s !== "" && s !== entry.title).join(" · ");
-  const remainingS =
-    entry.validUntilMs === undefined ? undefined : Math.max(0, Math.ceil((entry.validUntilMs - coreNow) / 1000));
+  const remainingS = remainingSeconds(entry, coreNow);
   const ending = remainingS !== undefined && remainingS <= NEXT_CODE_WINDOW_S;
 
   if (editing) {
