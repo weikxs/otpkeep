@@ -3,7 +3,7 @@ import type { PanelEntry } from "../panel/api";
 import type { Strings } from "../panel/i18n";
 import { useLiveState } from "../panel/live";
 import { Unavailable } from "../panel/Unavailable";
-import { EntryList, PasswordPrompt, SearchIcon, generateIfNeeded } from "../panel/Panel";
+import { EntryList, PasswordPrompt, SearchIcon, generateIfNeeded } from "../panel/EntryList";
 import { type LanguageControl, LanguageSelect } from "../shared/LanguageSelect";
 import type { SearchApi, TypeResult } from "./api";
 import type { SearchStrings } from "./i18n";

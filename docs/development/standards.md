@@ -183,7 +183,7 @@ CI) and review.
 - **Never install anything on the developer's machine.** Tests that need other systems or CPUs run in containers
   or in CI: at most one container at a time, with a CPU and memory limit, and none started while the machine is
   at 70% CPU or more.
-- **Browser tests** (`pnpm e2e`, Playwright) cover the main window, the quick panel, the search panel and the
+- **Browser tests** (`pnpm e2e`, Playwright) cover the main window, the search panel, the password window and the
   management page in both themes; they pass on macOS and Linux.
 - **Install script:** checked on Ubuntu, Debian, Fedora and Alpine containers (deb, rpm, AppImage, a tampered
   package, musl) and, by the release workflow, on real macOS and Linux x86_64 and arm64 machines that install and

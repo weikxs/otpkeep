@@ -50,6 +50,8 @@ pub fn type_code(
         });
     }
     let code = vault.get().code(id).map_err(CommandError::from)?;
+    vault.used(id);
+    crate::tray::refresh(&app);
     crate::panels::hide(&app, &window);
     // Hiding the app gives focus back to the app the person was typing in.
     #[cfg(target_os = "macos")]

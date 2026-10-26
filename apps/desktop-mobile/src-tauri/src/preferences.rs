@@ -2,12 +2,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::settings::{DEFAULT_CLEAR_S, DEFAULT_PANEL_OPACITY, Settings};
+use crate::settings::{DEFAULT_CLEAR_S, Settings};
 
 /// Shortest and longest clipboard clearing time; 0 turns clearing off.
 const CLEAR_RANGE: std::ops::RangeInclusive<u16> = 10..=120;
-/// The quick panel's opacity in percent: below 70 the codes get hard to read.
-const OPACITY_RANGE: std::ops::RangeInclusive<u8> = 70..=100;
 
 /// The settings as the window shows them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -22,8 +20,6 @@ pub struct SettingsView {
     pub row_shortcuts: bool,
     /// What `row_shortcuts` is on this system when never changed.
     pub row_shortcuts_default: bool,
-    /// The quick panel's opacity in percent.
-    pub panel_opacity: u8,
     /// The search panel's shortcut; absent when it has none.
     pub search_shortcut: Option<String>,
     /// What the search panel's shortcut is on this system when never changed.
@@ -39,7 +35,6 @@ pub struct SettingsPatch {
     pub theme: Option<String>,
     pub clipboard_clear_s: Option<u16>,
     pub row_shortcuts: Option<bool>,
-    pub panel_opacity: Option<u8>,
 }
 
 #[must_use]
@@ -56,7 +51,6 @@ pub fn view(settings: &Settings) -> SettingsView {
         clipboard_clear_s: settings.clipboard_clear_s.unwrap_or(DEFAULT_CLEAR_S),
         row_shortcuts: settings.row_shortcuts_on(),
         row_shortcuts_default: cfg!(target_os = "macos"),
-        panel_opacity: settings.panel_opacity.unwrap_or(DEFAULT_PANEL_OPACITY),
         search_shortcut: settings.search_shortcut_on(),
         search_shortcut_default: cfg!(target_os = "macos")
             .then_some(crate::shortcuts::SEARCH_PANEL_DEFAULT),
@@ -68,7 +62,7 @@ pub fn view(settings: &Settings) -> SettingsView {
 ///
 /// # Errors
 ///
-/// Returns the rule that a value breaks: `LANGUAGE`, `THEME`, `CLIPBOARD` or `OPACITY`.
+/// Returns the rule that a value breaks: `LANGUAGE`, `THEME` or `CLIPBOARD`.
 pub fn apply(settings: &Settings, patch: &SettingsPatch) -> Result<Settings, &'static str> {
     let mut next = settings.clone();
     if let Some(language) = &patch.language {
@@ -93,12 +87,6 @@ pub fn apply(settings: &Settings, patch: &SettingsPatch) -> Result<Settings, &'s
     }
     if let Some(on) = patch.row_shortcuts {
         next.row_shortcuts = Some(on);
-    }
-    if let Some(opacity) = patch.panel_opacity {
-        if !OPACITY_RANGE.contains(&opacity) {
-            return Err("OPACITY");
-        }
-        next.panel_opacity = Some(opacity);
     }
     Ok(next)
 }
@@ -133,7 +121,6 @@ mod tests {
             theme: Some("dark".to_owned()),
             clipboard_clear_s: Some(0),
             row_shortcuts: Some(false),
-            panel_opacity: None,
         };
 
         let changed = apply(&Settings::default(), &patch).unwrap();
@@ -205,26 +192,5 @@ mod tests {
         .unwrap();
 
         assert_eq!(changed.extra["future"], 1);
-    }
-
-    #[test]
-    fn the_panel_opacity_stays_readable() {
-        let shown = view(&Settings::default());
-        assert_eq!(shown.panel_opacity, 90);
-
-        let at = |opacity| {
-            apply(
-                &Settings::default(),
-                &SettingsPatch {
-                    panel_opacity: Some(opacity),
-                    ..SettingsPatch::default()
-                },
-            )
-        };
-
-        assert_eq!(at(70).unwrap().panel_opacity, Some(70));
-        assert_eq!(at(100).unwrap().panel_opacity, Some(100));
-        assert_eq!(at(69), Err("OPACITY"));
-        assert_eq!(at(101), Err("OPACITY"));
     }
 }

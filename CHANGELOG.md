@@ -20,20 +20,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Open windows use far less CPU: countdowns update once a second, on the second, and the rings empty by
   themselves instead of being redrawn on every tick; the main window and the panels draw only the accounts on
   screen, so a long list stays light.
-- OTPKeep resting in the menu bar uses less memory: the search panel is opened when its shortcut is pressed and
-  closed shortly after it hides, and the quick panel is closed after 10 minutes unused and opened again when
-  asked for; OTPKeep keeps running in the menu bar with no window open.
+- The menu bar / tray icon now opens the system's own menu instead of the quick panel: up to 15 accounts,
+  pinned ones first, then the most recently used, each with its current code (and its own shortcut); choosing
+  one copies the code, and counter-based accounts make a new code when chosen. Then **Search all accounts…**,
+  **Open OTPKeep**, **Manage in the browser…**, **Sync…**, **Settings…** and **Quit OTPKeep**. The codes are
+  brought up to date when they change, when the accounts change and when the pointer reaches the icon.
+- With a master password, the menu offers **Unlock…**, which opens a small password window that closes once the
+  data is open; a shortcut pressed before the password was entered opens the same window.
+- OTPKeep resting in the menu bar runs no web page: the search panel and the main window are made when asked
+  for and closed for good 30 seconds after they are closed; OTPKeep keeps running in the menu bar with no
+  window open.
 
 ### Fixed
 
-- Linux: the tray menu has **Show quick panel**, since clicking the tray icon there only opens the menu; the
-  panel and the search panel open in the middle of the screen instead of with their corner there; and a panel
-  closed through the window manager opens again next time.
+- Linux: the search panel opens in the middle of the screen instead of with its corner there, and opens again
+  after it was closed through the window manager.
 - When the computer's clock is set back, the main window and panels fetch fresh codes instead of showing
   countdowns that never end.
 - The menu bar icon's menu follows the language setting (it was always in Chinese) and changes with it.
-- An account shortcut pressed before the master password was entered now opens the panel to ask for it,
-  instead of doing nothing.
+- An account shortcut pressed before the master password was entered now asks for it, instead of doing
+  nothing.
 - A shortcut the system refused (usually because another app holds it) is no longer shown as if it worked;
   the account editor says it is not active.
 - Typing a code from the search panel no longer hides an open main window on macOS (the code is copied
@@ -53,11 +59,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - OTPKeep costs almost nothing while its windows are hidden: countdowns run only in a window on screen, which
-  catches up when shown, and the main window is closed for good when you close it and made again when opened.
+  catches up when shown.
 - Saving an encrypted backup no longer holds up the panels, shortcuts and sync while its key is derived.
 - Entering the master password, saving, and importing pictures or backups no longer freeze the windows while
   they work; searching and changing many accounts at once are faster with large vaults.
 - The main window saves an edited account in one write, and redraws only the rows whose countdown changed.
+
+### Removed
+
+- The quick panel and its **Menu bar panel opacity** setting, replaced by the menu bar menu. OTPKeep no longer
+  needs macOS private API.
 
 ## [0.1.0] - 2026-10-25
 

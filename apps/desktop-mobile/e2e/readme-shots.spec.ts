@@ -42,11 +42,6 @@ async function fakeGate(page: Page, note: string) {
   });
 }
 
-/** The quick panel's window is transparent; a plain backdrop stands in for the desktop. */
-async function backdrop(page: Page, scheme: "light" | "dark") {
-  await page.addStyleTag({ content: `html { background: ${scheme === "light" ? "#dcd9d0" : "#2a2c31"} !important; }` });
-}
-
 for (const [lang, words] of Object.entries(LOCALES)) {
   test.describe(`README screenshots (${lang})`, () => {
     test.skip(!OUT, "set README_SHOTS to write the README's screenshots");
@@ -90,17 +85,6 @@ for (const [lang, words] of Object.entries(LOCALES)) {
       await page.getByRole("dialog").waitFor();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${dir}/sync.png` });
-    });
-
-    test("quick panel", async ({ page }) => {
-      for (const scheme of ["light", "dark"] as const) {
-        await page.emulateMedia({ colorScheme: scheme });
-        await page.setViewportSize({ width: 340, height: 560 });
-        await page.goto("/panel.html");
-        await backdrop(page, scheme);
-        await page.getByTestId("entry").first().waitFor();
-        await page.screenshot({ path: `${dir}/panel-${scheme}.png` });
-      }
     });
 
     test("search panel", async ({ page }) => {

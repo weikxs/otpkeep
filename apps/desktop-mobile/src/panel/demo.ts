@@ -98,7 +98,6 @@ export function demoApi({ clock = Date.now, status = "ready", problem = "DATA_MI
       if (current === "unavailable") current = "ready";
     },
     openMain: async () => {},
-    openGate: async () => {},
     onChange: () => () => {},
     hide: async () => {},
   };

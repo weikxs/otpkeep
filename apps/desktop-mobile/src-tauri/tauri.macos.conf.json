@@ -2,32 +2,6 @@
   "app": {
     "windows": [
       {
-        "label": "panel",
-        "create": false,
-        "title": "OTPKeep",
-        "url": "panel.html",
-        "width": 340,
-        "height": 560,
-        "resizable": false,
-        "decorations": false,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "visibleOnAllWorkspaces": true,
-        "visible": false,
-        "focus": true,
-        "shadow": true,
-        "maximizable": false,
-        "minimizable": false,
-        "transparent": true,
-        "windowEffects": {
-          "effects": [
-            "popover"
-          ],
-          "state": "active",
-          "radius": 12
-        }
-      },
-      {
         "label": "search",
         "create": false,
         "title": "OTPKeep",

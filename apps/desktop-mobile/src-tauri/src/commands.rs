@@ -1,4 +1,4 @@
-//! The commands the quick panel calls (apps/desktop-mobile/src/panel/api.ts).
+//! The commands the search panel, the password window and the main window call (apps/desktop-mobile/src/panel/api.ts).
 
 // Tauri hands commands their state, handles and arguments by value.
 #![allow(
@@ -7,7 +7,7 @@
 )]
 
 use std::collections::HashSet;
-use std::sync::MutexGuard;
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use serde::Serialize;
@@ -34,6 +34,8 @@ pub struct AppCore {
     unlocking: tokio::sync::Mutex<()>,
     /// Where codes are copied, and cleared from later.
     clipboard: Clipboard,
+    /// Entries whose codes were used in this run, most recent first, for the menu bar menu. Kept in memory only.
+    recent: Mutex<Vec<String>>,
 }
 
 impl AppCore {
@@ -42,7 +44,24 @@ impl AppCore {
             core,
             unlocking: tokio::sync::Mutex::new(()),
             clipboard: Clipboard::default(),
+            recent: Mutex::new(Vec::new()),
         }
+    }
+
+    /// Remembers that the code of `id` was just used.
+    pub(crate) fn used(&self, id: &str) {
+        let mut recent = self.recent.lock().unwrap_or_else(PoisonError::into_inner);
+        *recent = crate::core::with_used(&recent, id);
+    }
+
+    /// What the menu bar menu shows (see [`Core::menu_state`]).
+    pub(crate) fn menu_state(&self) -> PanelState {
+        let recent = self
+            .recent
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        self.get().menu_state(&recent)
     }
 
     pub(crate) const fn clipboard(&self) -> &Clipboard {
@@ -51,9 +70,7 @@ impl AppCore {
 
     pub(crate) fn get(&self) -> MutexGuard<'_, Core> {
         // A panic while holding the lock leaves the core usable: every change is saved before it returns.
-        self.core
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.core.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
@@ -215,8 +232,11 @@ pub fn copy_code(
     id: &str,
     vault: State<'_, AppCore>,
     hotkeys: State<'_, Hotkeys>,
+    app: AppHandle,
 ) -> CommandResult<CopyResult> {
-    copy_entry(&vault, id, hotkeys.settings().clear_after())
+    let copied = copy_entry(&vault, id, hotkeys.settings().clear_after());
+    crate::tray::refresh(&app);
+    copied
 }
 
 /// Copies an entry's current code; it is cleared from the clipboard later.
@@ -230,6 +250,7 @@ pub(crate) fn copy_entry(
         .clipboard
         .copy_then_clear(code, clear_after)
         .map_err(|_| CommandError::code("CLIPBOARD"))?;
+    vault.used(id);
     Ok(CopyResult {
         clears_in_s: clear_after.map_or(0, |d| d.as_secs()),
     })

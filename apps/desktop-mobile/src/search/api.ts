@@ -1,4 +1,4 @@
-/** What the search panel asks of the core: the quick panel's commands, plus opening an entry in the main window. */
+/** What the search panel asks of the core: the shared panel commands, plus opening an entry in the main window. */
 
 import type { PanelApi } from "../panel/api";
 

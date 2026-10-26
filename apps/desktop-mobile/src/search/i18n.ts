@@ -1,4 +1,4 @@
-/** The search panel's own words; the rest come from the quick panel's strings. */
+/** The search panel's own words; the rest come from the shared panel strings (../panel/i18n). */
 
 const zh = {
   copy: "复制",

@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Manager, Runtime, Wry};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
 
 use crate::commands::{AppCore, copy_entry};
@@ -96,10 +96,10 @@ fn valid_only(settings: &Settings) -> std::collections::BTreeMap<String, String>
 
 /// The plugin, with one handler for every shortcut.
 #[must_use]
-pub fn plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
+pub fn plugin() -> tauri::plugin::TauriPlugin<Wry> {
     tauri_plugin_global_shortcut::Builder::new()
         .with_handler(
-            |app: &AppHandle<R>, _shortcut: &Shortcut, event: ShortcutEvent| {
+            |app: &AppHandle, _shortcut: &Shortcut, event: ShortcutEvent| {
                 if event.state == ShortcutState::Pressed {
                     pressed(app, event.id);
                 }
@@ -346,24 +346,24 @@ pub fn taken_detail<R: Runtime>(app: &AppHandle<R>, holder: &Holder) -> String {
     }
 }
 
-fn pressed<R: Runtime>(app: &AppHandle<R>, id: u32) {
+fn pressed(app: &AppHandle, id: u32) {
     let Some(hotkeys) = app.try_state::<Hotkeys>() else {
         return;
     };
     let Some((_, target)) = hotkeys.state().registered.get(&id).cloned() else {
         return;
     };
-    if target == Target::Search {
-        crate::panels::show_search(app);
-        return;
-    }
     let clear_after = hotkeys.settings().clear_after();
     let Some(core) = app.try_state::<AppCore>() else {
         return;
     };
-    // Before the master password the panel asks for it, rather than the shortcut doing nothing.
+    // Before the master password a small window asks for it, rather than the shortcut doing nothing.
     if core.get().unlock_target().is_some() {
-        crate::panels::show_panel(app);
+        crate::unlock::show(app);
+        return;
+    }
+    if target == Target::Search {
+        crate::panels::show_search(app);
         return;
     }
     let entry = match target {
@@ -382,4 +382,6 @@ fn pressed<R: Runtime>(app: &AppHandle<R>, id: u32) {
     {
         tracing::info!("a global shortcut found no code to copy");
     }
+    // The entry is now the most recently used one.
+    crate::tray::refresh(app);
 }

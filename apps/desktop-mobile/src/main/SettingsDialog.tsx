@@ -118,24 +118,6 @@ export function SettingsDialog({ api, text, isMac, onSaved, onClose }: SettingsD
                 )}
               </span>
             </div>
-            <label class="setting">
-              <span class="setting-name">
-                {text.panelOpacity}
-                <span class="muted">{text.panelOpacityHint}</span>
-              </span>
-              <span class="setting-value opacity">
-                <input
-                  type="range"
-                  min={70}
-                  max={100}
-                  step={5}
-                  value={settings.panelOpacity}
-                  aria-label={text.panelOpacity}
-                  onChange={(e) => void change({ panelOpacity: Number((e.target as HTMLInputElement).value) })}
-                />
-                <span class="muted">{settings.panelOpacity}%</span>
-              </span>
-            </label>
             {typing && (
               <div class="setting">
                 <span class="setting-name">

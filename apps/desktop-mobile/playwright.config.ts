@@ -7,7 +7,7 @@ export default defineConfig({
   use: { baseURL: `http://127.0.0.1:${PORT}`, channel: process.env.PLAYWRIGHT_CHANNEL ?? "chrome" },
   webServer: {
     command: `pnpm exec vite preview --host 127.0.0.1 --port ${PORT} --strictPort`,
-    url: `http://127.0.0.1:${PORT}/panel.html`,
+    url: `http://127.0.0.1:${PORT}/unlock.html`,
     reuseExistingServer: false,
   },
 });

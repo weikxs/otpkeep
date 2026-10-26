@@ -77,7 +77,6 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
     clipboardClearS: 30,
     rowShortcuts: true,
     rowShortcutsDefault: true,
-    panelOpacity: 90,
     searchShortcut: "control+alt+super+Space",
     searchShortcutDefault: "control+alt+super+Space",
     version: "0.1.0",

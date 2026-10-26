@@ -47,7 +47,7 @@ Codes at hand with one click or one shortcut. Your accounts stay on your devices
 
 | Platform | State |
 |---|---|
-| macOS 11+ | Released: one universal app for Apple silicon and Intel — menu bar panel, main window, search panel, typing codes, browser management page, import / export, local-network sync |
+| macOS 11+ | Released: one universal app for Apple silicon and Intel — menu bar menu, main window, search panel, typing codes, browser management page, import / export, local-network sync |
 | Linux (x86_64, arm64) | Released: `.deb`, `.rpm` and AppImage; typing codes works on X11, not on Wayland |
 | Windows | Planned |
 | Android (APK) | Planned |
@@ -57,7 +57,7 @@ Codes at hand with one click or one shortcut. Your accounts stay on your devices
 ## Features
 
 - **Codes at hand**
-  - Menu bar / tray **quick panel**: click an account to copy its code; a countdown ring shows how long it lasts, and the next code appears in the last five seconds.
+  - Menu bar / tray **menu**: your pinned and most recently used accounts with their current codes; choose one to copy its code. It is the system's own menu, so OTPKeep runs no web page while it waits in the menu bar.
   - **Global shortcuts**: `⌃⌥⌘1` … `⌃⌥⌘0` copy the first ten accounts (macOS); any account can have its own shortcut.
   - **Search panel** (`⌃⌥⌘Space`): type a name, press Enter to copy, `⇧Enter` to **type the code** into the app you are using.
   - **Command line**: `otpkeep code github` prints a code.
@@ -68,15 +68,11 @@ Codes at hand with one click or one shortcut. Your accounts stay on your devices
 - **Browser management page**: rename accounts, write notes, set shortcuts and copy codes from a page OTPKeep serves on `127.0.0.1` only, opened with a one-time link.
 - **Local-network sync, no servers**: pair your devices once, then sync them end to end encrypted over the same local network or Bluetooth, inside a short window you open, with a one-time code and your approval on the other device.
 - **Private by design**: the data is encrypted on disk with a key kept in the system keychain, or derived from an optional master password. No telemetry, no accounts, no cloud.
-- **Looks at home**: light and dark themes, English and Simplified Chinese, a translucent menu bar panel with adjustable opacity.
+- **Looks at home**: light and dark themes, English and Simplified Chinese, the system's own menu in the menu bar.
 
 ## Screenshots
 
 <table>
-  <tr>
-    <td align="center" width="50%"><img alt="Quick panel, light" src="docs/images/en/panel-light.png" width="300"><br><sub>Menu bar quick panel</sub></td>
-    <td align="center" width="50%"><img alt="Quick panel, dark" src="docs/images/en/panel-dark.png" width="300"><br><sub>…in dark mode</sub></td>
-  </tr>
   <tr>
     <td align="center" colspan="2"><img alt="Search panel" src="docs/images/en/search.png" width="560"><br><sub>Search panel: Enter copies, ⇧Enter types the code, ⌘E edits</sub></td>
   </tr>
@@ -194,12 +190,26 @@ OTPKEEP_DATA_DIR=/tmp/otpkeep-demo OTPKEEP_KEYSTORE=memory pnpm tauri dev
 
 ### First start
 
-OTPKeep starts in the **menu bar** (macOS) or the **system tray** (Windows, Linux); it has no Dock icon. Click the icon to open the
-quick panel and add your first account: paste a link, drop or paste a QR code image, or import a file.
+OTPKeep starts in the **menu bar** (macOS) or the **system tray** (Windows, Linux); it has no Dock icon. Click the icon to open its
+menu, choose **Open OTPKeep** and add your first account: paste a link, drop or paste a QR code image, or import a file.
 
-- **Left click** the icon: the quick panel.
-- **Right click** the icon: show the quick panel, open the main window, manage in the browser, sync, settings, quit. On Linux
-  a click on the icon only opens this menu; choose **Show quick panel** there.
+### The menu bar menu
+
+A click on the icon opens a menu drawn by the system (no web page runs for it):
+
+- Up to 15 accounts, pinned ones first, then the ones you used most recently, each with its current code
+  (`Example Cloud   123 456`) and its own shortcut, if it has one. Choose an account to copy its code; the clipboard is cleared
+  as after any copy. Counter-based (HOTP) accounts read **(press to get a code)** and make a new code when chosen.
+- **Search all accounts…** opens the search panel (`⌃⌥⌘Space`), then **Open OTPKeep** (the main window), **Manage in the browser…**,
+  **Sync…**, **Settings…** and **Quit OTPKeep**.
+
+The codes are brought up to date when they change, when your accounts change and when the pointer reaches the icon.
+With a master password, the menu offers **Unlock…** until you enter it: a small window asks for the password and closes once the
+data is open. A shortcut pressed before that opens the same window. When the data cannot be opened, the menu says why and offers
+**Try again** or the main window.
+
+The main window and the search panel are closed for good 30 seconds after you close them, so while OTPKeep waits in the menu bar
+no web page runs.
 
 ### Main window
 
@@ -213,7 +223,7 @@ Press `⌃⌥⌘Space` anywhere (macOS default; set or turn it off in Settings).
 - `Enter` copies the code and closes.
 - `⇧Enter` types the code into the field you were in. On macOS this needs **Accessibility** permission
   (System Settings → Privacy & Security → Accessibility); without it, on Wayland, while the main window is open (macOS), or
-  when no key could be sent, the code is copied instead and the panel says so.
+  when no key could be sent, the code is copied instead and the search panel says so.
 - `⌘E` (`Ctrl+E`) opens the account in the main window; `Esc` clears the search, then closes.
 
 ### Counter-based (HOTP) accounts
@@ -253,7 +263,7 @@ Sync works only between devices near each other, over the same local network or 
 ### Settings
 
 Language (system, English, 中文), theme, clearing the clipboard after copying (default 30 seconds), shortcuts for the first ten accounts,
-the search panel shortcut, the menu bar panel's opacity, and typing permission.
+the search panel shortcut, and typing permission.
 
 ## Keyboard shortcuts
 
@@ -262,8 +272,6 @@ the search panel shortcut, the menu bar panel's opacity, and typing permission.
 | Anywhere (macOS default) | `⌃⌥⌘1` … `⌃⌥⌘0` | Copy the code of account 1–10 in the list |
 | Anywhere (macOS default) | `⌃⌥⌘Space` | Open the search panel |
 | Anywhere | your choice | Copy one account's code (set per account) |
-| Quick panel | `↑` `↓` `Enter` | Choose and copy |
-| Quick panel | `⌘1` … `⌘9`, `⌘0` | Copy row 1–10 |
 | Search panel | `Enter` / `⇧Enter` | Copy / type the code |
 | Search panel | `⌘E`, `Esc` | Edit in the main window, clear then close |
 
@@ -297,8 +305,6 @@ Every vault command accepts `--json` for machine-readable output and `--password
 
 There is deliberately **no app lock**: the master password (optional) is asked once per start, and the system's own screen lock protects an unattended computer.
 The app never reads keys, passwords or keychain items other than its own.
-
-The menu bar panel uses a transparent window, which needs macOS private API; for that reason OTPKeep is distributed directly rather than through the Mac App Store.
 
 ## Development
 

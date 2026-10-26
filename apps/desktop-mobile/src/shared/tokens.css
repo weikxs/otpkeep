@@ -1,4 +1,4 @@
-/* Colour tokens shared by the quick panel and the management page (design/12 §2). */
+/* Colour tokens shared by the app's windows and the management page (design/12 §2). */
 :root {
   color-scheme: light dark;
   --paper: #f7f6f2;

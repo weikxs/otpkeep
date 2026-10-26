@@ -135,8 +135,6 @@ export interface Settings {
   clipboardClearS: number;
   rowShortcuts: boolean;
   rowShortcutsDefault: boolean;
-  /** The quick panel's opacity in percent (70–100). */
-  panelOpacity: number;
   /** The search panel's global shortcut; null when it is off. */
   searchShortcut: string | null;
   /** What it is on this system when never changed; null where there is none. */
@@ -145,7 +143,7 @@ export interface Settings {
 }
 
 export type SettingsPatch = Partial<
-  Pick<Settings, "language" | "theme" | "clipboardClearS" | "rowShortcuts" | "panelOpacity">
+  Pick<Settings, "language" | "theme" | "clipboardClearS" | "rowShortcuts">
 >;
 
 export type ExportFormat = "backup" | "links" | "goldenPassport";

@@ -1,6 +1,6 @@
-//! What the quick panel shows and does, kept apart from Tauri so it can be tested (design/12 §6).
+//! What the windows and the menu bar menu show and do, kept apart from Tauri so it can be tested (design/12 §6).
 //!
-//! The panel only ever receives display fields and codes; secrets stay here.
+//! The windows only ever receive display fields and codes; secrets stay here.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -24,6 +24,7 @@ mod import;
 pub mod import_view;
 mod key;
 mod manage;
+mod menu;
 mod reopen;
 mod search;
 #[cfg(desktop)]
@@ -37,6 +38,7 @@ pub use import::{ImportProblem, ManualForm, read_bytes};
 pub use import_view::ImportView;
 pub use key::{KeyForm, KeyInfo};
 pub use manage::{History, MoveTo, TrashItem};
+pub use menu::with_used;
 pub use update::EntryUpdate;
 
 use search::{FindCache, select};

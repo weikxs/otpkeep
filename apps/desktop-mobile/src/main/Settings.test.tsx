@@ -118,17 +118,3 @@ describe("typing codes", () => {
     expect(dialog.queryByText("去授权")).toBeNull();
   });
 });
-
-describe("menu bar panel opacity", () => {
-  it("is set with a slider and kept readable", async () => {
-    const api = show();
-    const dialog = await openSettings();
-    const slider = await dialog.findByLabelText("菜单栏面板透明度");
-
-    expect((slider as HTMLInputElement).value).toBe("90");
-    fireEvent.change(slider, { target: { value: "75" } });
-
-    await waitFor(async () => expect((await api.settings()).panelOpacity).toBe(75));
-    expect(dialog.getByText("75%")).toBeTruthy();
-  });
-});

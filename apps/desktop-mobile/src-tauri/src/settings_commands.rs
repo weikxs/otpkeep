@@ -43,7 +43,6 @@ pub fn set_search_panel_shortcut(
 }
 
 fn announce(app: &AppHandle, settings: &crate::settings::Settings) -> SettingsView {
-    crate::desktop::relabel_tray(app);
     let shown = view(settings);
     let _ = app.emit("settings-changed", shown.clone());
     shown

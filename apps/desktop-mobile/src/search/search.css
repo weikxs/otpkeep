@@ -1,5 +1,4 @@
-/* The search panel (design/04 §6). It reuses the quick panel's rows; colours come from ../shared/tokens.css. */
-/* The search window is not transparent, unlike the quick panel whose styles it shares. */
+/* The search panel (design/04 §6). It shares its rows with ../panel/panel.css; colours come from ../shared/tokens.css. */
 html,
 body {
   background: var(--paper);
@@ -53,7 +52,7 @@ body {
   min-height: 0;
 }
 
-/* Larger rows than the compact quick panel: the search panel is a big, short-lived window. */
+/* Larger rows than the shared defaults: the search panel is a big, short-lived window. */
 .search .entry {
   grid-template-columns: 32px minmax(0, 1fr) 56px 104px 18px;
   gap: 10px;

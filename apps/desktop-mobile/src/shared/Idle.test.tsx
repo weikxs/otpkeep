@@ -1,8 +1,9 @@
 import { act, render } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { demoApi } from "../panel/demo";
 import { strings } from "../panel/i18n";
-import { Panel } from "../panel/Panel";
+import { demoSearchApi } from "../search/demo";
+import { searchStrings } from "../search/i18n";
+import { SearchApp } from "../search/SearchApp";
 import { demoMain } from "../main/demo";
 import { mainStrings } from "../main/i18n";
 import { MainApp } from "../main/MainApp";
@@ -38,10 +39,10 @@ describe("windows at rest", () => {
     vi.useRealTimers();
   });
 
-  it("the panel asks for nothing while hidden and catches up when shown", async () => {
-    const api = demoApi({ clock: Date.now });
+  it("the search panel asks for nothing while hidden and catches up when shown", async () => {
+    const api = demoSearchApi({ clock: Date.now });
     const state = vi.spyOn(api, "state");
-    render(<Panel api={api} text={strings("zh-CN")} isMac clock={Date.now} />);
+    render(<SearchApp api={api} text={strings("zh-CN")} words={searchStrings("zh-CN")} isMac clock={Date.now} />);
     await settle();
     await pass(TWO_MINUTES_MS);
     expect(state.mock.calls.length).toBeGreaterThan(1);

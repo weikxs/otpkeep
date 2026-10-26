@@ -129,6 +129,8 @@ impl Backend for AppBackend {
             .clipboard()
             .copy_then_clear(code, clear_after)
             .map_err(|_| GateError::Clipboard)?;
+        vault.used(id);
+        crate::tray::refresh(&self.app);
         Ok(Copied {
             clears_in_s: clear_after.map_or(0, |d| d.as_secs()),
         })
@@ -151,7 +153,6 @@ impl Backend for AppBackend {
             UpdateError::Save => GateError::Save,
         })?;
         // OTPKeep's windows and menu follow at once.
-        crate::desktop::relabel_tray(&self.app);
         let _ = self.app.emit("settings-changed", view(&settings));
         Ok(settings.language.unwrap_or_else(|| "system".to_owned()))
     }

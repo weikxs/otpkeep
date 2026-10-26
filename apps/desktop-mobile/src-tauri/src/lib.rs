@@ -45,9 +45,15 @@ mod sync;
 #[cfg(desktop)]
 mod sync_commands;
 #[cfg(desktop)]
+mod tray;
+#[cfg(desktop)]
+mod tray_menu;
+#[cfg(desktop)]
 mod typing;
 #[cfg(desktop)]
 mod typing_commands;
+#[cfg(desktop)]
+mod unlock;
 
 /// Starts the app and blocks until it exits.
 ///
@@ -60,7 +66,7 @@ pub fn try_run() -> Result<(), tauri::Error> {
     Ok(())
 }
 
-/// The app lives in the menu bar: closing its last window (the panels are closed when unused) does not end it;
+/// The app lives in the menu bar: closing its last window (windows are closed when unused) does not end it;
 /// only Quit, which asks with an exit code, does. A code waiting to be cleared from the clipboard is cleared when
 /// the app quits, not left behind.
 #[cfg(desktop)]
