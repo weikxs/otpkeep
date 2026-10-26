@@ -26,6 +26,8 @@ mod log;
 mod manage_commands;
 #[cfg(desktop)]
 mod native;
+#[cfg(target_os = "macos")]
+mod native_unlock;
 #[cfg(desktop)]
 mod panels;
 #[cfg(desktop)]
@@ -82,6 +84,8 @@ fn on_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
             if let Some(core) = app.try_state::<commands::AppCore>() {
                 core.clipboard().clear_now();
             }
+            #[cfg(target_os = "macos")]
+            native_unlock::stop(app);
         }
         _ => {}
     }
@@ -137,6 +141,7 @@ fn builder() -> tauri::Builder<tauri::Wry> {
         .manage(commands::AppCore::new(core))
         .manage(hotkeys)
         .manage(gate::GateServer::default())
+        .manage(unlock::prompt_state())
         .invoke_handler(tauri::generate_handler![
             commands::panel_state,
             commands::main_state,

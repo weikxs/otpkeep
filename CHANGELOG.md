@@ -29,8 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and its own shortcut; choosing one copies the code, and
   counter-based accounts make a new code when chosen. The codes are brought up to date when they change, when the
   accounts change and when the pointer reaches the icon.
-- With a master password, the menu offers **Unlock…**, which opens a small password window that closes once the
-  data is open; a shortcut pressed before the password was entered opens the same window.
+- With a master password, the menu offers **Unlock…**. On macOS it asks with the system's own password dialog, so
+  unlocking starts no web page (no WebKit or AutoFill helper); on Windows and Linux a small password window
+  asks and closes once the data is open. A shortcut pressed before the password was entered asks the same way.
 - OTPKeep resting in the menu bar runs no web page: the search panel and the main window are made when asked
   for and closed for good 30 seconds after they are closed; OTPKeep keeps running in the menu bar with no
   window open.

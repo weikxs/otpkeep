@@ -213,8 +213,9 @@ the search panel, the main window or the management page) are remembered as ids 
 never synced.
 
 The codes are brought up to date when they change, when your accounts change and when the pointer reaches the icon.
-With a master password, the menu offers **Unlock…** until you enter it: a small window asks for the password and closes once the
-data is open. A shortcut pressed before that opens the same window. When the data cannot be opened, the menu says why and offers
+With a master password, the menu offers **Unlock…** until you enter it. On macOS the system's own password dialog asks for it
+(no web page is started, so no WebKit or AutoFill helper runs); on Windows and Linux a small window asks and closes once the
+data is open. A shortcut pressed before that asks the same way. When the data cannot be opened, the menu says why and offers
 **Try again** or the main window.
 
 The main window and the search panel are closed for good 30 seconds after you close them, so while OTPKeep waits in the menu bar

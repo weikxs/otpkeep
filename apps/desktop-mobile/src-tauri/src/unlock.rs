@@ -20,8 +20,17 @@ const fn title(chinese: bool) -> &'static str {
     }
 }
 
-/// Shows the password window, made now when it is not open yet.
+/// Asks for the master password: on macOS with the system's dialog (no web page), elsewhere, or when that
+/// dialog cannot be shown, with the password window.
 pub fn show(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    crate::native_unlock::start(app);
+    #[cfg(not(target_os = "macos"))]
+    show_window(app);
+}
+
+/// Shows the password window, made now when it is not open yet.
+pub fn show_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(UNLOCK) {
         let _ = window.show();
         let _ = window.unminimize();
@@ -47,6 +56,16 @@ pub fn show(app: &AppHandle) {
         Err(error) => tracing::warn!(%error, "the password window could not be opened"),
     }
 }
+
+/// The state of the system's password dialog (macOS); nothing elsewhere.
+#[cfg(target_os = "macos")]
+pub fn prompt_state() -> crate::native_unlock::Prompt {
+    crate::native_unlock::Prompt::default()
+}
+
+/// The state of the system's password dialog (macOS); nothing elsewhere.
+#[cfg(not(target_os = "macos"))]
+pub const fn prompt_state() {}
 
 /// Closes the password window for good, when it is open.
 pub fn close(app: &AppHandle) {
