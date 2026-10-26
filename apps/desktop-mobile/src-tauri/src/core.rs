@@ -205,6 +205,10 @@ pub struct Core {
     uses_master_password: bool,
     vault: Vault,
     staging: Staging,
+    /// The clock of the data the latest sync session started from; the session's result is merged with the
+    /// data once more when it changed since.
+    #[cfg(desktop)]
+    session_base: Option<keep_vault::Hlc>,
 }
 
 impl Core {
@@ -224,6 +228,8 @@ impl Core {
             uses_master_password: false,
             vault: Vault::NeedsPassword,
             staging: Staging::default(),
+            #[cfg(desktop)]
+            session_base: None,
         };
         core.open();
         core

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A rename, edit or counter code made while a sync was running is no longer lost when the sync finishes, and an
+  HOTP counter never goes back.
+
 ### Changed
 
 - Entering the master password, saving, and importing pictures or backups no longer freeze the windows while

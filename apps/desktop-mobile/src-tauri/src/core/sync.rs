@@ -132,6 +132,7 @@ impl Core {
         let service = self.writable()?;
         let doc = service.doc().clone();
         let identity = identity_of(&doc).ok();
+        self.session_base = Some(doc.clock);
         Ok(SessionStart { doc, identity })
     }
 
@@ -151,8 +152,10 @@ impl Core {
         Ok(service.commit_synced(grouped, &[])?)
     }
 
-    /// Saves what a session produced. When the data changed during the session (an edit in the window), the
-    /// result is merged with the current data once more, so nothing is lost.
+    /// Saves what a session produced. When the data changed during the session (an edit in the window, a
+    /// counter code), the result is merged with the current data once more, so nothing is lost and no HOTP
+    /// counter goes back. Whether it changed is told by the data's clock, not the result's: a peer's clock may
+    /// put the result ahead of an edit made meanwhile.
     ///
     /// # Errors
     ///
@@ -163,11 +166,14 @@ impl Core {
         overwritten: &[(EntryId, HistoryField, String)],
         participants: &[DeviceId],
     ) -> Result<(), CoreError> {
+        let base = self.session_base.take();
         let service = self.writable()?;
-        let doc = if doc.clock < service.doc().clock {
-            merge(service.doc(), &doc, participants)
-        } else {
+        let current = service.doc();
+        // The result goes first: it carries the group and this device's keys a pairing has just made.
+        let doc = if base == Some(current.clock) {
             doc
+        } else {
+            merge(&doc, current, participants)
         };
         Ok(service.commit_synced(doc, overwritten)?)
     }
