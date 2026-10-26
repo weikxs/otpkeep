@@ -27,6 +27,8 @@ mod native;
 #[cfg(desktop)]
 mod preferences;
 #[cfg(desktop)]
+mod private_file;
+#[cfg(desktop)]
 mod settings;
 #[cfg(desktop)]
 mod settings_commands;

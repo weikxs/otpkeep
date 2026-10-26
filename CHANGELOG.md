@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An export saved over an existing file is written completely before it replaces that file, and is readable
+  only by you even when the old file was readable by others.
 - A rename, edit or counter code made while a sync was running is no longer lost when the sync finishes, and an
   HOTP counter never goes back.
 

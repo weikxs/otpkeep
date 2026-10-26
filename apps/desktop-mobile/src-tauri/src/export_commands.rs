@@ -1,9 +1,6 @@
 //! Exports from the main window (PRD FR-6.1–6.3, FR-6.7). The native layer asks for confirmation before
 //! anything leaves unencrypted and asks where to save; the page never sees a file path or a file's bytes.
 
-use std::io::Write;
-use std::path::Path;
-
 use serde::Serialize;
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
@@ -12,6 +9,7 @@ use zeroize::Zeroizing;
 use crate::commands::{AppCore, CommandError};
 use crate::core::{ExportFormat, GoogleExport, LeftOut, QrImage};
 use crate::native::{PLAIN_FILE, SHOW_CODES, confirm};
+use crate::private_file::write_private;
 
 type Result<T> = std::result::Result<T, CommandError>;
 
@@ -83,45 +81,4 @@ pub async fn entry_qr(id: String, app: AppHandle, vault: State<'_, AppCore>) -> 
         return Err(CommandError::code("CANCELLED"));
     }
     Ok(vault.get().entry_qr(&id)?)
-}
-
-/// Writes the file readable by its owner only, where the system allows it.
-fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    let mut options = std::fs::OpenOptions::new();
-    options.write(true).create(true).truncate(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    let mut file = options.open(path)?;
-    file.write_all(bytes)?;
-    file.sync_all()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::write_private;
-
-    #[test]
-    fn writes_a_file_only_its_owner_can_read() {
-        let dir = tempfile::Builder::new()
-            .prefix("app-write-")
-            .tempdir()
-            .unwrap();
-        let path = dir.path().join("links.txt");
-
-        write_private(&path, b"otpauth://demo").unwrap();
-        write_private(&path, b"again").unwrap();
-
-        assert_eq!(std::fs::read(&path).unwrap(), b"again");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            assert_eq!(
-                std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
-                0o600
-            );
-        }
-    }
 }
