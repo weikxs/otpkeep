@@ -220,10 +220,20 @@ export interface MainApi extends SyncApi {
   commit(token: string, fresh: boolean[], duplicates: boolean[]): Promise<number>;
   cancel(token: string): Promise<void>;
   openGate(): Promise<void>;
-  /** Calls `listener` when the data changed elsewhere; returns how to stop. */
+  /** Calls `listener` when the data changed elsewhere or the window was shown again; returns how to stop. */
   onChange(listener: () => void): () => void;
   /** Calls `listener` when the panel or the tray asks for a page (`add`, `import`, `settings`). */
   onPage(listener: (page: string) => void): () => void;
+}
+
+/**
+ * The page the window was opened at (`#page=sync`), taken out of the address so a reload starts plain. A window
+ * opened at a page gets it this way because an event sent before the page loaded would be missed.
+ */
+export function takeInitialPage(): string | null {
+  const page = new URLSearchParams(location.hash.slice(1)).get("page");
+  if (page !== null) history.replaceState(null, "", location.pathname + location.search);
+  return page;
 }
 
 /** Turns what a command threw into a {@link CommandFailure}. */
@@ -294,7 +304,13 @@ export async function tauriMainApi(): Promise<MainApi> {
     commit: (token, fresh, duplicates) => call("commit_import", { token, fresh, duplicates }),
     cancel: (token) => call("cancel_import", { token }),
     openGate: () => call("open_gate"),
-    onChange: (listener) => subscribe("vault-changed", () => listener()),
+    onChange: (listener) => {
+      // The data changed elsewhere, or the window was brought up again: either way it reloads.
+      const stops = ["vault-changed", "main-shown"].map((name) => subscribe(name, () => listener()));
+      return () => {
+        for (const stop of stops) stop();
+      };
+    },
     syncState: () => call("sync_state"),
     openSyncWindow: () => call("open_sync_window", { minutes: null }),
     openPairWindow: (name) => call("open_pair_window", { name, minutes: null }),
@@ -308,6 +324,10 @@ export async function tauriMainApi(): Promise<MainApi> {
     removeDevice: (fingerprint) => call("remove_device", { fingerprint }),
     leaveGroup: () => call("leave_group"),
     onSyncView: (listener) => subscribe<SyncView>("sync-view", listener),
-    onPage: (listener) => subscribe<string>("open-page", listener),
+    onPage: (listener) => {
+      const first = takeInitialPage();
+      if (first !== null) queueMicrotask(() => listener(first));
+      return subscribe<string>("open-page", listener);
+    },
   };
 }

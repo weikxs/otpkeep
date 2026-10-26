@@ -42,8 +42,8 @@ function windowsFor(os: string): WindowConfig[] {
 describe("desktop window settings", () => {
   const macos = windowsFor("macos");
 
-  it("starts in the menu bar: every window hidden until asked for", () => {
-    expect(macos.map((w) => w.label)).toEqual(["main", "panel", "search"]);
+  it("starts in the menu bar: the panels made hidden, the main window only when asked for", () => {
+    expect(macos.map((w) => w.label)).toEqual(["panel", "search"]);
     expect(macos.every((w) => w.visible === false)).toBe(true);
   });
 

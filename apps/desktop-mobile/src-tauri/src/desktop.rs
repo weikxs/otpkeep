@@ -1,13 +1,16 @@
-//! The menu bar icon, the quick panel under it and the main window (design/12 §1).
+//! The menu bar icon, the quick panel under it and the main window (design/12 §1). The panel and the search
+//! panel are made at startup, hidden, so they appear at once; the main window only while it is open.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{
-    AppHandle, Emitter, Manager, PhysicalPosition, Rect, Runtime, WebviewWindow, WindowEvent,
+    AppHandle, Emitter, Manager, PhysicalPosition, Rect, Runtime, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder, WindowEvent,
 };
 
 use crate::icon;
@@ -18,6 +21,11 @@ pub const PANEL: &str = "panel";
 pub const MAIN: &str = "main";
 /// The search panel's window label (design/04 §6).
 pub const SEARCH: &str = "search";
+/// The main window's page.
+const MAIN_PAGE: &str = "index.html";
+/// The main window's first size and smallest size, in logical pixels.
+const MAIN_SIZE: (f64, f64) = (900.0, 640.0);
+const MAIN_MIN_SIZE: (f64, f64) = (360.0, 480.0);
 /// The search panel sits this far down the screen, like other launchers.
 const SEARCH_FROM_TOP: f64 = 0.22;
 /// Gap between the menu bar and the panel, in physical pixels.
@@ -104,21 +112,6 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             }
         });
     }
-    if let Some(main) = app.get_webview_window(MAIN) {
-        let handle = app.clone();
-        let window = main.clone();
-        main.on_window_event(move |event| {
-            // Closing the main window keeps the app in the menu bar.
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
-                #[cfg(target_os = "macos")]
-                let _ = handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
-                #[cfg(not(target_os = "macos"))]
-                let _ = &handle;
-            }
-        });
-    }
     Ok(())
 }
 
@@ -166,22 +159,66 @@ fn place_under(panel: &WebviewWindow, icon: Rect) {
     let _ = panel.set_position(PhysicalPosition::new(x, y));
 }
 
-/// Shows the main window, optionally at `page`.
+/// Shows the main window, optionally at `page`. The window is made when it is asked for and closed for good
+/// when the person closes it, so nothing of it runs while it is not open; the app stays in the menu bar.
 pub fn show_main(app: &AppHandle, page: Option<&str>) {
     if let Some(panel) = app.get_webview_window(PANEL) {
         let _ = panel.hide();
     }
-    let Some(main) = app.get_webview_window(MAIN) else {
-        return;
-    };
     #[cfg(target_os = "macos")]
     let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+    let Some(main) = app.get_webview_window(MAIN) else {
+        open_main(app, page);
+        return;
+    };
     let _ = main.show();
     let _ = main.unminimize();
     let _ = main.set_focus();
+    let _ = main.emit("main-shown", ());
     if let Some(page) = page {
         let _ = main.emit("open-page", page);
     }
+}
+
+/// Makes the main window. A page to open goes in the address, since the page cannot hear an event before it
+/// has loaded.
+fn open_main(app: &AppHandle, page: Option<&str>) {
+    let address = page.map_or_else(
+        || MAIN_PAGE.to_owned(),
+        |page| {
+            format!(
+                "{MAIN_PAGE}#page={}",
+                utf8_percent_encode(page, NON_ALPHANUMERIC)
+            )
+        },
+    );
+    let built = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App(address.into()))
+        .title("OTPKeep")
+        .inner_size(MAIN_SIZE.0, MAIN_SIZE.1)
+        .min_inner_size(MAIN_MIN_SIZE.0, MAIN_MIN_SIZE.1)
+        .build();
+    let main = match built {
+        Ok(main) => main,
+        Err(error) => {
+            tracing::warn!(%error, "the main window could not be opened");
+            return;
+        }
+    };
+    let handle = app.clone();
+    main.on_window_event(move |event| {
+        if let WindowEvent::Destroyed = event {
+            main_closed(&handle);
+        }
+    });
+    let _ = main.set_focus();
+}
+
+/// The main window is gone: the app goes back to living in the menu bar only.
+fn main_closed(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
 }
 
 /// Shows the search panel in the middle of the screen the pointer is on, or hides it when it is open.

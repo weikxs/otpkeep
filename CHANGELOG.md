@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- OTPKeep costs almost nothing while its windows are hidden: countdowns run only in a window on screen, which
+  catches up when shown, and the main window is closed for good when you close it and made again when opened.
 - Saving an encrypted backup no longer holds up the panels, shortcuts and sync while its key is derived.
 - Entering the master password, saving, and importing pictures or backups no longer freeze the windows while
   they work; searching and changing many accounts at once are faster with large vaults.

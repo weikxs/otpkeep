@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { type LanguageControl, LanguageSelect } from "../shared/LanguageSelect";
+import { needsReload, useVisible } from "../shared/visible";
 import { type AddTab, AddDialog } from "./AddDialog";
 import { CommandFailure, type Entry, type MainApi, type MainState, type MoveTo, type Settings } from "./api";
 import type { EntryChange } from "./EntryEditor";
@@ -68,6 +69,8 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
 
   useEffect(() => void load(query), [query, load]);
   useEffect(() => api.onChange(() => void load(query)), [api, load, query]);
+  // Hidden, the window stops ticking; shown again, it catches up.
+  const visible = useVisible(() => void load(query));
   useEffect(
     () =>
       api.onPage((page) => {
@@ -85,9 +88,10 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
     [api],
   );
   useEffect(() => {
+    if (!visible) return;
     const timer = setInterval(() => setNow(clock()), TICK_MS);
     return () => clearInterval(timer);
-  }, [clock]);
+  }, [clock, visible]);
   useEffect(() => {
     if (toast === null) return;
     const timer = setTimeout(() => setToast(null), TOAST_MS);
@@ -95,7 +99,7 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
   }, [toast]);
 
   const coreNow = now + offset;
-  const expired = state?.entries.some((e) => e.validUntilMs !== undefined && e.validUntilMs <= coreNow) ?? false;
+  const expired = visible && needsReload(state?.entries, coreNow);
   useEffect(() => {
     if (expired) void load(query, false);
   }, [expired, load, query]);

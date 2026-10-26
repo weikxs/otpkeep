@@ -64,8 +64,9 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now, language 
         setFailed(false);
         setFallback(null);
         input.current?.focus();
+        void reload();
       }),
-    [api],
+    [api, reload],
   );
   useEffect(() => {
     document.querySelector(".entry.selected")?.scrollIntoView?.({ block: "nearest" });

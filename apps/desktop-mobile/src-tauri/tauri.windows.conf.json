@@ -2,15 +2,6 @@
   "app": {
     "windows": [
       {
-        "label": "main",
-        "title": "OTPKeep",
-        "width": 900,
-        "height": 640,
-        "minWidth": 360,
-        "minHeight": 480,
-        "visible": false
-      },
-      {
         "label": "panel",
         "title": "OTPKeep",
         "url": "panel.html",
