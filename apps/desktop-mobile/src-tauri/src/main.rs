@@ -10,6 +10,8 @@ use std::process::ExitCode;
     reason = "the app failed to start, so stderr is the only place left to report it"
 )]
 fn main() -> ExitCode {
+    #[cfg(target_os = "macos")]
+    otpkeep_app_lib::large_frees::without_large_cache();
     match otpkeep_app_lib::try_run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {

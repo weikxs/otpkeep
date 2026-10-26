@@ -43,6 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- macOS: unlocking with a master password no longer leaves the app holding about 64 MB more memory for minutes:
+  the memory used to derive the key is given back to the system at once.
 - An imported name like `Example Cloud:ops@example.com` whose part after the colon is the account is saved as
   `Example Cloud` (and as the service when it had none), so the account is no longer shown twice. Accounts
   already in the vault are not changed, but the menu, the main window and the search panel show them the same

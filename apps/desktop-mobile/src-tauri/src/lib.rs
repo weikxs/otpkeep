@@ -20,6 +20,8 @@ mod icon;
 mod import_commands;
 #[cfg(desktop)]
 mod key_commands;
+#[cfg(target_os = "macos")]
+pub mod large_frees;
 #[cfg(desktop)]
 mod log;
 #[cfg(desktop)]
