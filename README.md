@@ -292,6 +292,7 @@ Every vault command accepts `--json` for machine-readable output and `--password
 | **Clipboard** | copied codes are kept out of clipboard history apps and cleared 30 seconds (adjustable) after the last copy, or when OTPKeep quits, only if the clipboard still holds that code |
 | **Network** | none, except local-network / Bluetooth sync while you have a window open, and the management page on `127.0.0.1` |
 | **Telemetry** | none |
+| **Log** | warnings and errors only, never secrets, codes or account names, in `otpkeep.log` (at most 1 MB, plus one older file): macOS `~/Library/Logs/io.github.weikxs.otpkeep`, elsewhere the `logs` folder under `io.github.weikxs.otpkeep` in the local app data folder |
 
 There is deliberately **no app lock**: the master password (optional) is asked once per start, and the system's own screen lock protects an unattended computer.
 The app never reads keys, passwords or keychain items other than its own.

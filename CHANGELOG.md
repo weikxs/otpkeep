@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Warnings and errors are kept in a small log file (at most 1 MB plus one older file) to help with problem
+  reports; it never holds secrets, codes or account names.
 - When the data cannot be opened because another OTPKeep, the keychain or the disk is busy, the panels and the
   main window offer **Try again**; a damaged vault file can be put back to its previous version from the main
   window after a confirmation (the damaged file is kept).

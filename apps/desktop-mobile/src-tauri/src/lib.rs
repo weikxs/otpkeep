@@ -21,6 +21,8 @@ mod import_commands;
 #[cfg(desktop)]
 mod key_commands;
 #[cfg(desktop)]
+mod log;
+#[cfg(desktop)]
 mod manage_commands;
 #[cfg(desktop)]
 mod native;
@@ -92,6 +94,8 @@ fn builder() -> tauri::Builder<tauri::Wry> {
     /// How long to wait for another OTPKeep process to release the data.
     const LOCK_WAIT: Duration = Duration::from_secs(2);
 
+    // First, so that what happens while the data opens is kept too.
+    let log = log::Log::install();
     let keystore: Box<dyn Keystore> = if std::env::var(KEYSTORE_OVERRIDE).as_deref() == Ok("memory")
     {
         Box::new(MemoryKeystore::new())
@@ -170,6 +174,7 @@ fn builder() -> tauri::Builder<tauri::Wry> {
         ])
         .setup(move |app| {
             use tauri::Manager;
+            log.attach_to(app.handle());
             let notify = Arc::new(sync_commands::AppNotify(app.handle().clone()));
             app.manage(sync::Syncer::new(
                 session_core,
