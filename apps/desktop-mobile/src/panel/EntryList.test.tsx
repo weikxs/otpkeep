@@ -120,12 +120,6 @@ describe("the master password prompt", () => {
     expect((await screen.findByRole("alert")).textContent).toBe("请输入主口令");
     expect(unlock).not.toHaveBeenCalled();
   });
-
-  it("keeps the password field away from AutoFill", () => {
-    render(<PasswordPrompt api={demoApi({ status: "needsPassword" })} text={zh} onOpened={() => undefined} />);
-
-    expect(screen.getByLabelText("主口令").getAttribute("autocomplete")).toBe("off");
-  });
 });
 
 describe("data that cannot be opened", () => {

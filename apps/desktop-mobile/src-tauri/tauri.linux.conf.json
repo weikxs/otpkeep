@@ -18,7 +18,8 @@
         "focus": true,
         "shadow": true,
         "maximizable": false,
-        "minimizable": false
+        "minimizable": false,
+        "incognito": true
       }
     ]
   }

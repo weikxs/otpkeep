@@ -62,6 +62,9 @@ fn open_main(app: &AppHandle, page: Option<&str>) {
         .title("OTPKeep")
         .inner_size(MAIN_SIZE.0, MAIN_SIZE.1)
         .min_inner_size(MAIN_MIN_SIZE.0, MAIN_MIN_SIZE.1)
+        // No website data is kept (the pages store nothing), so WebKit's networking helper ends as soon as
+        // the last window is closed instead of staying for the rest of the run with the default data store.
+        .incognito(true)
         .build();
     let main = match built {
         Ok(main) => main,

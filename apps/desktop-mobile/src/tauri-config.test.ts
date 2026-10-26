@@ -33,6 +33,7 @@ interface WindowConfig {
   visible?: boolean;
   create?: boolean;
   decorations?: boolean;
+  incognito?: boolean;
 }
 
 function windowsFor(os: string): WindowConfig[] {
@@ -53,6 +54,10 @@ describe("desktop window settings", () => {
     expect(macos.map((w) => w.label)).toEqual(["search"]);
     expect(macos.every((w) => w.visible === false)).toBe(true);
     expect(macos.every((w) => w.create === false)).toBe(true);
+  });
+
+  it("keeps no website data, so WebKit's networking helper ends with the last window", () => {
+    expect(macos.every((w) => w.incognito === true)).toBe(true);
   });
 
   it("shows the search panel without a title bar", () => {

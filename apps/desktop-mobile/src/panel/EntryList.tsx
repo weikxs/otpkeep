@@ -238,7 +238,6 @@ export function PasswordPrompt({ api, text, onOpened }: PasswordPromptProps) {
           value={password}
           placeholder={text.password}
           aria-label={text.password}
-          autocomplete="off"
           autoFocus
           onInput={(e) => {
             setPassword((e.target as HTMLInputElement).value);

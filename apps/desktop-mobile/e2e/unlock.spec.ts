@@ -16,7 +16,6 @@ for (const scheme of ["light", "dark"] as const) {
 
     const password = page.getByLabel("主口令");
     await expect(password).toBeFocused();
-    await expect(password).toHaveAttribute("autocomplete", "off");
     await password.fill("nope");
     await page.getByRole("button", { name: "打开" }).click();
     await expect(page.getByRole("alert")).toHaveText("主口令不正确");

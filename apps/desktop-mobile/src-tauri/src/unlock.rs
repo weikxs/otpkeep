@@ -37,6 +37,8 @@ pub fn show(app: &AppHandle) {
         .always_on_top(true)
         .center()
         .focused(true)
+        // No website data: WebKit's networking helper then ends with the last window (see crate::desktop).
+        .incognito(true)
         .build();
     match built {
         Ok(window) => {
