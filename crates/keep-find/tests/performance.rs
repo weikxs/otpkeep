@@ -1,5 +1,8 @@
 //! PRD FR-3.10: with 1000 entries, one keystroke's search finishes within 16 ms. Measured on release builds
 //! only (`cargo test --release`); debug builds are not representative.
+//!
+//! The app keeps the index between keystrokes and builds it again only after the entries change, so a keystroke
+//! costs one search; the first keystroke after a change also pays for the build, which must fit the same budget.
 #![allow(
     clippy::unwrap_used,
     clippy::print_stdout,
@@ -105,5 +108,31 @@ fn one_keystroke_searches_1000_entries_within_16_ms() {
         });
         println!("{query:>14}: {took:?}");
         assert!(took <= BUDGET, "'{query}' took {took:?}");
+    }
+}
+
+#[cfg_attr(
+    debug_assertions,
+    ignore = "timing is only meaningful in release builds"
+)]
+#[test]
+fn the_first_keystroke_after_a_change_builds_and_searches_1000_entries_within_16_ms() {
+    let entries: Vec<Entry> = (0..ENTRIES).map(demo_entry).collect();
+    let refs: Vec<&Entry> = entries.iter().collect();
+    let context = FindContext::default();
+
+    let build = median(|| {
+        let _ = FindIndex::build(&refs);
+    });
+    println!("{:>14}: {build:?}", "build");
+    for query in ["e", "shili", "zzzz-no-match"] {
+        let took = median(|| {
+            let _ = FindIndex::build(&refs).find(query, &context);
+        });
+        println!("{:>14}: {took:?}", format!("build+{query}"));
+        assert!(
+            took <= BUDGET,
+            "building and finding '{query}' took {took:?}"
+        );
     }
 }

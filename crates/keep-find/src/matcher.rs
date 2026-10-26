@@ -6,7 +6,7 @@
 use std::ops::Range;
 
 use crate::fold::{Folded, fold};
-use crate::syllable::{Unit, units};
+use crate::syllable::{Readings, Unit, units};
 
 /// Base scores by kind of match, strongest first.
 pub(crate) const EXACT: u32 = 100;
@@ -30,12 +30,12 @@ pub(crate) struct Prepared {
 }
 
 impl Prepared {
-    pub(crate) fn new(text: &str) -> Self {
-        let units = units(text);
+    pub(crate) fn new(text: &str, readings: &mut Readings) -> Self {
+        let units = units(text, readings);
         let has_han = units.iter().any(|u| u.is_han);
         let first_letters = units
             .iter()
-            .flat_map(|u| &u.readings)
+            .flat_map(|u| u.readings.iter())
             .filter_map(|r| r.first().and_then(|c| letter_bit(*c)))
             .fold(0, |bits, bit| bits | bit);
         Self {
@@ -126,7 +126,7 @@ fn initials(units: &[Unit], start: usize, term: &[char]) -> Option<usize> {
 /// The term spells whole readings of consecutive units; the last may be spelled only partly.
 fn full(units: &[Unit], at: usize, term: &[char]) -> Option<usize> {
     let unit = units.get(at)?;
-    for reading in &unit.readings {
+    for reading in unit.readings.iter() {
         if reading.starts_with(term) {
             return Some(at);
         }
