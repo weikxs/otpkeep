@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- When the computer's clock is set back, the main window and panels fetch fresh codes instead of showing
+  countdowns that never end.
 - The menu bar icon's menu follows the language setting (it was always in Chinese) and changes with it.
 - An account shortcut pressed before the master password was entered now opens the panel to ask for it,
   instead of doing nothing.
