@@ -288,7 +288,7 @@ Every vault command accepts `--json` for machine-readable output and `--password
 | **Encryption at rest** | XChaCha20-Poly1305; the key is kept in the system keychain (Keychain, Credential Manager, Secret Service), or derived from an optional master password with Argon2id |
 | **Backups** | encrypted with a separate backup password |
 | **Sync** | Noise XX (X25519, ChaCha20-Poly1305, BLAKE2s) between Ed25519 device identities; the one-time code is checked with SPAKE2, so a recorded session cannot be brute-forced offline |
-| **Clipboard** | copied codes are kept out of clipboard history apps and cleared after 30 seconds (adjustable), only if the clipboard still holds that code |
+| **Clipboard** | copied codes are kept out of clipboard history apps and cleared 30 seconds (adjustable) after the last copy, or when OTPKeep quits, only if the clipboard still holds that code |
 | **Network** | none, except local-network / Bluetooth sync while you have a window open, and the management page on `127.0.0.1` |
 | **Telemetry** | none |
 

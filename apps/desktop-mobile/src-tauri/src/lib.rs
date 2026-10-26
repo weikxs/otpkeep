@@ -51,8 +51,32 @@ mod typing_commands;
 ///
 /// Returns the [`tauri::Error`] reported when the app cannot start.
 pub fn try_run() -> Result<(), tauri::Error> {
-    builder().run(tauri::generate_context!())
+    let app = builder().build(tauri::generate_context!())?;
+    app.run(on_event);
+    Ok(())
 }
+
+/// A code waiting to be cleared from the clipboard is cleared when the app quits, not left behind.
+#[cfg(desktop)]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the signature Tauri's run loop calls"
+)]
+fn on_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
+    use tauri::Manager;
+    if let tauri::RunEvent::Exit = event
+        && let Some(core) = app.try_state::<commands::AppCore>()
+    {
+        core.clipboard().clear_now();
+    }
+}
+
+#[cfg(mobile)]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the signature Tauri's run loop calls"
+)]
+const fn on_event(_app: &tauri::AppHandle, _event: tauri::RunEvent) {}
 
 #[cfg(desktop)]
 fn builder() -> tauri::Builder<tauri::Wry> {

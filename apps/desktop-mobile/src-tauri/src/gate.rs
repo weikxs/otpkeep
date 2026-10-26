@@ -121,9 +121,13 @@ impl Backend for AppBackend {
             .ok_or(GateError::Save)?
             .settings()
             .clear_after();
-        let code = self.core()?.get().code(id).map_err(gate_error)?;
+        let vault = self.core()?;
+        let code = vault.get().code(id).map_err(gate_error)?;
         // Same rules as the panel: kept out of clipboard history, cleared later.
-        crate::clipboard::copy_then_clear(code, clear_after).map_err(|_| GateError::Clipboard)?;
+        vault
+            .clipboard()
+            .copy_then_clear(code, clear_after)
+            .map_err(|_| GateError::Clipboard)?;
         Ok(Copied {
             clears_in_s: clear_after.map_or(0, |d| d.as_secs()),
         })

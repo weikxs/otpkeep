@@ -13,7 +13,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, State, WebviewWindow};
 use zeroize::Zeroizing;
 
-use crate::clipboard::copy_then_clear;
+use crate::clipboard::Clipboard;
 use crate::core::{Core, CoreError, EntryUpdate, ImportProblem, PanelEntry, PanelState, Places};
 use crate::desktop;
 use crate::hotkeys::Hotkeys;
@@ -29,6 +29,8 @@ pub struct AppCore {
     core: SharedCore,
     /// One unlock at a time, so a second click cannot race the first for the vault's file lock.
     unlocking: tokio::sync::Mutex<()>,
+    /// Where codes are copied, and cleared from later.
+    clipboard: Clipboard,
 }
 
 impl AppCore {
@@ -36,7 +38,12 @@ impl AppCore {
         Self {
             core,
             unlocking: tokio::sync::Mutex::new(()),
+            clipboard: Clipboard::default(),
         }
+    }
+
+    pub(crate) const fn clipboard(&self) -> &Clipboard {
+        &self.clipboard
     }
 
     pub(crate) fn get(&self) -> MutexGuard<'_, Core> {
@@ -202,7 +209,10 @@ pub(crate) fn copy_entry(
     clear_after: Option<Duration>,
 ) -> CommandResult<CopyResult> {
     let code = vault.get().code(id).map_err(CommandError::from)?;
-    copy_then_clear(code, clear_after).map_err(|_| CommandError::code("CLIPBOARD"))?;
+    vault
+        .clipboard
+        .copy_then_clear(code, clear_after)
+        .map_err(|_| CommandError::code("CLIPBOARD"))?;
     Ok(CopyResult {
         clears_in_s: clear_after.map_or(0, |d| d.as_secs()),
     })
