@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   screen, so a long list stays light.
 - OTPKeep resting in the menu bar uses less memory: the search panel is opened when its shortcut is pressed and
   closed shortly after it hides, and the quick panel is closed after 10 minutes unused and opened again when
-  asked for.
+  asked for; OTPKeep keeps running in the menu bar with no window open.
 
 ### Fixed
 

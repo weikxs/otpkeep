@@ -60,7 +60,9 @@ pub fn try_run() -> Result<(), tauri::Error> {
     Ok(())
 }
 
-/// A code waiting to be cleared from the clipboard is cleared when the app quits, not left behind.
+/// The app lives in the menu bar: closing its last window (the panels are closed when unused) does not end it;
+/// only Quit, which asks with an exit code, does. A code waiting to be cleared from the clipboard is cleared when
+/// the app quits, not left behind.
 #[cfg(desktop)]
 #[allow(
     clippy::needless_pass_by_value,
@@ -68,11 +70,21 @@ pub fn try_run() -> Result<(), tauri::Error> {
 )]
 fn on_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
     use tauri::Manager;
-    if let tauri::RunEvent::Exit = event
-        && let Some(core) = app.try_state::<commands::AppCore>()
-    {
-        core.clipboard().clear_now();
+    match event {
+        tauri::RunEvent::ExitRequested { code, api, .. } if !quits(code) => api.prevent_exit(),
+        tauri::RunEvent::Exit => {
+            if let Some(core) = app.try_state::<commands::AppCore>() {
+                core.clipboard().clear_now();
+            }
+        }
+        _ => {}
     }
+}
+
+/// Whether an exit request ends the app: Quit asks with a code, the last window closing asks without one.
+#[cfg(desktop)]
+const fn quits(code: Option<i32>) -> bool {
+    code.is_some()
 }
 
 #[cfg(mobile)]
@@ -202,6 +214,21 @@ fn builder() -> tauri::Builder<tauri::Wry> {
 pub fn run() {
     if let Err(error) = try_run() {
         report_startup_failure(&error);
+    }
+}
+
+#[cfg(all(test, desktop))]
+mod tests {
+    use super::quits;
+
+    #[test]
+    fn closing_the_last_window_leaves_the_app_in_the_menu_bar() {
+        assert!(!quits(None));
+    }
+
+    #[test]
+    fn quit_ends_the_app() {
+        assert!(quits(Some(0)));
     }
 }
 
