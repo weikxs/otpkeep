@@ -6,7 +6,7 @@ use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 use zeroize::Zeroizing;
 
-use crate::commands::{AppCore, CommandError};
+use crate::commands::{AppCore, CommandError, blocking};
 use crate::core::{ExportFormat, GoogleExport, LeftOut, QrImage};
 use crate::native::{PLAIN_FILE, SHOW_CODES, confirm};
 use crate::private_file::write_private;
@@ -36,11 +36,9 @@ pub async fn export_file(
     if format.is_plaintext() && !confirm(&app, &PLAIN_FILE) {
         return Err(CommandError::code("CANCELLED"));
     }
-    let file = vault.get().export_file(
-        format,
-        ids.as_deref(),
-        password.as_deref().map(String::as_str),
-    )?;
+    // The entries are copied under the lock; a backup's key is then derived without holding the core.
+    let job = vault.get().export_job(format, ids.as_deref())?;
+    let file = blocking(move || job.finish(password.as_deref().map(String::as_str))).await??;
     let chosen = app
         .dialog()
         .file()

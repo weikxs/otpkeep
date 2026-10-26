@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Saving an encrypted backup no longer holds up the panels, shortcuts and sync while its key is derived.
 - Entering the master password, saving, and importing pictures or backups no longer freeze the windows while
   they work; searching and changing many accounts at once are faster with large vaults.
 - The main window saves an edited account in one write, and redraws only the rows whose countdown changed.
