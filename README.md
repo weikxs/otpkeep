@@ -133,21 +133,28 @@ corrections are welcome in an issue.
 
 <!-- PERFORMANCE: filled in by measurement -->
 
+Measured on 27 October 2026 on the same Mac. Memory is what macOS charges to the app (its physical footprint), summed
+over every process the app runs; lower is better.
+
 | Scenario | App | Memory footprint | CPU | Processes |
 |---|---|---|---|---|
-| Menu bar idle, keychain mode, locked | OTPKeep | _to be measured_ | _to be measured_ | _to be measured_ |
-| | GoldenPassport | _to be measured_ | _to be measured_ | _to be measured_ |
-| Menu bar idle, unlocked, using only the menu | OTPKeep | _to be measured_ | _to be measured_ | _to be measured_ |
-| | GoldenPassport | _to be measured_ | _to be measured_ | _to be measured_ |
-| After opening and closing the main window | OTPKeep | _to be measured_ | _to be measured_ | _to be measured_ |
-| | GoldenPassport | _to be measured_ | _to be measured_ | _to be measured_ |
+| In the menu bar, locked | **OTPKeep 0.1.0** | **13.5 MB** | 0.00 % | 1 |
+| | GoldenPassport 0.1.7 | 47.6 MB | 0.00 % | 1 |
+| In the menu bar, unlocked, before the menu is first opened | **OTPKeep 0.1.0** | **13.6 MB** | not recorded | 1 |
 
-**Method.** Both apps on the same Mac (_model and macOS version to be filled in_), with 200 demo accounts in
-OTPKeep and 8 in GoldenPassport. Memory is the physical footprint reported by `vmmap --summary <pid>`, summed over
-the app's own processes; CPU is the average over 60 seconds of `ps` CPU time. To reproduce, start OTPKeep with a
-throwaway data folder (`OTPKEEP_DATA_DIR=/tmp/otpkeep-demo OTPKEEP_KEYSTORE=memory`), import demo accounts with
-`otpkeep import`, leave it in the menu bar for a minute, and run `vmmap --summary` on its process and on any
-`com.apple.WebKit.*` processes it started.
+In the menu bar OTPKeep uses about **70 % less memory** than GoldenPassport. Opening a window (search, main
+window, browser page) starts WebKit for as long as it is open; 30 seconds after the last window closes, those
+processes end and the app returns to the numbers above. More scenarios will be added as they are measured.
+
+**Method.** MacBook Air with Apple M3 (Mac15,13, 24 GB), macOS 27.0.1. OTPKeep built from this repository
+(`fix/performance`, e3cc9a4) with 8 demo accounts and a master password; GoldenPassport 0.1.7 as its owner uses it
+every day, so the two do not hold the same accounts. Memory is the "Physical footprint" line of
+`vmmap --summary <pid>`, summed over the app's own processes (including any `com.apple.WebKit.*` it started); CPU
+is the average over 30–60 seconds from `ps` CPU time. With a master password, typing it in the macOS password
+dialog makes macOS start its AutoFill service (about 14 MB, owned by the system, shared with other apps); with the
+default keychain mode no password is typed and it does not start. To reproduce, start OTPKeep with a throwaway
+data folder (`OTPKEEP_DATA_DIR=/tmp/otpkeep-demo OTPKEEP_KEYSTORE=memory`), import demo accounts with
+`otpkeep import`, leave it in the menu bar for a minute, and run `vmmap --summary` on its process.
 
 <!-- /PERFORMANCE -->
 

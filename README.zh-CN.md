@@ -116,19 +116,25 @@
 
 <!-- PERFORMANCE: filled in by measurement -->
 
-| 场景 | App | 内存占用 | CPU | 进程 |
-|---|---|---|---|---|
-| 菜单栏待命，钥匙串模式，未解锁 | OTPKeep | _待测_ | _待测_ | _待测_ |
-| | GoldenPassport | _待测_ | _待测_ | _待测_ |
-| 菜单栏待命，已解锁，只用菜单 | OTPKeep | _待测_ | _待测_ | _待测_ |
-| | GoldenPassport | _待测_ | _待测_ | _待测_ |
-| 打开并关闭主窗口之后 | OTPKeep | _待测_ | _待测_ | _待测_ |
-| | GoldenPassport | _待测_ | _待测_ | _待测_ |
+2026 年 10 月 27 日在同一台 Mac 上实测。内存是 macOS 计入该程序的实际占用（physical footprint），把程序运行的所有进程
+加在一起；越低越好。
 
-**测量方法。** 两个 App 在同一台 Mac 上测量（_机型和 macOS 版本待补_），OTPKeep 中有 200 个演示账号，GoldenPassport 中有 8 个。
-内存为 `vmmap --summary <pid>` 报告的物理占用（physical footprint），把 App 自己的各个进程相加；CPU 为 60 秒内 `ps` CPU 时间的平均值。
-复现方法：用临时数据目录启动 OTPKeep（`OTPKEEP_DATA_DIR=/tmp/otpkeep-demo OTPKEEP_KEYSTORE=memory`），用 `otpkeep import` 导入演示账号，
-让它在菜单栏待命一分钟，再对它的进程以及它启动的 `com.apple.WebKit.*` 进程运行 `vmmap --summary`。
+| 场景 | 程序 | 实际内存占用 | CPU | 进程数 |
+|---|---|---|---|---|
+| 菜单栏常驻，锁定 | **OTPKeep 0.1.0** | **13.5 MB** | 0.00 % | 1 |
+| | GoldenPassport 0.1.7 | 47.6 MB | 0.00 % | 1 |
+| 菜单栏常驻，已解锁，尚未打开过菜单 | **OTPKeep 0.1.0** | **13.6 MB** | 未记录 | 1 |
+
+常驻菜单栏时，OTPKeep 的内存比 GoldenPassport **少约 70 %**。打开窗口（搜索面板、主窗口、浏览器管理页）时会启动
+WebKit，窗口开着期间一直存在；最后一个窗口关闭 30 秒后这些进程结束，程序回到上表的数值。其他场景测出后会补充。
+
+**测试方法。** MacBook Air，Apple M3（Mac15,13，24 GB），macOS 27.0.1。OTPKeep 由本仓库构建（`fix/performance`，
+e3cc9a4），8 个演示账户并设置主密码；GoldenPassport 0.1.7 为使用者日常使用的状态，两者保存的账户并不相同。内存取
+`vmmap --summary <pid>` 输出中的 “Physical footprint”，并把程序自己的所有进程（包括它启动的 `com.apple.WebKit.*`）
+相加；CPU 为 30～60 秒内由 `ps` 的 CPU 时间算出的平均值。设置主密码时，在 macOS 密码框中输入密码会让系统启动其
+自动填充服务（约 14 MB，归属系统、与其他程序共用）；默认的钥匙串方式无需输入密码，不会启动它。复现方法：用一个临时
+数据目录启动 OTPKeep（`OTPKEEP_DATA_DIR=/tmp/otpkeep-demo OTPKEEP_KEYSTORE=memory`），用 `otpkeep import` 导入演示账户，
+在菜单栏放置一分钟，然后对其进程运行 `vmmap --summary`。
 
 <!-- /PERFORMANCE -->
 
