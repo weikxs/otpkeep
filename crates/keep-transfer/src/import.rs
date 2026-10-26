@@ -245,6 +245,26 @@ fn new_entry(candidate: &Candidate, keep_duplicate: bool) -> NewEntry {
     }
 }
 
+/// A title like `Issuer:account` whose part after the first `:` is the account (ignoring case) becomes `Issuer`,
+/// which also becomes the issuer when there is none; any other title and issuer stay as they are.
+fn without_account(title: &str, issuer: &str, account: &str) -> (String, String) {
+    let Some((head, rest)) = title.split_once(':') else {
+        return (title.to_owned(), issuer.to_owned());
+    };
+    let head = head.trim();
+    let account = account.trim();
+    if head.is_empty() || account.is_empty() || rest.trim().to_lowercase() != account.to_lowercase()
+    {
+        return (title.to_owned(), issuer.to_owned());
+    }
+    let issuer = if issuer.trim().is_empty() {
+        head
+    } else {
+        issuer
+    };
+    (head.to_owned(), issuer.to_owned())
+}
+
 /// Names an untitled candidate and cuts values to OTPKeep's limits.
 fn fit(candidate: Candidate) -> (Candidate, Vec<Lost>) {
     let mut lost = Vec::new();
@@ -261,9 +281,10 @@ fn fit(candidate: Candidate) -> (Candidate, Vec<Lost>) {
             text.to_owned()
         }
     };
-    let issuer = cut(&candidate.issuer, NAME_MAX_CHARS, Lost::IssuerShortened);
     let account = cut(&candidate.account, NAME_MAX_CHARS, Lost::AccountShortened);
-    let named = [candidate.title.trim(), issuer.as_str(), account.as_str()]
+    let (title, issuer) = without_account(candidate.title.trim(), &candidate.issuer, &account);
+    let issuer = cut(&issuer, NAME_MAX_CHARS, Lost::IssuerShortened);
+    let named = [title.as_str(), issuer.as_str(), account.as_str()]
         .into_iter()
         .find(|t| !t.is_empty())
         .unwrap_or(FALLBACK_TITLE)

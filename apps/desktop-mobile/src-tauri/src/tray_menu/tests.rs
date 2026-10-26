@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use super::{Action, Line, items, lines, next_change_ms, same_shape, shorten};
+use super::{Action, Line, items, lines, next_change_ms, same_shape};
 use crate::core::{EntryKind, MenuView, PanelEntry, PanelState, PanelStatus, Problem};
 
 const SEARCH: &str = "control+alt+super+Space";
@@ -94,8 +94,8 @@ fn starts_with_search_then_the_accounts_then_the_actions() {
     let items = items(&menu);
     assert_eq!(items[0].text, "Search…");
     assert_eq!(items[0].accelerator.as_deref(), Some(SEARCH));
-    assert_eq!(items[1].text, "Example Cloud · demo@example.com   123 456");
-    assert_eq!(items[2].text, "Demo Git · demo@example.com   1234 5678");
+    assert_eq!(items[1].text, "123 456   Example Cloud · demo@example.com");
+    assert_eq!(items[2].text, "1234 5678   Demo Git · demo@example.com");
     assert_eq!(items[3].text, "Open OTPKeep");
     assert_eq!(items.last().unwrap().text, "Quit OTPKeep");
     assert_eq!(texts(&lines(&shown, None, true))[0], "搜索…");
@@ -165,34 +165,17 @@ fn says_how_many_accounts_did_not_fit() {
 }
 
 #[test]
-fn names_an_account_with_its_note_or_else_its_account_name() {
-    let mut noted = entry("e1", "Example Cloud", Some("123456"));
-    noted.note = "Backup  codes\nin the  drawer by the door".to_owned();
-    let mut chinese = entry("e2", "示例银行", Some("654321"));
-    chinese.note = "备用码放在书房抽屉里的蓝色信封中，千万别弄丢".to_owned();
-    let mut bare = entry("e3", "Demo & Git", None);
+fn puts_the_code_first_so_the_codes_line_up() {
+    let mut imported = entry("e1", "Example Cloud:ops@example.com", Some("123456"));
+    imported.account = "ops@example.com".to_owned();
+    let mut bare = entry("e2", "Demo & Git", None);
     bare.account = String::new();
 
-    let menu = lines(
-        &view(PanelStatus::Ready, vec![noted, chinese, bare]),
-        None,
-        false,
-    );
+    let menu = lines(&view(PanelStatus::Ready, vec![imported, bare]), None, false);
 
     let texts = texts(&menu);
-    assert_eq!(texts[1], "Example Cloud · Backup codes in the…   123 456");
-    assert_eq!(
-        texts[2],
-        "示例银行 · 备用码放在书房抽屉里的蓝色信封中，千万…   654 321"
-    );
-    assert_eq!(texts[3], "Demo && Git   (unavailable)");
-}
-
-#[test]
-fn shortens_by_characters() {
-    assert_eq!(shorten("short", 20), "short");
-    assert_eq!(shorten("一二三四五六", 4), "一二三…");
-    assert_eq!(shorten("abc def", 5), "abc…");
+    assert_eq!(texts[1], "123 456   Example Cloud · ops@example.com");
+    assert_eq!(texts[2], "(unavailable)   Demo && Git");
 }
 
 #[test]
@@ -238,8 +221,8 @@ fn a_counter_entry_makes_its_code_when_chosen() {
     let zh = lines(&view(PanelStatus::Ready, vec![counter]), None, true);
 
     assert_eq!(items(&en)[1].id, "a|next:h1");
-    assert_eq!(items(&en)[1].text, "Example Bank   (press to get a code)");
-    assert_eq!(items(&zh)[1].text, "Example Bank   （点击获取验证码）");
+    assert_eq!(items(&en)[1].text, "(press for code)   Example Bank");
+    assert_eq!(items(&zh)[1].text, "（点击取码）   Example Bank");
 }
 
 #[test]

@@ -199,14 +199,16 @@ A click on the icon opens a menu drawn by the system (no web page runs for it):
 
 - **Search…** at the top opens the search panel (its shortcut, `⌃⌥⌘Space` on macOS, is shown beside it).
 - Then 30 accounts (10–50, set in Settings): the ones whose codes you copied last come first, the rest follow in the main
-  window's order, pinned ones first. Each reads `Name · Note   123 456`: the note is shortened to about 20 characters, the
-  account name stands in when there is no note, and the account's own shortcut is shown beside it, if it has one.
+  window's order, pinned ones first. Each reads `123 456   Name · Note`, the code first so the codes line up. Without a note
+  the account name stands in, unless the name already shows it; an imported name like `Example Cloud:ops@example.com` is
+  shown as `Example Cloud`. Names and notes are shortened to about 20–24 characters, and the account's own shortcut is shown
+  beside it, if it has one.
 - **More accounts (N)** is a submenu with every other account in the main window's order; it scrolls. Above 1000 accounts it says
   how many were left out, and the search panel finds them.
 - Then **Open OTPKeep** (the main window), **Manage in the browser…**, **Sync…**, **Settings…** and **Quit OTPKeep**.
 
 Choose an account to copy its code; the clipboard is cleared as after any copy. Counter-based (HOTP) accounts read
-**(press to get a code)** and make a new code when chosen. The last 10 accounts whose codes you copied (from the menu, a shortcut,
+**(press for code)** and make a new code when chosen. The last 10 accounts whose codes you copied (from the menu, a shortcut,
 the search panel, the main window or the management page) are remembered as ids only, in this device's settings file; they are
 never synced.
 

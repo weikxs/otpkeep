@@ -24,8 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   search panel's shortcut), then 30 accounts (10–50, a new setting), the most recently used first (the last 10
   accounts whose codes you copied, remembered as ids in this device's settings and never synced) and the rest in
   the main window's order, then **More accounts (N)** with every other account, then **Open OTPKeep**,
-  **Manage in the browser…**, **Sync…**, **Settings…** and **Quit OTPKeep**. Each account shows its name, its note
-  (shortened) or account name, its current code and its own shortcut; choosing one copies the code, and
+  **Manage in the browser…**, **Sync…**, **Settings…** and **Quit OTPKeep**. Each account shows its current code first (so
+  the codes line up), its name and its note or account name, without repeating what the name already says,
+  and its own shortcut; choosing one copies the code, and
   counter-based accounts make a new code when chosen. The codes are brought up to date when they change, when the
   accounts change and when the pointer reaches the icon.
 - With a master password, the menu offers **Unlock…**, which opens a small password window that closes once the
@@ -36,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An imported name like `Example Cloud:ops@example.com` whose part after the colon is the account is saved as
+  `Example Cloud` (and as the service when it had none), so the account is no longer shown twice. Accounts
+  already in the vault are not changed, but the menu, the main window and the search panel show them the same
+  short way.
 - Linux: the search panel opens in the middle of the screen instead of with its corner there, and opens again
   after it was closed through the window manager.
 - When the computer's clock is set back, the main window and panels fetch fresh codes instead of showing

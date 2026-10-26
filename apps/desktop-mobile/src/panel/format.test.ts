@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TILE_COLORS, groupCode, monogram, tileColor } from "./format";
+import { TILE_COLORS, detailsBeside, displayName, groupCode, monogram, tileColor } from "./format";
 
 describe("groupCode", () => {
   it("groups six digits in threes", () => {
@@ -45,5 +45,29 @@ describe("tileColor", () => {
       expect(color).toBeGreaterThanOrEqual(0);
       expect(color).toBeLessThan(TILE_COLORS);
     }
+  });
+});
+
+describe("displayName", () => {
+  it("shows the service of an imported Issuer:account name", () => {
+    expect(displayName({ title: "Example Cloud:ops@example.com", issuer: "", account: "ops@example.com" })).toBe("Example Cloud");
+    expect(displayName({ title: "Example Cloud:demo-user@123456789012", issuer: "", account: "demo-user" })).toBe("Example Cloud");
+  });
+
+  it("shows the service when the name is just the account", () => {
+    expect(displayName({ title: "123456789012", issuer: "Example Cloud", account: "123456789012" })).toBe("Example Cloud");
+    expect(displayName({ title: "123456789012", issuer: "", account: "123456789012" })).toBe("123456789012");
+  });
+
+  it("keeps any other name", () => {
+    expect(displayName({ title: "Demo Git:work", issuer: "", account: "demo@example.com" })).toBe("Demo Git:work");
+    expect(displayName({ title: "示例银行", issuer: "示例银行", account: "" })).toBe("示例银行");
+  });
+});
+
+describe("detailsBeside", () => {
+  it("leaves out what the name already says", () => {
+    expect(detailsBeside("Example Cloud", ["Example Cloud", "ops@example.com", ""])).toEqual(["ops@example.com"]);
+    expect(detailsBeside("Example Cloud:ops@example.com", ["Example Cloud", "OPS@example.com", "note"])).toEqual(["note"]);
   });
 });

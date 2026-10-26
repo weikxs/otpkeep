@@ -1,6 +1,6 @@
 import { memo } from "preact/compat";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { groupCode, monogram, tileColor } from "../panel/format";
+import { detailsBeside, displayName, groupCode, monogram, tileColor } from "../panel/format";
 import { Ring } from "../shared/Ring";
 import { formatShortcut } from "../shared/shortcut";
 import type { Entry, History, MainApi, MoveTo } from "./api";
@@ -93,7 +93,9 @@ function EntryRowView(props: EntryRowProps) {
     return () => onEditing?.(id, false);
   }, [editing, onEditing, id]);
   // One line under the name: service, account and the note, cut short with "…" (rows keep one height).
-  const details = [entry.issuer, entry.account, entry.note].filter((s) => s !== "" && s !== entry.title).join(" · ");
+  // An imported name that repeats the account ("Issuer:account") is shown shortened, without the repetition.
+  const name = displayName(entry);
+  const details = detailsBeside(name, [entry.issuer, entry.account, entry.note]).join(" · ");
   const remainingS = remainingSeconds(entry, coreNow);
   const ending = remainingS !== undefined && remainingS <= NEXT_CODE_WINDOW_S;
 
@@ -174,7 +176,7 @@ function EntryRowView(props: EntryRowProps) {
                 ●
               </span>
             )}
-            <span class="entry-title-text">{entry.title}</span>
+            <span class="entry-title-text">{name}</span>
             {entry.tags.map((tag) => (
               <span key={tag} class="tag small">
                 {tag}

@@ -8,7 +8,10 @@
 
 use crate::core::{EntryKind, MenuView, PanelEntry, PanelState, PanelStatus};
 
+mod label;
 mod words;
+
+use label::label;
 
 use words::{EN, Words, ZH, problem_text, retryable};
 
@@ -172,8 +175,8 @@ fn unavailable(state: &PanelState, chinese: bool, words: &Words) -> Vec<Line> {
     lines
 }
 
-/// One account: its name, what tells it apart (its note, or else its account name) and its current code, or
-/// what choosing it does when there is no code to show. Only the entry's own shortcut is shown: the default ones
+/// One account: its current code (or what choosing it does when there is none), its name and what tells it apart
+/// (see [`label`]). Only the entry's own shortcut is shown: the default ones
 /// follow the list's order, not the menu's.
 fn account(section: &str, entry: &PanelEntry, words: &Words) -> Line {
     let (id, code) = match (entry.kind, &entry.code) {
@@ -190,37 +193,11 @@ fn account(section: &str, entry: &PanelEntry, words: &Words) -> Line {
         .filter(|active| entry.own_shortcut.as_ref() == Some(*active));
     Line::Item(Item {
         id: format!("{section}{SECTION}{id}"),
-        text: format!("{}{GAP}{code}", escape(&label(entry))),
+        // The code first, so the codes line up whatever the names' lengths.
+        text: format!("{code}{GAP}{}", escape(&label(entry))),
         accelerator: own.cloned(),
         enabled: true,
     })
-}
-
-/// Longest note shown beside a name, in characters.
-const NOTE_CHARS: usize = 20;
-
-/// `Name · Note`, `Name · account` without a note, or the name alone.
-fn label(entry: &PanelEntry) -> String {
-    let note = entry.note.split_whitespace().collect::<Vec<_>>().join(" ");
-    let detail = if note.is_empty() {
-        entry.account.trim().to_owned()
-    } else {
-        shorten(&note, NOTE_CHARS)
-    };
-    if detail.is_empty() {
-        entry.title.clone()
-    } else {
-        format!("{} · {detail}", entry.title)
-    }
-}
-
-/// `text` cut to `most` characters (not bytes), ending in `…` when cut.
-fn shorten(text: &str, most: usize) -> String {
-    if text.chars().count() <= most {
-        return text.to_owned();
-    }
-    let kept: String = text.chars().take(most.saturating_sub(1)).collect();
-    format!("{}…", kept.trim_end())
 }
 
 /// Codes in groups, as the windows show them: 3 + 3, 3 + 4 or 4 + 4 digits.

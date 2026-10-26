@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "preact/hooks";
 import type { PanelApi, PanelEntry, PanelState } from "./api";
 import { Ring } from "../shared/Ring";
 import { formatShortcut } from "../shared/shortcut";
-import { groupCode, monogram, tileColor } from "./format";
+import { detailsBeside, displayName, groupCode, monogram, tileColor } from "./format";
 import type { Strings } from "./i18n";
 import { useListWindow } from "../shared/useListWindow";
 import type { ListItem } from "../shared/windowing";
@@ -147,7 +147,8 @@ export function samePanelRow(before: RowProps, after: RowProps): boolean {
 const Row = memo(RowView, samePanelRow);
 
 function RowView({ entry, index, position, size, selected, copied, coreNow, epoch, text, isMac, onCopy, onHover }: RowProps) {
-  const subtitle = [entry.issuer, entry.account].filter((s) => s !== "" && s !== entry.title).join(" · ");
+  const name = displayName(entry);
+  const subtitle = detailsBeside(name, [entry.issuer, entry.account]).join(" · ");
   const remainingS = remainingSeconds(entry, coreNow);
   const ending = remainingS !== undefined && remainingS <= NEXT_CODE_WINDOW_S;
   const label = useMemo(() => monogram(entry.issuer, entry.title), [entry.issuer, entry.title]);
@@ -166,7 +167,7 @@ function RowView({ entry, index, position, size, selected, copied, coreNow, epoc
         {label}
       </span>
       <span class="names">
-        <span class="title">{entry.title}</span>
+        <span class="title">{name}</span>
         {subtitle !== "" && <span class="subtitle">{subtitle}</span>}
       </span>
       {/* Always shown: the row's shortcut is how it is copied without opening the panel. */}

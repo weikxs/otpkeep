@@ -122,6 +122,35 @@ fn an_untitled_account_is_named_after_its_service_or_account() {
 }
 
 #[test]
+fn an_issuer_account_title_keeps_only_the_issuer() {
+    let mut no_issuer = candidate("Example Cloud:Alex@Example.com", 1);
+    no_issuer.issuer = String::new();
+    let with_issuer = candidate("Demo Git: alex@example.com", 2);
+    let other_account = candidate("Example Mail:ops@example.com", 3);
+    let no_account = {
+        let mut c = candidate("Example Bank:alex@example.com", 4);
+        c.account = String::new();
+        c
+    };
+
+    let p = preview(
+        vec![no_issuer, with_issuer, other_account, no_account],
+        &empty(),
+    );
+
+    assert_eq!(p.fresh[0].candidate.title, "Example Cloud");
+    assert_eq!(p.fresh[0].candidate.issuer, "Example Cloud");
+    assert_eq!(p.fresh[0].candidate.account, "alex@example.com");
+    assert_eq!(p.fresh[1].candidate.title, "Demo Git");
+    assert_eq!(
+        p.fresh[1].candidate.issuer, "Example Cloud",
+        "a known issuer is kept"
+    );
+    assert_eq!(p.fresh[2].candidate.title, "Example Mail:ops@example.com");
+    assert_eq!(p.fresh[3].candidate.title, "Example Bank:alex@example.com");
+}
+
+#[test]
 fn commits_only_what_was_chosen_and_only_adds() {
     let doc = with_entry("Existing", 1);
     let p = preview(

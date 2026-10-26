@@ -35,3 +35,37 @@ export function tileColor(name: string): number {
   }
   return hash % TILE_COLORS;
 }
+
+/** What naming an account needs. */
+export interface Named {
+  title: string;
+  issuer: string;
+  account: string;
+}
+
+const collapse = (text: string) => text.split(/\s+/u).filter((part) => part !== "").join(" ");
+
+/**
+ * The name to show (display only; the stored name is unchanged): the part before ":" of an imported name like
+ * "Issuer:account", the issuer when the name is just the account, otherwise the name.
+ */
+export function displayName({ title, issuer, account }: Named): string {
+  const name = collapse(title);
+  const who = collapse(account).toLowerCase();
+  if (who === "") return name;
+  const colon = name.indexOf(":");
+  if (colon > 0) {
+    const head = name.slice(0, colon).trim();
+    if (head !== "" && name.slice(colon + 1).trim().toLowerCase().includes(who)) return head;
+  }
+  const service = collapse(issuer);
+  return service !== "" && name.toLowerCase() === who ? service : name;
+}
+
+/** The parts worth showing under `shown`: not empty and not already part of it (ignoring case). */
+export function detailsBeside(shown: string, parts: readonly string[]): string[] {
+  const name = shown.toLowerCase();
+  return parts
+    .map(collapse)
+    .filter((part, index, all) => part !== "" && !name.includes(part.toLowerCase()) && all.indexOf(part) === index);
+}
