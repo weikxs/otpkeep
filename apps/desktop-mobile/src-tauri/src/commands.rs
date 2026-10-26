@@ -14,7 +14,9 @@ use tauri::{AppHandle, Emitter, State, WebviewWindow};
 use zeroize::Zeroizing;
 
 use crate::clipboard::Clipboard;
-use crate::core::{Core, CoreError, EntryUpdate, ImportProblem, PanelEntry, PanelState, Places};
+use crate::core::{
+    Core, CoreError, EntryUpdate, ImportProblem, PanelEntry, PanelState, PanelStatus, Places,
+};
 use crate::desktop;
 use crate::hotkeys::Hotkeys;
 use crate::shortcuts::ShortcutMap;
@@ -218,14 +220,26 @@ pub(crate) fn copy_entry(
     })
 }
 
+/// Generates the next counter code; the other windows show it too.
 #[tauri::command(async)]
-pub fn next_hotp(id: &str, vault: State<'_, AppCore>) -> CommandResult<PanelEntry> {
-    vault.get().next_hotp(id).map_err(CommandError::from)
+pub fn next_hotp(id: &str, vault: State<'_, AppCore>, app: AppHandle) -> CommandResult<PanelEntry> {
+    let entry = vault.get().next_hotp(id).map_err(CommandError::from)?;
+    let _ = app.emit("vault-changed", ());
+    Ok(entry)
 }
 
+/// Opens the vault with its master password; every other window then shows the accounts too.
 #[tauri::command]
-pub async fn unlock(password: String, vault: State<'_, AppCore>) -> CommandResult<PanelState> {
-    unlock_with(&vault, Zeroizing::new(password)).await
+pub async fn unlock(
+    password: String,
+    vault: State<'_, AppCore>,
+    app: AppHandle,
+) -> CommandResult<PanelState> {
+    let state = unlock_with(&vault, Zeroizing::new(password)).await?;
+    if state.status != PanelStatus::NeedsPassword {
+        let _ = app.emit("vault-changed", ());
+    }
+    Ok(state)
 }
 
 /// Opens the vault with its master password. The key is derived (Argon2id, at full strength) on a blocking

@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Entering the master password in one window, or generating a counter code, now updates the other open
+  windows straight away.
 - Copying the same code twice keeps it on the clipboard for the full time after the second copy, and a code
   still waiting to be cleared is cleared when OTPKeep quits.
 - An export saved over an existing file is written completely before it replaces that file, and is readable
