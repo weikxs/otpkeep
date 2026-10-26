@@ -361,6 +361,11 @@ fn pressed<R: Runtime>(app: &AppHandle<R>, id: u32) {
     let Some(core) = app.try_state::<AppCore>() else {
         return;
     };
+    // Before the master password the panel asks for it, rather than the shortcut doing nothing.
+    if core.get().unlock_target().is_some() {
+        crate::desktop::show_panel(app);
+        return;
+    }
     let entry = match target {
         Target::Entry(entry) => Some(entry),
         Target::Search => None,
@@ -371,7 +376,7 @@ fn pressed<R: Runtime>(app: &AppHandle<R>, id: u32) {
             .and_then(|entries| entries.into_iter().nth(index))
             .map(|e| e.id),
     };
-    // A shortcut for an entry that no longer exists, or before the master password, does nothing.
+    // A shortcut for an entry that no longer exists does nothing.
     if let Some(entry) = entry
         && copy_entry(&core, &entry, clear_after).is_err()
     {

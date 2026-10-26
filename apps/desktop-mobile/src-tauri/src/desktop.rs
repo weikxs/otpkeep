@@ -22,6 +22,8 @@ pub const PANEL: &str = "panel";
 pub const MAIN: &str = "main";
 /// The search panel's window label (design/04 §6).
 pub const SEARCH: &str = "search";
+/// The menu bar icon's id.
+const TRAY: &str = "otpkeep";
 /// The main window's page.
 const MAIN_PAGE: &str = "index.html";
 /// The main window's first size and smallest size, in logical pixels.
@@ -56,7 +58,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let separator = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(app, &[&open, &manage, &sync, &settings, &separator, &quit])?;
 
-    TrayIconBuilder::with_id("otpkeep")
+    TrayIconBuilder::with_id(TRAY)
         .icon(Image::new_owned(
             icon::tray_pixels(),
             icon::SIZE,
@@ -133,14 +135,36 @@ fn toggle_panel(app: &AppHandle, icon: Rect) {
     if just_hid {
         return;
     }
-    place_under(&panel, icon);
+    reveal_panel(&panel, Some(icon));
+}
+
+/// Shows the quick panel under the menu bar icon, for example to ask for the master password when a
+/// shortcut is pressed before it was entered.
+pub fn show_panel<R: Runtime>(app: &AppHandle<R>) {
+    let Some(panel) = app.get_webview_window(PANEL) else {
+        return;
+    };
+    let icon = app
+        .tray_by_id(TRAY)
+        .and_then(|tray| tray.rect().ok().flatten());
+    reveal_panel(&panel, icon);
+}
+
+/// Places the panel under the icon (centred on the screen when the icon's place is unknown) and shows it.
+fn reveal_panel<R: Runtime>(panel: &WebviewWindow<R>, icon: Option<Rect>) {
+    match icon {
+        Some(icon) => place_under(panel, icon),
+        None => {
+            let _ = panel.center();
+        }
+    }
     let _ = panel.show();
     let _ = panel.set_focus();
     let _ = panel.emit("panel-shown", ());
 }
 
 /// Centres the panel under the icon, kept on the icon's screen.
-fn place_under(panel: &WebviewWindow, icon: Rect) {
+fn place_under<R: Runtime>(panel: &WebviewWindow<R>, icon: Rect) {
     let scale = panel.scale_factor().unwrap_or(1.0);
     let at = icon.position.to_physical::<f64>(scale);
     let size = icon.size.to_physical::<f64>(scale);
