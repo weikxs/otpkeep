@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
+import { CommandFailure } from "./api";
 import { demoMain } from "./demo";
 import { mainStrings } from "./i18n";
 import { MainApp } from "./MainApp";
@@ -18,6 +19,15 @@ async function openAdvanced(title: string, api = demoMain({ clock: () => STEADY 
 }
 
 describe("the editor's advanced part", () => {
+  it("says so when the entry's code settings cannot be read", async () => {
+    const api = demoMain({ clock: () => STEADY });
+    vi.spyOn(api, "keyInfo").mockRejectedValue(new CommandFailure("NOT_FOUND"));
+
+    const { editor } = await openAdvanced("GitHub", api);
+
+    expect(await editor.findByText("这个账号已不存在")).toBeTruthy();
+  });
+
   it("renames the service and account with the rest of the form", async () => {
     const { api, editor } = await openAdvanced("GitHub");
     const update = vi.spyOn(api, "update");
