@@ -35,16 +35,17 @@ impl AppBackend {
             .into_iter()
             .map(|row| (row.id.clone(), row))
             .collect();
-        let map = self
-            .app
-            .try_state::<Hotkeys>()
-            .map(|h| h.map())
-            .ok_or(GateError::Save)?;
+        let hotkeys = self.app.try_state::<Hotkeys>().ok_or(GateError::Save)?;
+        let (map, active) = (hotkeys.map(), hotkeys.active());
         Ok(infos
             .into_iter()
             .map(|info| {
                 let shortcut = map.own(&info.id).map(str::to_owned);
-                let default_shortcut = places.get(&info.id).and_then(|&p| map.default_for(p));
+                // A default the system refused is not offered as if it worked.
+                let default_shortcut = places
+                    .get(&info.id)
+                    .and_then(|&p| map.default_for(p))
+                    .filter(|s| active.contains(s));
                 let row = rows.remove(&info.id);
                 let (code, next_code, period_s, valid_until_ms) = row
                     .map_or((None, None, None, None), |r| {

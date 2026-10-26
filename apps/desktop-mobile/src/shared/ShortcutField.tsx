@@ -11,11 +11,15 @@ export interface ShortcutTexts {
   recording: string;
   /** Shown when only Shift or no modifier was held. */
   needsModifier: string;
+  /** Shown beside a shortcut the system did not accept (another app may hold it). */
+  inactive?: string;
 }
 
 export interface ShortcutFieldProps {
   shortcut?: string;
   defaultShortcut?: string;
+  /** The system did not accept `shortcut`, so pressing it does nothing. */
+  inactive?: boolean;
   isMac: boolean;
   text: ShortcutTexts;
   /** Saves the recorded shortcut, or removes it with `null`; rejects with the reason shown to the person. */
@@ -23,7 +27,7 @@ export interface ShortcutFieldProps {
 }
 
 /** An entry's own global shortcut: click "Set", press the combination, done. */
-export function ShortcutField({ shortcut, defaultShortcut, isMac, text, onSave }: ShortcutFieldProps) {
+export function ShortcutField({ shortcut, defaultShortcut, inactive = false, isMac, text, onSave }: ShortcutFieldProps) {
   const [recording, setRecording] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
 
@@ -67,7 +71,10 @@ export function ShortcutField({ shortcut, defaultShortcut, isMac, text, onSave }
   return (
     <div class="shortcut-field">
       {shortcut ? (
-        <kbd class="keys">{formatShortcut(shortcut, isMac)}</kbd>
+        <>
+          <kbd class="keys">{formatShortcut(shortcut, isMac)}</kbd>
+          {inactive && text.inactive && <span class="field-error">{text.inactive}</span>}
+        </>
       ) : (
         <span class="muted">
           {defaultShortcut ? text.defaultShortcut(formatShortcut(defaultShortcut, isMac)) : text.noShortcut}

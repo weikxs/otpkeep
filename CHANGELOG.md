@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A shortcut the system refused (usually because another app holds it) is no longer shown as if it worked;
+  the account editor says it is not active.
 - Typing a code from the search panel no longer hides an open main window on macOS (the code is copied
   instead), and when no key could be typed the panel comes back to say the code was copied instead.
 - An import preview you leave open is forgotten, with its secrets, after 10 minutes or when the main window

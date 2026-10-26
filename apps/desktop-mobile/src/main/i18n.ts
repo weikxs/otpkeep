@@ -143,6 +143,7 @@ const zh = {
     clear: "清除",
     recording: "请按下组合键…（Esc 取消）",
     needsModifier: "需要包含 ⌃ Control、⌥ Option / Alt 或 ⌘ Command / Win 中的至少一个",
+    inactive: "未生效：系统没有接受这个组合，可能被其他应用占用",
   },
   shortcutSaved: "快捷键已设置",
   takenBy: (holder: string) => {
@@ -507,6 +508,7 @@ const en: MainStrings = {
     clear: "Clear",
     recording: "Press the key combination… (Esc cancels)",
     needsModifier: "Include at least one of Control, Alt / Option or Command / Win",
+    inactive: "Not active: the system did not accept it; another app may use it",
   },
   shortcutSaved: "Shortcut set",
   takenBy: (holder) => {

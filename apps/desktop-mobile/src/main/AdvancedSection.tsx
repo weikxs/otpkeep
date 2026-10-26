@@ -53,6 +53,7 @@ export function AdvancedSection({ entry, text, isMac, api, onChanged }: Advanced
         <ShortcutField
           {...(entry.ownShortcut === undefined ? {} : { shortcut: entry.ownShortcut })}
           {...(entry.ownShortcut === undefined && entry.shortcut !== undefined ? { defaultShortcut: entry.shortcut } : {})}
+          inactive={entry.ownShortcut !== undefined && entry.shortcut !== entry.ownShortcut}
           isMac={isMac}
           text={text.shortcutTexts}
           onSave={saveShortcut}

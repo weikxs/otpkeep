@@ -6,6 +6,7 @@
     reason = "the signatures Tauri commands take"
 )]
 
+use std::collections::HashSet;
 use std::sync::MutexGuard;
 use std::time::Duration;
 
@@ -138,17 +139,25 @@ pub fn panel_state(
     core.upkeep();
     let (state, places) = core.state_and_places(query, false);
     drop(core);
-    with_shortcuts(state, &hotkeys.map(), &places)
+    with_shortcuts(state, &hotkeys.map(), &hotkeys.active(), &places)
 }
 
-fn with_shortcuts(state: PanelState, map: &ShortcutMap, places: &Places) -> PanelState {
+/// Adds each row's shortcut: only one the system accepted is shown as the row's, so a refused shortcut
+/// does not look active; the entry's own setting is passed on as it is.
+fn with_shortcuts(
+    state: PanelState,
+    map: &ShortcutMap,
+    active: &HashSet<String>,
+    places: &Places,
+) -> PanelState {
     let entries = state
         .entries
         .into_iter()
         .map(|entry| {
             let shortcut = places
                 .get(&entry.id)
-                .and_then(|&place| map.shown_for(&entry.id, place));
+                .and_then(|&place| map.shown_for(&entry.id, place))
+                .filter(|shortcut| active.contains(shortcut));
             let own_shortcut = map.own(&entry.id).map(str::to_owned);
             PanelEntry {
                 shortcut,
@@ -171,7 +180,7 @@ pub fn main_state(
     core.upkeep();
     let (state, places) = core.state_and_places(query, true);
     drop(core);
-    with_shortcuts(state, &hotkeys.map(), &places)
+    with_shortcuts(state, &hotkeys.map(), &hotkeys.active(), &places)
 }
 
 /// Changes an entry's name and / or note.
@@ -296,8 +305,61 @@ pub fn hide_panel(window: WebviewWindow) {
 
 #[cfg(test)]
 mod tests {
-    use super::CommandError;
-    use crate::core::{CoreError, ImportProblem};
+    use std::collections::{BTreeMap, HashSet};
+
+    use super::{CommandError, with_shortcuts};
+    use crate::core::{CoreError, EntryKind, ImportProblem, PanelEntry, PanelState, PanelStatus};
+    use crate::shortcuts::ShortcutMap;
+
+    fn row(id: &str) -> PanelEntry {
+        PanelEntry {
+            id: id.to_owned(),
+            title: "Example Cloud".to_owned(),
+            issuer: "Example Cloud".to_owned(),
+            account: "demo-user".to_owned(),
+            note: String::new(),
+            tags: Vec::new(),
+            kind: EntryKind::Totp,
+            pinned: false,
+            code: None,
+            next_code: None,
+            period_s: None,
+            valid_until_ms: None,
+            shortcut: None,
+            own_shortcut: None,
+        }
+    }
+
+    #[test]
+    fn shows_only_shortcuts_the_system_accepted() {
+        let own = "control+alt+KeyK".to_owned();
+        let map = ShortcutMap::new(true, BTreeMap::from([("e1".to_owned(), own.clone())]));
+        let accepted = HashSet::from(["control+alt+super+Digit2".to_owned()]);
+        let places = [("e1", 0), ("e2", 1), ("e3", 2)]
+            .into_iter()
+            .map(|(id, place)| (id.to_owned(), place))
+            .collect();
+        let state = PanelState {
+            status: PanelStatus::Ready,
+            entries: vec![row("e1"), row("e2"), row("e3")],
+            now_ms: 0,
+            uses_master_password: false,
+            problem: None,
+            in_group: false,
+            read_only: false,
+            can_restore: false,
+        };
+
+        let shown = with_shortcuts(state, &map, &accepted, &places).entries;
+
+        assert_eq!(shown[0].shortcut, None, "its own one was refused");
+        assert_eq!(shown[0].own_shortcut.as_deref(), Some(own.as_str()));
+        assert_eq!(
+            shown[1].shortcut.as_deref(),
+            Some("control+alt+super+Digit2")
+        );
+        assert_eq!(shown[2].shortcut, None);
+    }
 
     fn json(error: CoreError) -> String {
         serde_json::to_string(&CommandError::from(error)).unwrap()

@@ -64,6 +64,16 @@ impl Hotkeys {
         self.state().map.clone()
     }
 
+    /// The shortcuts the system accepted, in canonical form.
+    #[must_use]
+    pub fn active(&self) -> std::collections::HashSet<String> {
+        self.state()
+            .registered
+            .values()
+            .map(|(text, _)| text.clone())
+            .collect()
+    }
+
     /// This device's settings.
     #[must_use]
     pub fn settings(&self) -> Settings {

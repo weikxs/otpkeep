@@ -41,6 +41,25 @@ describe("the editor's advanced part", () => {
     expect(await screen.findByText("快捷键已设置")).toBeTruthy();
   });
 
+  it("says when the system did not accept the entry's own shortcut", async () => {
+    const demo = demoMain({ clock: () => STEADY });
+    const refused = {
+      ...demo,
+      state: async (query: string) => {
+        const state = await demo.state(query);
+        const entries = state.entries.map((e, i) => {
+          if (i !== 0) return e;
+          const { shortcut: _active, ...rest } = e;
+          return { ...rest, ownShortcut: "control+alt+super+KeyG" };
+        });
+        return { ...state, entries };
+      },
+    };
+    const { editor } = await openAdvanced("GitHub", refused);
+
+    expect(editor.getByText("未生效：系统没有接受这个组合，可能被其他应用占用")).toBeTruthy();
+  });
+
   it("shows the code settings and previews a change before saving it", async () => {
     const { api, editor } = await openAdvanced("GitHub");
     const replace = vi.spyOn(api, "replaceKey");
