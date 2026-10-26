@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   main window offer **Try again**; a damaged vault file can be put back to its previous version from the main
   window after a confirmation (the damaged file is kept).
 
+### Changed
+
+- Open windows use far less CPU: countdowns update once a second, on the second, and the rings empty by
+  themselves instead of being redrawn on every tick; the main window draws only the accounts on screen, so a
+  long list stays light.
+
 ### Fixed
 
 - When the computer's clock is set back, the main window and panels fetch fresh codes instead of showing

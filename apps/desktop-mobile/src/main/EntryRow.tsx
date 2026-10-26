@@ -16,6 +16,8 @@ const NEXT_CODE_WINDOW_S = 5;
 export interface EntryRowProps {
   entry: Entry;
   coreNow: number;
+  /** Changes with each load of the codes (see {@link Ring}). */
+  epoch: number;
   copied: boolean;
   text: MainStrings;
   isMac: boolean;
@@ -34,6 +36,11 @@ export interface EntryRowProps {
   onDropRow: (moved: string, place: "before" | "after") => void;
   /** In selection mode: whether the row is chosen; a click chooses instead of copying. */
   selection?: { chosen: boolean; onToggle: () => void } | undefined;
+  /** The row's place in the whole list, for screen readers when only part of it is drawn. */
+  posInSet?: number;
+  setSize?: number;
+  /** Told when the editor opens and closes. */
+  onEditing?: (id: string, open: boolean) => void;
   /** Opens the editor now (asked for from the search panel). */
   startEditing?: boolean;
   onEditStarted?: () => void;
@@ -45,8 +52,8 @@ function remainingSeconds(entry: Entry, coreNow: number): number | undefined {
 }
 
 /**
- * Whether a row would look the same: its data, place and countdown second. The window ticks four times a second,
- * so most ticks change nothing a row shows. Handlers are not compared: the window passes ones that always act on
+ * Whether a row would look the same: its data, place and countdown second. The window ticks once a second, so
+ * only rows with a countdown are drawn again on a tick. Handlers are not compared: the window passes ones that always act on
  * its current state.
  */
 export function sameRow(before: EntryRowProps, after: EntryRowProps): boolean {
@@ -65,7 +72,7 @@ export const EntryRow = memo(EntryRowView, sameRow);
 
 /** One account in the main window: click to copy; names and the note are edited in place. */
 function EntryRowView(props: EntryRowProps) {
-  const { entry, coreNow, copied, text, isMac, sortable, onCopy, onDropRow, selection } = props;
+  const { entry, coreNow, epoch, copied, text, isMac, sortable, onCopy, onDropRow, selection } = props;
   const [editing, setEditing] = useState(false);
   const [dropAt, setDropAt] = useState<"before" | "after" | null>(null);
   const row = useRef<HTMLLIElement>(null);
@@ -78,6 +85,13 @@ function EntryRowView(props: EntryRowProps) {
   useEffect(() => {
     if (editing) row.current?.scrollIntoView?.({ block: "nearest" });
   }, [editing]);
+  const { onEditing } = props;
+  const id = entry.id;
+  useEffect(() => {
+    if (!editing) return;
+    onEditing?.(id, true);
+    return () => onEditing?.(id, false);
+  }, [editing, onEditing, id]);
   // One line under the name: service, account and the note, cut short with "…" (rows keep one height).
   const details = [entry.issuer, entry.account, entry.note].filter((s) => s !== "" && s !== entry.title).join(" · ");
   const remainingS = remainingSeconds(entry, coreNow);
@@ -85,7 +99,7 @@ function EntryRowView(props: EntryRowProps) {
 
   if (editing) {
     return (
-      <li class="entry-row editing" data-testid="entry" ref={row}>
+      <li class="entry-row editing" data-testid="entry" ref={row} aria-posinset={props.posInSet} aria-setsize={props.setSize}>
         <EntryEditor
           entry={entry}
           text={text}
@@ -108,6 +122,8 @@ function EntryRowView(props: EntryRowProps) {
     <li
       class={`entry-row${dropAt ? ` drop-${dropAt}` : ""}`}
       data-testid="entry"
+      aria-posinset={props.posInSet}
+      aria-setsize={props.setSize}
       draggable={sortable}
       onDragStart={(e) => e.dataTransfer?.setData(ENTRY_DRAG_TYPE, entry.id)}
       onDragOver={(e) => {
@@ -192,7 +208,15 @@ function EntryRowView(props: EntryRowProps) {
           )}
         </span>
         {remainingS !== undefined && entry.periodS !== undefined ? (
-          <Ring remaining={remainingS} period={entry.periodS} ending={ending} label={`${remainingS}`} />
+          <Ring
+            remaining={remainingS}
+            period={entry.periodS}
+            ending={ending}
+            label={`${remainingS}`}
+            validUntilMs={entry.validUntilMs ?? coreNow}
+            coreNow={coreNow}
+            epoch={epoch}
+          />
         ) : (
           <span class="ring-space" />
         )}

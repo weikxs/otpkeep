@@ -51,7 +51,7 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now, language 
   const [failed, setFailed] = useState(false);
   const [fallback, setFallback] = useState<TypeResult | null>(null);
   const input = useRef<HTMLInputElement>(null);
-  const { state, setState, coreNow, reload } = useLiveState(api, query, clock);
+  const { state, setState, coreNow, epoch, reload } = useLiveState(api, query, clock);
   const entries = state?.entries ?? [];
 
   useEffect(() => input.current?.focus(), [state?.status]);
@@ -86,6 +86,7 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now, language 
     },
     [api, setState],
   );
+  const onCopy = useCallback((entry: PanelEntry) => void copy(entry), [copy]);
 
   const typeOut = useCallback(
     async (entry: PanelEntry) => {
@@ -184,9 +185,10 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now, language 
           selected={selected}
           copiedId={null}
           coreNow={coreNow}
+          epoch={epoch}
           text={text}
           isMac={isMac}
-          onCopy={(entry) => void copy(entry)}
+          onCopy={onCopy}
           onHover={setSelected}
         />
       )}

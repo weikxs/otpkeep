@@ -84,7 +84,8 @@ describe("windows at rest", () => {
     const before = state.mock.calls.length;
 
     offsetMs = -TWO_MINUTES_MS;
-    await pass(1000);
+    // The window ticks just after each whole second.
+    await pass(1100);
 
     expect(state.mock.calls.length).toBeGreaterThan(before);
   });

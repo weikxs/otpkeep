@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { PanelApi, PanelState } from "./api";
 import { demoApi } from "./demo";
 import { strings } from "./i18n";
-import { Panel } from "./Panel";
+import { Panel, samePanelRow } from "./Panel";
 
 const zh = strings("zh-CN");
 // 10 seconds into a 30-second step: no "next" code yet.
@@ -284,5 +284,37 @@ describe("language and the master password in the panel", () => {
 
     expect((await screen.findByRole("alert")).textContent).toBe("请输入主口令");
     expect(unlock).not.toHaveBeenCalled();
+  });
+});
+
+describe("a panel row between two ticks", () => {
+  const entry = { id: "d1", title: "GitHub", issuer: "GitHub", account: "demo-user", note: "", tags: [], kind: "totp", pinned: true, code: "123456", periodS: 30, validUntilMs: STEADY + 10_000 } as const;
+  const onCopy = () => undefined;
+  const onHover = () => undefined;
+  const props = (changes: Partial<Parameters<typeof samePanelRow>[0]> = {}): Parameters<typeof samePanelRow>[0] => ({
+    entry: { ...entry, tags: [] },
+    index: 0,
+    selected: false,
+    copied: false,
+    coreNow: STEADY,
+    epoch: 1,
+    text: zh,
+    isMac: true,
+    onCopy,
+    onHover,
+    ...changes,
+  });
+
+  it("is drawn again only when its countdown shows another second", () => {
+    const base = props();
+    expect(samePanelRow(base, { ...base, coreNow: STEADY + 400 })).toBe(true);
+    expect(samePanelRow(base, { ...base, coreNow: STEADY + 1_000 })).toBe(false);
+  });
+
+  it("is drawn again when it is chosen, copied or its codes are loaded again", () => {
+    const base = props();
+    expect(samePanelRow(base, { ...base, selected: true })).toBe(false);
+    expect(samePanelRow(base, { ...base, copied: true })).toBe(false);
+    expect(samePanelRow(base, { ...base, epoch: 2 })).toBe(false);
   });
 });

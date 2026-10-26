@@ -49,7 +49,8 @@ describe("the main window's work per change", () => {
 
     now = STEADY + STEP_MS;
 
-    await waitFor(() => expect(state.mock.calls.length).toBeGreaterThan(states));
+    // The window ticks once a second, just after the second.
+    await waitFor(() => expect(state.mock.calls.length).toBeGreaterThan(states), { timeout: 2000 });
     expect(trashList).toHaveBeenCalledTimes(trashes);
   });
 });
@@ -72,6 +73,7 @@ describe("a row between two ticks", () => {
     ({
       entry,
       coreNow: STEADY,
+      epoch: 1,
       copied: false,
       text: zh,
       isMac: true,
@@ -91,6 +93,7 @@ describe("a row between two ticks", () => {
     expect(sameRow(props({}), props({ entry: { ...entry, title: "GitHub 工作" } }))).toBe(false);
     expect(sameRow(props({}), props({ copied: true }))).toBe(false);
     expect(sameRow(props({}), props({ next: undefined }))).toBe(false);
+    expect(sameRow(props({}), props({ epoch: 2 }))).toBe(false);
     expect(sameRow(props({}), props({ selection: { chosen: true, onToggle: () => undefined } }))).toBe(false);
   });
 

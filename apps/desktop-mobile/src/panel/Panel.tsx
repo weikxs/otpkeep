@@ -1,4 +1,5 @@
 import { Fragment } from "preact";
+import { memo } from "preact/compat";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { PanelApi, PanelEntry, PanelState } from "./api";
 import { Ring } from "../shared/Ring";
@@ -31,7 +32,7 @@ export function Panel({ api, text, isMac, clock = Date.now, language }: PanelPro
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const search = useRef<HTMLInputElement>(null);
-  const { state, setState, coreNow, reload } = useLiveState(api, query, clock);
+  const { state, setState, coreNow, epoch, reload } = useLiveState(api, query, clock);
 
   useEffect(() => search.current?.focus(), [state?.status]);
 
@@ -52,6 +53,7 @@ export function Panel({ api, text, isMac, clock = Date.now, language }: PanelPro
     },
     [api, text, setState],
   );
+  const onCopy = useCallback((entry: PanelEntry) => void copy(entry), [copy]);
 
   const onKey = (event: KeyboardEvent) => {
     if (state?.status !== "ready") return;
@@ -133,9 +135,10 @@ export function Panel({ api, text, isMac, clock = Date.now, language }: PanelPro
           selected={selected}
           copiedId={copiedId}
           coreNow={coreNow}
+          epoch={epoch}
           text={text}
           isMac={isMac}
-          onCopy={(entry) => void copy(entry)}
+          onCopy={onCopy}
           onHover={setSelected}
         />
       )}
@@ -185,13 +188,16 @@ interface ListProps {
   selected: number;
   copiedId: string | null;
   coreNow: number;
+  /** Changes with each load of the codes (see {@link Ring}). */
+  epoch: number;
   text: Strings;
   isMac: boolean;
+  /** Kept the same between ticks, so rows that show the same thing are not drawn again. */
   onCopy: (entry: PanelEntry) => void;
   onHover: (index: number) => void;
 }
 
-export function EntryList({ entries, query, selected, copiedId, coreNow, text, isMac, onCopy, onHover }: ListProps) {
+export function EntryList({ entries, query, selected, copiedId, coreNow, epoch, text, isMac, onCopy, onHover }: ListProps) {
   const pinnedCount = query === "" ? entries.filter((e) => e.pinned).length : 0;
   return (
     <ul class="entries" role="listbox" aria-label={query === "" ? text.all : text.results}>
@@ -205,6 +211,7 @@ export function EntryList({ entries, query, selected, copiedId, coreNow, text, i
             selected={index === selected}
             copied={copiedId === entry.id}
             coreNow={coreNow}
+            epoch={epoch}
             text={text}
             isMac={isMac}
             onCopy={onCopy}
@@ -222,16 +229,31 @@ interface RowProps {
   selected: boolean;
   copied: boolean;
   coreNow: number;
+  epoch: number;
   text: Strings;
   isMac: boolean;
   onCopy: (entry: PanelEntry) => void;
   onHover: (index: number) => void;
 }
 
-function Row({ entry, index, selected, copied, coreNow, text, isMac, onCopy, onHover }: RowProps) {
+/** Whole seconds left of the code shown, as the countdown shows them. */
+export function remainingSeconds(entry: Pick<PanelEntry, "validUntilMs">, coreNow: number): number | undefined {
+  return entry.validUntilMs === undefined ? undefined : Math.max(0, Math.ceil((entry.validUntilMs - coreNow) / 1000));
+}
+
+/** Whether a row would look the same: every prop but the clock, and the countdown's second. */
+export function samePanelRow(before: RowProps, after: RowProps): boolean {
+  const keys = Object.keys(before) as (keyof RowProps)[];
+  if (keys.some((key) => key !== "coreNow" && before[key] !== after[key])) return false;
+  return remainingSeconds(before.entry, before.coreNow) === remainingSeconds(after.entry, after.coreNow);
+}
+
+/** One account in the panel, drawn again only when what it shows changes (see {@link samePanelRow}). */
+const Row = memo(RowView, samePanelRow);
+
+function RowView({ entry, index, selected, copied, coreNow, epoch, text, isMac, onCopy, onHover }: RowProps) {
   const subtitle = [entry.issuer, entry.account].filter((s) => s !== "" && s !== entry.title).join(" · ");
-  const remainingS =
-    entry.validUntilMs === undefined ? undefined : Math.max(0, Math.ceil((entry.validUntilMs - coreNow) / 1000));
+  const remainingS = remainingSeconds(entry, coreNow);
   const ending = remainingS !== undefined && remainingS <= NEXT_CODE_WINDOW_S;
   const label = useMemo(() => monogram(entry.issuer, entry.title), [entry.issuer, entry.title]);
   return (
@@ -273,7 +295,15 @@ function Row({ entry, index, selected, copied, coreNow, text, isMac, onCopy, onH
         )}
       </span>
       {remainingS !== undefined && entry.periodS !== undefined && (
-        <Ring remaining={remainingS} period={entry.periodS} ending={ending} label={text.seconds(remainingS)} />
+        <Ring
+          remaining={remainingS}
+          period={entry.periodS}
+          ending={ending}
+          label={text.seconds(remainingS)}
+          validUntilMs={entry.validUntilMs ?? coreNow}
+          coreNow={coreNow}
+          epoch={epoch}
+        />
       )}
     </li>
   );
