@@ -122,7 +122,8 @@ button {
 .entries {
   flex: 1;
   margin: 0;
-  padding: 3px;
+  /* Stand-ins for the rows not drawn (useListWindow) inside the list's own padding. */
+  padding: calc(3px + var(--list-before, 0px)) 3px calc(3px + var(--list-after, 0px));
   list-style: none;
   overflow-y: auto;
   border: 1px solid var(--line);

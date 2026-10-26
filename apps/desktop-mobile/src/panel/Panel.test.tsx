@@ -294,6 +294,8 @@ describe("a panel row between two ticks", () => {
   const props = (changes: Partial<Parameters<typeof samePanelRow>[0]> = {}): Parameters<typeof samePanelRow>[0] => ({
     entry: { ...entry, tags: [] },
     index: 0,
+    position: 1,
+    size: 6,
     selected: false,
     copied: false,
     coreNow: STEADY,

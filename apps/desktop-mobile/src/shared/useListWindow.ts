@@ -6,9 +6,9 @@ import { type ListItem, type ListLayout, type Span, offsetOf, visibleSpan } from
 const OVERSCAN_LINES = 3;
 
 export interface ListWindow {
-  /** The scrolling element around the list. */
+  /** The scrolling element around the list; it may be the list itself. */
   scroller: RefObject<HTMLElement>;
-  /** The list (`ul.entries-list`). */
+  /** The list. */
   list: RefObject<HTMLUListElement>;
   /** What to draw; `null` draws everything (not measured yet, or windowing is off). */
   span: Span | null;
@@ -17,18 +17,20 @@ export interface ListWindow {
   reveal: (index: number) => void;
 }
 
-/** Where the list's top is inside the scrolling element. */
+/** Where the list's top is inside the scrolling element (0 when the list scrolls itself). */
 function listTop(scroller: HTMLElement, list: HTMLElement): number {
+  if (scroller === list) return 0;
   return list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
 }
 
 /** Reads the list's geometry from the rows drawn; `null` when there is none (no layout, or no row drawn). */
-function measure(list: HTMLUListElement, previous: ListLayout | null): ListLayout | null {
-  const row = list.querySelector<HTMLElement>(".entry-row:not(.editing)");
+function measure(list: HTMLUListElement, rowSelector: string, previous: ListLayout | null): ListLayout | null {
+  const row = list.querySelector<HTMLElement>(rowSelector);
   const rowHeight = row?.offsetHeight ?? 0;
   if (rowHeight <= 0) return null;
   const style = window.getComputedStyle(list);
-  const columns = style.gridTemplateColumns.split(" ").filter((c) => c !== "").length || 1;
+  const tracks = style.gridTemplateColumns.split(" ").filter((c) => c !== "" && c !== "none");
+  const columns = tracks.length || 1;
   const gap = Number.parseFloat(style.rowGap) || 0;
   const heading = list.querySelector<HTMLElement>(".group-title");
   const margins = heading
@@ -41,10 +43,11 @@ function measure(list: HTMLUListElement, previous: ListLayout | null): ListLayou
 const sameSpan = (a: Span | null, b: Span | null) => a?.first === b?.first && a?.end === b?.end && a?.before === b?.before;
 
 /**
- * Draws only the part of a long list that is on screen (see windowing.ts). Off while `enabled` is false (a row
- * is being edited and has its own height) and wherever there is no layout to measure.
+ * Draws only the part of a long list that is on screen (see windowing.ts); rows are found with `rowSelector`,
+ * headings are `.group-title`. Off while `enabled` is false (a row has its own height, like one being edited) and
+ * wherever there is no layout to measure. The caller pads the list by `span.before` and `span.after`.
  */
-export function useListWindow(items: readonly ListItem[], enabled: boolean): ListWindow {
+export function useListWindow(items: readonly ListItem[], enabled: boolean, rowSelector: string): ListWindow {
   const scroller = useRef<HTMLElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const [layout, setLayout] = useState<ListLayout | null>(null);
@@ -69,9 +72,9 @@ export function useListWindow(items: readonly ListItem[], enabled: boolean): Lis
     const inner = list.current;
     const next = readView();
     if (!inner || !next) return;
-    setLayout(measure(inner, current.current.layout));
+    setLayout(measure(inner, rowSelector, current.current.layout));
     setView(next);
-  }, [readView]);
+  }, [readView, rowSelector]);
 
   // Measured once rows are drawn, and again when the items change (a heading may have appeared).
   useLayoutEffect(() => {

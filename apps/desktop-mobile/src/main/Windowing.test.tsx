@@ -72,7 +72,7 @@ describe("a main window with many accounts", () => {
 
     await waitFor(() => expect(screen.getAllByTestId("entry").length).toBeLessThan(30));
     const list = document.querySelector(".entries-list") as HTMLElement;
-    expect(parseFloat(list.style.paddingBottom)).toBeGreaterThan(150 * ROW_PX);
+    expect(parseFloat(list.style.getPropertyValue("--list-after"))).toBeGreaterThan(150 * ROW_PX);
   });
 
   it("tells screen readers each row's place in the whole list", async () => {

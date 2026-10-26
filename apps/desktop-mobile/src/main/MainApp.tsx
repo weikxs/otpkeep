@@ -13,8 +13,8 @@ import { syncStrings } from "./sync/i18n";
 import { SyncDialog } from "./sync/SyncDialog";
 import { ToolButton } from "./Toolbar";
 import { TrashDialog } from "./TrashDialog";
-import { useListWindow } from "./useListWindow";
-import type { ListItem } from "./windowing";
+import { useListWindow } from "../shared/useListWindow";
+import type { ListItem } from "../shared/windowing";
 import { MainUnavailable } from "./Unavailable";
 import { type MainStrings, describe } from "./i18n";
 
@@ -170,7 +170,7 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
   const grouped = sortable && shown.some((e) => e.pinned);
   const items = useMemo(() => listItems(shown, grouped, text), [shown, grouped, text]);
   const kinds = useMemo<ListItem[]>(() => items.map((item) => (item.entry ? "row" : "heading")), [items]);
-  const windowed = useListWindow(kinds, editing.length === 0);
+  const windowed = useListWindow(kinds, editing.length === 0, ".entry-row:not(.editing)");
   const editIndex = editId === null ? -1 : items.findIndex((item) => item.entry?.id === editId);
   const { reveal } = windowed;
   // A row asked for from the search panel is scrolled to first, so it is drawn and can open its editor.
@@ -307,7 +307,7 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
           <ul
             class="entries-list"
             ref={windowed.list}
-            style={{ paddingTop: `${span.before}px`, paddingBottom: `${span.after}px` }}
+            style={{ "--list-before": `${span.before}px`, "--list-after": `${span.after}px` }}
           >
             {/* A flat list of keyed items: headings are their own items, so moving a row keeps its element. */}
             {items.slice(span.first, span.end).map((item, offset) => {

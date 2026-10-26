@@ -1,4 +1,3 @@
-import { Fragment } from "preact";
 import { memo } from "preact/compat";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { PanelApi, PanelEntry, PanelState } from "./api";
@@ -9,6 +8,8 @@ import { groupCode, monogram, tileColor } from "./format";
 import type { Strings } from "./i18n";
 import { useLiveState } from "./live";
 import { Unavailable } from "./Unavailable";
+import { useListWindow } from "../shared/useListWindow";
+import type { ListItem } from "../shared/windowing";
 
 /** Codes ending within this many seconds also show the next one (FR-1.4). */
 const NEXT_CODE_WINDOW_S = 5;
@@ -197,18 +198,64 @@ interface ListProps {
   onHover: (index: number) => void;
 }
 
-export function EntryList({ entries, query, selected, copiedId, coreNow, epoch, text, isMac, onCopy, onHover }: ListProps) {
+/** A list item: a group heading ("Pinned", "All") or the entry at `index`. */
+interface Item {
+  heading?: string;
+  index: number;
+}
+
+/** The entries, with headings before the pinned ones and the rest when not searching. */
+function listItems(entries: readonly PanelEntry[], query: string, text: Strings): Item[] {
   const pinnedCount = query === "" ? entries.filter((e) => e.pinned).length : 0;
+  return entries.flatMap((_, index) => {
+    const heading = pinnedCount === 0 ? null : index === 0 ? text.pinned : index === pinnedCount ? text.all : null;
+    return heading === null ? [{ index }] : [{ heading, index }, { index }];
+  });
+}
+
+/** The panels' list: only the rows on screen are drawn (see useListWindow). */
+export function EntryList({ entries, query, selected, copiedId, coreNow, epoch, text, isMac, onCopy, onHover }: ListProps) {
+  const items = useMemo(() => listItems(entries, query, text), [entries, query, text]);
+  const kinds = useMemo<ListItem[]>(() => items.map((item) => (item.heading === undefined ? "row" : "heading")), [items]);
+  const windowed = useListWindow(kinds, true, ".entry");
+  const span = windowed.span ?? { first: 0, end: items.length, before: 0, after: 0 };
+  const selectedAt = items.findIndex((item) => item.heading === undefined && item.index === selected);
+  const { reveal } = windowed;
+  const drawn = selectedAt >= span.first && selectedAt < span.end;
+  // A row chosen with the keys beyond the drawn part is scrolled to first, so it is drawn.
+  useEffect(() => {
+    if (selectedAt >= 0 && !drawn) reveal(selectedAt);
+  }, [selectedAt, drawn, reveal]);
   return (
-    <ul class="entries" role="listbox" aria-label={query === "" ? text.all : text.results}>
-      {entries.map((entry, index) => (
-        <Fragment key={entry.id}>
-          {query === "" && index === 0 && pinnedCount > 0 && <li class="group-title">{text.pinned}</li>}
-          {query === "" && index === pinnedCount && pinnedCount > 0 && <li class="group-title">{text.all}</li>}
+    <ul
+      class="entries"
+      role="listbox"
+      aria-label={query === "" ? text.all : text.results}
+      ref={(element) => {
+        windowed.scroller.current = element;
+        windowed.list.current = element;
+      }}
+      onScroll={windowed.onScroll}
+      style={{ "--list-before": `${span.before}px`, "--list-after": `${span.after}px` }}
+    >
+      {items.slice(span.first, span.end).map((item) => {
+        const entry = entries[item.index];
+        if (item.heading !== undefined) {
+          return (
+            <li key={`heading-${item.heading}`} class="group-title">
+              {item.heading}
+            </li>
+          );
+        }
+        if (!entry) return null;
+        return (
           <Row
+            key={entry.id}
             entry={entry}
-            index={index}
-            selected={index === selected}
+            index={item.index}
+            position={item.index + 1}
+            size={entries.length}
+            selected={item.index === selected}
             copied={copiedId === entry.id}
             coreNow={coreNow}
             epoch={epoch}
@@ -217,8 +264,8 @@ export function EntryList({ entries, query, selected, copiedId, coreNow, epoch, 
             onCopy={onCopy}
             onHover={onHover}
           />
-        </Fragment>
-      ))}
+        );
+      })}
     </ul>
   );
 }
@@ -226,6 +273,9 @@ export function EntryList({ entries, query, selected, copiedId, coreNow, epoch, 
 interface RowProps {
   entry: PanelEntry;
   index: number;
+  /** Its place among the accounts, for screen readers when only part of the list is drawn. */
+  position: number;
+  size: number;
   selected: boolean;
   copied: boolean;
   coreNow: number;
@@ -251,7 +301,7 @@ export function samePanelRow(before: RowProps, after: RowProps): boolean {
 /** One account in the panel, drawn again only when what it shows changes (see {@link samePanelRow}). */
 const Row = memo(RowView, samePanelRow);
 
-function RowView({ entry, index, selected, copied, coreNow, epoch, text, isMac, onCopy, onHover }: RowProps) {
+function RowView({ entry, index, position, size, selected, copied, coreNow, epoch, text, isMac, onCopy, onHover }: RowProps) {
   const subtitle = [entry.issuer, entry.account].filter((s) => s !== "" && s !== entry.title).join(" · ");
   const remainingS = remainingSeconds(entry, coreNow);
   const ending = remainingS !== undefined && remainingS <= NEXT_CODE_WINDOW_S;
@@ -261,6 +311,8 @@ function RowView({ entry, index, selected, copied, coreNow, epoch, text, isMac, 
       class={`entry${selected ? " selected" : ""}`}
       role="option"
       aria-selected={selected}
+      aria-posinset={position}
+      aria-setsize={size}
       data-testid="entry"
       onClick={() => onCopy(entry)}
       onMouseEnter={() => onHover(index)}

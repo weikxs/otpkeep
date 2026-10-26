@@ -197,7 +197,8 @@ button {
   align-items: start;
   gap: 8px;
   margin: 0;
-  padding: 0;
+  /* Stand-ins for the rows not drawn (useListWindow). */
+  padding: var(--list-before, 0) 0 var(--list-after, 0);
   list-style: none;
 }
 

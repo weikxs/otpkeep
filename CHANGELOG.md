@@ -18,8 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Open windows use far less CPU: countdowns update once a second, on the second, and the rings empty by
-  themselves instead of being redrawn on every tick; the main window draws only the accounts on screen, so a
-  long list stays light.
+  themselves instead of being redrawn on every tick; the main window and the panels draw only the accounts on
+  screen, so a long list stays light.
 - OTPKeep resting in the menu bar uses less memory: the search panel is opened when its shortcut is pressed and
   closed shortly after it hides, and the quick panel is closed after 10 minutes unused and opened again when
   asked for.
