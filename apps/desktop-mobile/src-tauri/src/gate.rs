@@ -150,7 +150,8 @@ impl Backend for AppBackend {
             UpdateError::Invalid(rule) => GateError::Invalid(rule),
             UpdateError::Save => GateError::Save,
         })?;
-        // OTPKeep's windows follow at once.
+        // OTPKeep's windows and menu follow at once.
+        crate::desktop::relabel_tray(&self.app);
         let _ = self.app.emit("settings-changed", view(&settings));
         Ok(settings.language.unwrap_or_else(|| "system".to_owned()))
     }

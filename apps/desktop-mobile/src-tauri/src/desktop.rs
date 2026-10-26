@@ -36,6 +36,62 @@ const PANEL_GAP: f64 = 6.0;
 /// A click on the icon right after the panel hid on blur was the click that hid it.
 const REOPEN_GUARD: Duration = Duration::from_millis(250);
 
+/// The words of the menu bar icon's menu.
+struct TrayLabels {
+    open: &'static str,
+    manage: &'static str,
+    sync: &'static str,
+    settings: &'static str,
+    quit: &'static str,
+}
+
+/// The menu's words in Chinese or English.
+const fn tray_labels(chinese: bool) -> TrayLabels {
+    if chinese {
+        TrayLabels {
+            open: "打开主窗口",
+            manage: "在浏览器中管理…",
+            sync: "同步…",
+            settings: "设置…",
+            quit: "退出 OTPKeep",
+        }
+    } else {
+        TrayLabels {
+            open: "Open main window",
+            manage: "Manage in the browser…",
+            sync: "Sync…",
+            settings: "Settings…",
+            quit: "Quit OTPKeep",
+        }
+    }
+}
+
+/// The menu's items, kept to reword them when the language changes.
+struct TrayMenu {
+    open: MenuItem<tauri::Wry>,
+    manage: MenuItem<tauri::Wry>,
+    sync: MenuItem<tauri::Wry>,
+    settings: MenuItem<tauri::Wry>,
+    quit: MenuItem<tauri::Wry>,
+}
+
+/// Rewords the menu bar icon's menu in the language now chosen.
+pub fn relabel_tray(app: &AppHandle) {
+    let Some(menu) = app.try_state::<TrayMenu>() else {
+        return;
+    };
+    let labels = tray_labels(crate::native::chinese(app));
+    for (item, label) in [
+        (&menu.open, labels.open),
+        (&menu.manage, labels.manage),
+        (&menu.sync, labels.sync),
+        (&menu.settings, labels.settings),
+        (&menu.quit, labels.quit),
+    ] {
+        let _ = item.set_text(label);
+    }
+}
+
 /// When the panel last hid because it lost focus.
 #[derive(Default)]
 struct LastBlur(Mutex<Option<Instant>>);
@@ -50,13 +106,28 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     app.set_activation_policy(tauri::ActivationPolicy::Accessory)?;
     app.manage(LastBlur::default());
 
-    let open = MenuItem::with_id(app, "open", "打开主窗口", true, None::<&str>)?;
-    let manage = MenuItem::with_id(app, "manage", "在浏览器中管理…", true, None::<&str>)?;
-    let sync = MenuItem::with_id(app, "sync", "同步…", true, None::<&str>)?;
-    let settings = MenuItem::with_id(app, "settings", "设置…", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "退出 OTPKeep", true, None::<&str>)?;
+    let labels = tray_labels(crate::native::chinese(app));
+    let item = |id: &str, label: &str| MenuItem::with_id(app, id, label, true, None::<&str>);
+    let items = TrayMenu {
+        open: item("open", labels.open)?,
+        manage: item("manage", labels.manage)?,
+        sync: item("sync", labels.sync)?,
+        settings: item("settings", labels.settings)?,
+        quit: item("quit", labels.quit)?,
+    };
     let separator = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&open, &manage, &sync, &settings, &separator, &quit])?;
+    let menu = Menu::with_items(
+        app,
+        &[
+            &items.open,
+            &items.manage,
+            &items.sync,
+            &items.settings,
+            &separator,
+            &items.quit,
+        ],
+    )?;
+    app.manage(items);
 
     TrayIconBuilder::with_id(TRAY)
         .icon(Image::new_owned(
@@ -299,4 +370,21 @@ fn place_centred<R: Runtime>(app: &AppHandle<R>, search: &WebviewWindow<R>) {
     let x = left + (width - size.0) / 2.0;
     let y = top + height * SEARCH_FROM_TOP;
     let _ = search.set_position(PhysicalPosition::new(x, y));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::tray_labels;
+
+    #[test]
+    fn the_menu_has_words_in_both_languages() {
+        let (zh, en) = (tray_labels(true), tray_labels(false));
+        assert_eq!(zh.open, "打开主窗口");
+        assert_eq!(en.open, "Open main window");
+        assert_eq!(en.quit, "Quit OTPKeep");
+        for label in [en.open, en.quit] {
+            assert!(label.is_ascii(), "{label}");
+        }
+        assert_ne!(zh.settings, en.settings);
+    }
 }
