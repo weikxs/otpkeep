@@ -8,7 +8,7 @@
 
 Codes at hand with one click or one shortcut. Your accounts stay on your devices: no account, no cloud, no telemetry.
 
-[简体中文](README.zh-CN.md) · [Features](#features) · [Screenshots](#screenshots) · [Install](#install) · [Usage](#usage) · [Security](#data-security-and-privacy)
+[简体中文](README.zh-CN.md) · [Features](#features) · [Install](#install) · [Quick start](#quick-start) · [Scripting](#scripting-and-cli) · [Security](#data-security-and-privacy)
 
 [![Release](https://img.shields.io/github/v/release/weikxs/otpkeep)](https://github.com/weikxs/otpkeep/releases/latest)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux-lightgrey)
@@ -29,21 +29,80 @@ Codes at hand with one click or one shortcut. Your accounts stay on your devices
 
 ## Contents
 
-- [Status](#status)
+- [Why OTPKeep](#why-otpkeep)
 - [Features](#features)
+- [Comparison](#comparison)
+- [Performance](#performance)
 - [Screenshots](#screenshots)
-- [Install](#install)
-- [Building from source](#building-from-source)
+- [Install](#install) · [Uninstall](#uninstall)
+- [Quick start](#quick-start)
 - [Usage](#usage)
-- [Keyboard shortcuts](#keyboard-shortcuts)
-- [Command line](#command-line)
+- [Scripting and CLI](#scripting-and-cli)
 - [Data, security and privacy](#data-security-and-privacy)
-- [Development](#development)
-- [Project structure](#project-structure)
-- [FAQ](#faq)
-- [Contributing](#contributing) · [Security policy](#security-policy) · [License](#license)
+- [FAQ and troubleshooting](#faq-and-troubleshooting)
+- [Development](#development) · [Contributing](#contributing) · [Security policy](#security-policy) · [License](#license)
 
-## Status
+## Why OTPKeep
+
+- **Sync without servers.** Pair your own devices once, then sync them end to end encrypted over the same local
+  network or Bluetooth, inside a short window you open. No account, no cloud.
+- **A native menu bar menu.** One click on the icon shows your recently used accounts with their current codes, in
+  the system's own menu; choose one to copy its code.
+- **Finds what you mean.** Search names, services, accounts, tags and notes, including Chinese pinyin and initials
+  (`yh` finds 银行).
+- **Works with your scripts.** `otpkeep code github --json` prints a code, also while the app is running.
+- **Light on your computer.** No web page runs while OTPKeep waits in the menu bar; see [Performance](#performance).
+
+## Features
+
+### Codes at hand
+
+- **Menu bar / tray menu**: your recently used accounts, then the others, with their current codes; choose one to
+  copy its code. It is the system's own menu, so OTPKeep runs no web page while it waits in the menu bar.
+- **Global shortcuts**: `⌃⌥⌘1` … `⌃⌥⌘0` copy the first ten accounts (macOS); any account can have its own shortcut.
+- **Search panel** (`⌃⌥⌘Space`): type a name, press Enter to copy, `⇧Enter` to **type the code** into the app you
+  are using.
+- **Clipboard care**: copied codes are kept out of clipboard history apps and cleared again after 30 seconds
+  (adjustable).
+
+### Search
+
+- Names, services, accounts, tags and notes, including Chinese pinyin and initials (`yh` finds 银行).
+
+### Organising
+
+- Pin, drag to reorder, tags with filters, notes, a 30-day trash and an edit history per account.
+- **Browser management page**: rename accounts, write notes, set shortcuts and copy codes from a page OTPKeep
+  serves on `127.0.0.1` only, opened with a one-time link.
+
+### Import and export
+
+- **Adds anything common**: `otpauth://` links (one or many), QR code images (also pasted from the clipboard),
+  Google Authenticator transfer codes, Steam Guard, OTPKeep backups and GoldenPassport exports. Links with small
+  mistakes (spaces, lower case, a missing issuer) are repaired; Microsoft and Oracle proprietary codes are
+  recognised and explained instead of failing silently.
+- **Exports anywhere**: an encrypted OTPKeep backup, `otpauth://` links, Google Authenticator transfer QR codes or
+  a GoldenPassport file.
+
+### Sync
+
+- **Local-network sync, no servers**: pair your devices once, then sync them end to end encrypted over the same
+  local network or Bluetooth, inside a short window you open, with a one-time code and your approval on the other
+  device.
+
+### Scripting and command line
+
+- `otpkeep code github` prints a code; `--json` for programs. It works while the app runs too (macOS, Linux).
+  See [Scripting and CLI](#scripting-and-cli).
+
+### Privacy and looks
+
+- **Private by design**: the data is encrypted on disk with a key kept in the system keychain, or derived from an
+  optional master password. No telemetry, no accounts, no cloud.
+- **Looks at home**: light and dark themes, English and Simplified Chinese, the system's own menu in the menu bar
+  and, on macOS, the system's own password dialog.
+
+### Platforms
 
 | Platform | State |
 |---|---|
@@ -54,21 +113,43 @@ Codes at hand with one click or one shortcut. Your accounts stay on your devices
 | iOS | Planned |
 | Command line (`otpkeep`) | Working on all three desktop systems |
 
-## Features
+## Comparison
 
-- **Codes at hand**
-  - Menu bar / tray **menu**: your recently used accounts, then the others, with their current codes; choose one to copy its code. It is the system's own menu, so OTPKeep runs no web page while it waits in the menu bar.
-  - **Global shortcuts**: `⌃⌥⌘1` … `⌃⌥⌘0` copy the first ten accounts (macOS); any account can have its own shortcut.
-  - **Search panel** (`⌃⌥⌘Space`): type a name, press Enter to copy, `⇧Enter` to **type the code** into the app you are using.
-  - **Command line**: `otpkeep code github` prints a code.
-- **Finds what you mean**: search names, services, accounts, tags and notes, including Chinese pinyin and initials (`yh` finds 银行).
-- **Organised**: pin, drag to reorder, tags with filters, notes, a 30-day trash and an edit history per account.
-- **Adds anything common**: `otpauth://` links (one or many), QR code images (also pasted from the clipboard), Google Authenticator transfer codes, Steam Guard, OTPKeep backups and GoldenPassport exports. Links with small mistakes (spaces, lower case, a missing issuer) are repaired; Microsoft and Oracle proprietary codes are recognised and explained instead of failing silently.
-- **Exports anywhere**: an encrypted OTPKeep backup, `otpauth://` links, Google Authenticator transfer QR codes or a GoldenPassport file.
-- **Browser management page**: rename accounts, write notes, set shortcuts and copy codes from a page OTPKeep serves on `127.0.0.1` only, opened with a one-time link.
-- **Local-network sync, no servers**: pair your devices once, then sync them end to end encrypted over the same local network or Bluetooth, inside a short window you open, with a one-time code and your approval on the other device.
-- **Private by design**: the data is encrypted on disk with a key kept in the system keychain, or derived from an optional master password. No telemetry, no accounts, no cloud.
-- **Looks at home**: light and dark themes, English and Simplified Chinese, the system's own menu in the menu bar.
+| | Desktop app | Menu bar / tray | Sync without an account or cloud | Cloud sync | Encrypted backup export | Imports Google transfer codes | Source code | Price |
+|---|---|---|---|---|---|---|---|---|
+| **OTPKeep** | macOS, Linux (Windows planned) | Yes | Yes (local network, Bluetooth) | No | Yes | Yes | Public; license not chosen yet | Free |
+| GoldenPassport | macOS | Yes | — | — | — | — | — | — |
+| Google Authenticator | No (mobile) | No | No | Yes (Google account) | No | Yes | Closed | Free |
+| Microsoft Authenticator | No (mobile) | No | No | Yes (Microsoft account) | No | — | Closed | Free |
+| Authy | No (desktop apps discontinued in 2024) | No | No | Yes (Authy account) | No | — | Closed | Free |
+| Ente Auth | macOS, Windows, Linux | — | No | Yes (end-to-end encrypted, Ente account) | Yes | Yes | Open source | Free |
+| 2FAS | — (mobile apps and a browser extension) | — | — | Yes (Google Drive / iCloud backup) | Yes | Yes | Open source | Free |
+| Aegis | No (Android) | No | No | No | Yes | Yes | Open source | Free |
+
+"—" means we could not confirm it. Checked against each product's public documentation as known in 2025;
+corrections are welcome in an issue.
+
+## Performance
+
+<!-- PERFORMANCE: filled in by measurement -->
+
+| Scenario | App | Memory footprint | CPU | Processes |
+|---|---|---|---|---|
+| Menu bar idle, keychain mode, locked | OTPKeep | _to be measured_ | _to be measured_ | _to be measured_ |
+| | GoldenPassport | _to be measured_ | _to be measured_ | _to be measured_ |
+| Menu bar idle, unlocked, using only the menu | OTPKeep | _to be measured_ | _to be measured_ | _to be measured_ |
+| | GoldenPassport | _to be measured_ | _to be measured_ | _to be measured_ |
+| After opening and closing the main window | OTPKeep | _to be measured_ | _to be measured_ | _to be measured_ |
+| | GoldenPassport | _to be measured_ | _to be measured_ | _to be measured_ |
+
+**Method.** Both apps on the same Mac (_model and macOS version to be filled in_), with 200 demo accounts in
+OTPKeep and 8 in GoldenPassport. Memory is the physical footprint reported by `vmmap --summary <pid>`, summed over
+the app's own processes; CPU is the average over 60 seconds of `ps` CPU time. To reproduce, start OTPKeep with a
+throwaway data folder (`OTPKEEP_DATA_DIR=/tmp/otpkeep-demo OTPKEEP_KEYSTORE=memory`), import demo accounts with
+`otpkeep import`, leave it in the menu bar for a minute, and run `vmmap --summary` on its process and on any
+`com.apple.WebKit.*` processes it started.
+
+<!-- /PERFORMANCE -->
 
 ## Screenshots
 
@@ -88,7 +169,9 @@ Codes at hand with one click or one shortcut. Your accounts stay on your devices
   </tr>
 </table>
 
-Screenshots show made-up demo accounts. They are generated from `apps/desktop-mobile` with `README_SHOTS=../../docs/images pnpm e2e readme-shots`.
+A picture of the menu bar menu (`docs/images/en/tray-menu.png`) is coming: the system draws the menu, so it cannot be
+made by the browser tests. Screenshots show made-up demo accounts. They are generated from `apps/desktop-mobile`
+with `README_SHOTS=../../docs/images pnpm e2e readme-shots`.
 
 ## Install
 
@@ -142,22 +225,7 @@ that for you. If you install the disk image yourself, check it against `checksum
 choose **Open Anyway** in System Settings → Privacy & Security and open it again — or run
 `xattr -dr com.apple.quarantine /Applications/OTPKeep.app`. Details in [SECURITY.md](SECURITY.md#release-packages-and-macos).
 
-### Uninstall
-
-| Installed with | Remove with |
-|---|---|
-| The script or the disk image (macOS) | Quit OTPKeep (menu bar icon → Quit), then move `OTPKeep.app` to the Trash |
-| Homebrew | `brew uninstall --cask otpkeep` |
-| `.deb` | `sudo apt remove otp-keep` |
-| `.rpm` | `sudo dnf remove otp-keep` (or `sudo zypper remove otp-keep`) |
-| AppImage | `rm ~/.local/bin/otpkeep-app ~/.local/share/applications/otpkeep.desktop ~/.local/share/icons/hicolor/256x256/apps/otpkeep.png` |
-
-Uninstalling never touches your accounts: they stay in OTPKeep's [data folder](#data-security-and-privacy). To
-remove them too, export a backup first if you may need them, then delete that folder.
-
-## Building from source
-
-### Prerequisites
+### Building from source
 
 | Tool | Version |
 |---|---|
@@ -165,8 +233,6 @@ remove them too, export a backup first if you may need them, then delete that fo
 | Node.js | a current LTS release |
 | pnpm | 11 (`corepack enable`) |
 | Tauri system dependencies | see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) (Xcode Command Line Tools on macOS, WebView2 on Windows, WebKitGTK on Linux) |
-
-### Build and run
 
 ```sh
 git clone https://github.com/weikxs/otpkeep.git
@@ -186,12 +252,30 @@ cd apps/desktop-mobile
 OTPKEEP_DATA_DIR=/tmp/otpkeep-demo OTPKEEP_KEYSTORE=memory pnpm tauri dev
 ```
 
+### Uninstall
+
+| Installed with | Remove with |
+|---|---|
+| The script or the disk image (macOS) | Quit OTPKeep (menu bar icon → Quit), then move `OTPKeep.app` to the Trash |
+| Homebrew | `brew uninstall --cask otpkeep` |
+| `.deb` | `sudo apt remove otp-keep` |
+| `.rpm` | `sudo dnf remove otp-keep` (or `sudo zypper remove otp-keep`) |
+| AppImage | `rm ~/.local/bin/otpkeep-app ~/.local/share/applications/otpkeep.desktop ~/.local/share/icons/hicolor/256x256/apps/otpkeep.png` |
+
+Uninstalling never touches your accounts: they stay in OTPKeep's [data folder](#data-security-and-privacy). To
+remove them too, export a backup first if you may need them, then delete that folder.
+
+## Quick start
+
+1. **Start OTPKeep.** It lives in the **menu bar** (macOS) or the **system tray** (Windows, Linux); it has no Dock
+   icon. Click the icon to open its menu and choose **Open OTPKeep**.
+2. **Add your accounts**: paste a link, drop or paste a QR code image, or import a file — a Google Authenticator
+   transfer code, an OTPKeep backup or a GoldenPassport export. Every import shows a preview with the current codes
+   first, so you can compare them with the website before anything is saved.
+3. **Get a code**: click the menu bar icon and choose the account, press `⌃⌥⌘Space` and type its name, or run
+   `otpkeep code <name>`. The code is copied and cleared from the clipboard again after 30 seconds.
+
 ## Usage
-
-### First start
-
-OTPKeep starts in the **menu bar** (macOS) or the **system tray** (Windows, Linux); it has no Dock icon. Click the icon to open its
-menu, choose **Open OTPKeep** and add your first account: paste a link, drop or paste a QR code image, or import a file.
 
 ### The menu bar menu
 
@@ -221,10 +305,17 @@ data is open. A shortcut pressed before that asks the same way. When the data ca
 The main window and the search panel are closed for good 30 seconds after you close them, so while OTPKeep waits in the menu bar
 no web page runs.
 
-### Main window
+### Keyboard shortcuts
 
-Lists every account with its code. Click a row to copy. **Edit** opens the account's names, note, tags, pin, place in the list,
-code settings, own shortcut, QR code and history. **Select** chooses several accounts to tag, export or move to the trash at once.
+| Where | Keys | Action |
+|---|---|---|
+| Anywhere (macOS default) | `⌃⌥⌘1` … `⌃⌥⌘0` | Copy the code of account 1–10 in the list |
+| Anywhere (macOS default) | `⌃⌥⌘Space` | Open the search panel |
+| Anywhere | your choice | Copy one account's code (set per account) |
+| Search panel | `Enter` / `⇧Enter` | Copy / type the code |
+| Search panel | `⌘E`, `Esc` | Edit in the main window, clear then close |
+
+On Windows and Linux the global shortcuts start turned off; choose them in Settings. Combinations with only `Shift` are refused, so typing is never captured.
 
 ### Search panel and typing codes
 
@@ -235,6 +326,11 @@ Press `⌃⌥⌘Space` anywhere (macOS default; set or turn it off in Settings).
   (System Settings → Privacy & Security → Accessibility); without it, on Wayland, while the main window is open (macOS), or
   when no key could be sent, the code is copied instead and the search panel says so.
 - `⌘E` (`Ctrl+E`) opens the account in the main window; `Esc` clears the search, then closes.
+
+### Main window
+
+Lists every account with its code. Click a row to copy. **Edit** opens the account's names, note, tags, pin, place in the list,
+code settings, own shortcut, QR code and history. **Select** chooses several accounts to tag, export or move to the trash at once.
 
 ### Counter-based (HOTP) accounts
 
@@ -276,19 +372,7 @@ Language (system, English, 中文), theme, clearing the clipboard after copying 
 the search panel shortcut, how many accounts the menu bar menu shows, whether scripts may get codes from the running app,
 and typing permission.
 
-## Keyboard shortcuts
-
-| Where | Keys | Action |
-|---|---|---|
-| Anywhere (macOS default) | `⌃⌥⌘1` … `⌃⌥⌘0` | Copy the code of account 1–10 in the list |
-| Anywhere (macOS default) | `⌃⌥⌘Space` | Open the search panel |
-| Anywhere | your choice | Copy one account's code (set per account) |
-| Search panel | `Enter` / `⇧Enter` | Copy / type the code |
-| Search panel | `⌘E`, `Esc` | Edit in the main window, clear then close |
-
-On Windows and Linux the global shortcuts start turned off; choose them in Settings. Combinations with only `Shift` are refused, so typing is never captured.
-
-## Command line
+## Scripting and CLI
 
 ```console
 $ otpkeep code github          # the code of the one account matching "github"
@@ -300,8 +384,6 @@ $ otpkeep sync join            # sync with a device that opened a sync window
 
 Run `otpkeep help` for every command (`init`, `import`, `export`, `sync wait|join`, `pair open|join`, `devices`, `group leave`, `rename`, …).
 Every vault command accepts `--json` for machine-readable output and `--password-stdin` for a master password from standard input.
-
-### Use from scripts
 
 `otpkeep code` works while the app runs too (macOS and Linux): the app answers through a private local socket
 instead of the command line waiting for the data. Settings → **Allow scripts to get codes from the running app**
@@ -331,11 +413,30 @@ protocol and the security notes are in **[Using OTPKeep from scripts](docs/scrip
 | **Sync** | Noise XX (X25519, ChaCha20-Poly1305, BLAKE2s) between Ed25519 device identities; the one-time code is checked with SPAKE2, so a recorded session cannot be brute-forced offline |
 | **Clipboard** | copied codes are kept out of clipboard history apps and cleared 30 seconds (adjustable) after the last copy, or when OTPKeep quits, only if the clipboard still holds that code |
 | **Network** | none, except local-network / Bluetooth sync while you have a window open, and the management page on `127.0.0.1` |
+| **Scripts** | a local socket in the data folder, readable only by you, when allowed in Settings ([details](docs/scripting.md#security)) |
 | **Telemetry** | none |
 | **Log** | warnings and errors only, never secrets, codes or account names, in `otpkeep.log` (at most 1 MB, plus one older file): macOS `~/Library/Logs/io.github.weikxs.otpkeep`, elsewhere the `logs` folder under `io.github.weikxs.otpkeep` in the local app data folder |
 
 There is deliberately **no app lock**: the master password (optional) is asked once per start, and the system's own screen lock protects an unattended computer.
 The app never reads keys, passwords or keychain items other than its own.
+
+## FAQ and troubleshooting
+
+**Why does an account show "Generate" instead of a code?** It is a counter-based (HOTP) account; see [above](#counter-based-hotp-accounts).
+
+**Can I sync through iCloud, Dropbox or a server?** No. Sync happens only directly between your devices, near each other, when you open a window. Use encrypted backups to keep a copy elsewhere.
+
+**Is there a Mac App Store version?** No. OTPKeep is distributed through its releases, the install script and Homebrew.
+
+**Why is the Linux package called `otp-keep`?** The package tools derive it from the app's name; the program itself
+is `otpkeep-app`, and the command line is `otpkeep`.
+
+**Typing codes does nothing.** Grant Accessibility permission (macOS). On Wayland, typing is not possible and the code is copied instead.
+
+**`otpkeep code` says `DISABLED` or `BUSY`.** The app is running and does not allow scripts (turn it on in Settings), or
+it runs on Windows, where scripts cannot ask it yet. See [troubleshooting for scripts](docs/scripting.md#troubleshooting).
+
+**macOS says the app cannot be opened.** It is not signed by Apple; see [Packages](#packages).
 
 ## Development
 
@@ -350,7 +451,7 @@ cd apps/desktop-mobile && pnpm e2e      # browser tests (Playwright)
 
 Tests write only under `/tmp/otpkeep-test` and use demo data. See [CONTRIBUTING.md](CONTRIBUTING.md) and the [development standards](docs/development/standards.md).
 
-## Project structure
+### Project structure
 
 ```
 apps/
@@ -362,28 +463,15 @@ crates/
   keep-vault        the encrypted vault: entries, keys, storage, locking, migration
   keep-find         search with pinyin and initials
   keep-transfer     backups, Google Authenticator transfer codes, QR codes, GoldenPassport files
-  keep-platform     keychain, data folders and other platform services
+  keep-platform     keychain, data folders, the scripts' socket and other platform services
   keep-sync         pairing and sync: windows, handshakes, membership, merging
   keep-link         reaching another device over the local network or Bluetooth
   keep-ble          Bluetooth Low Energy transport
   keep-gate         the browser management page server
   keep-ffi          reserved for Swift and Kotlin bindings
-docs/               development standards and images
+docs/               development standards, the scripting guide and images
 fuzz/               fuzz targets for the parsers
 ```
-
-## FAQ
-
-**Why does an account show "Generate" instead of a code?** It is a counter-based (HOTP) account; see [above](#counter-based-hotp-accounts).
-
-**Can I sync through iCloud, Dropbox or a server?** No. Sync happens only directly between your devices, near each other, when you open a window. Use encrypted backups to keep a copy elsewhere.
-
-**Is there a Mac App Store version?** No; see [Data, security and privacy](#data-security-and-privacy).
-
-**Why is the Linux package called `otp-keep`?** The package tools derive it from the app's name; the program itself
-is `otpkeep-app`, and the command line is `otpkeep`.
-
-**Typing codes does nothing.** Grant Accessibility permission (macOS). On Wayland, typing is not possible and the code is copied instead.
 
 ## Contributing
 
