@@ -59,6 +59,10 @@ pub struct VaultService {
     now_ms: Box<dyn Fn() -> u64 + Send + Sync>,
     /// HOTP codes live only in memory: they are gone after a restart or a lock (design/03 §1).
     hotp_codes: HashMap<EntryId, Passcode>,
+    /// Where each entry is in the document, so looking one up does not scan them all.
+    positions: HashMap<EntryId, usize>,
+    /// How many changes were saved; see [`VaultService::revision`].
+    revision: u64,
 }
 
 impl std::fmt::Debug for VaultService {
@@ -74,12 +78,22 @@ impl VaultService {
     /// keep anyone from their codes.
     pub fn new(open: OpenVault, now_ms: impl Fn() -> u64 + Send + Sync + 'static) -> Self {
         let local = load_local(&open);
+        let positions = positions(open.doc());
         Self {
             open,
             local,
             now_ms: Box::new(now_ms),
             hotp_codes: HashMap::new(),
+            positions,
+            revision: 0,
         }
+    }
+
+    /// Changes whenever the vault does: anything computed from [`VaultService::doc`] is still current while
+    /// this stays the same.
+    #[must_use]
+    pub const fn revision(&self) -> u64 {
+        self.revision
     }
 
     /// The vault.
@@ -91,7 +105,9 @@ impl VaultService {
     /// One entry, including entries in the trash.
     #[must_use]
     pub fn entry(&self, id: EntryId) -> Option<&Entry> {
-        self.doc().entries.iter().find(|e| e.id == id)
+        self.positions
+            .get(&id)
+            .and_then(|&index| self.doc().entries.get(index))
     }
 
     /// Entries not in the trash, in display order.
@@ -129,21 +145,41 @@ impl VaultService {
     ///
     /// Returns [`ServiceError`]; only [`ServiceError::HistoryNotSaved`] means the change itself was saved.
     pub fn edit(&mut self, id: EntryId, change: Change) -> Result<(), ServiceError> {
+        self.edit_all(id, vec![change])
+    }
+
+    /// Makes several changes to one entry and saves them once, recording the old name and note in the history.
+    /// Every value is checked first: either all changes are saved or none.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ServiceError`]; only [`ServiceError::HistoryNotSaved`] means the changes themselves were saved.
+    pub fn edit_all(&mut self, id: EntryId, changes: Vec<Change>) -> Result<(), ServiceError> {
         let now = self.now();
         let before = self.entry(id).ok_or(ServiceError::NotFound)?;
-        let previous = match &change {
-            Change::Title(_) => Some((HistoryField::Title, before.title.value.clone())),
-            Change::Note(_) => Some((HistoryField::Note, before.note.value.clone())),
-            _ => None,
-        };
-        let doc = edit::edit_entry(self.doc(), id, change, now)?;
-        self.commit(doc)?;
-        match previous {
-            Some((field, old)) if self.current_text(id, field) != Some(old.as_str()) => {
-                self.save_local(self.local.record(id, field, &old, now))
-            }
-            _ => Ok(()),
+        if changes.is_empty() {
+            return Ok(());
         }
+        let previous: Vec<(HistoryField, String)> = changes
+            .iter()
+            .filter_map(|change| match change {
+                Change::Title(_) => Some((HistoryField::Title, before.title.value.clone())),
+                Change::Note(_) => Some((HistoryField::Note, before.note.value.clone())),
+                _ => None,
+            })
+            .collect();
+        let doc = edit::edit_entry_all(self.doc(), id, changes, now)?;
+        self.commit(doc)?;
+        let local = previous
+            .iter()
+            .filter(|(field, old)| self.current_text(id, *field) != Some(old.as_str()))
+            .fold(self.local.clone(), |local, (field, old)| {
+                local.record(id, *field, old, now)
+            });
+        if local == self.local {
+            return Ok(());
+        }
+        self.save_local(local)
     }
 
     /// Moves an entry to the trash.
@@ -241,11 +277,11 @@ impl VaultService {
     /// Returns [`ServiceError::NotDerived`] for a document computed from something else; nothing changes.
     pub fn commit_derived(&mut self, doc: VaultDoc) -> Result<(), ServiceError> {
         let current = self.doc();
-        let keeps_everything = current.entries.iter().all(|old| {
-            doc.entries
-                .iter()
-                .any(|new| new.id == old.id && not_older(old, new))
-        });
+        let next: HashMap<EntryId, &Entry> = doc.entries.iter().map(|e| (e.id, e)).collect();
+        let keeps_everything = current
+            .entries
+            .iter()
+            .all(|old| next.get(&old.id).is_some_and(|new| not_older(old, new)));
         if doc.vault_id != current.vault_id || doc.clock < current.clock || !keeps_everything {
             return Err(ServiceError::NotDerived);
         }
@@ -309,7 +345,17 @@ impl VaultService {
     ///
     /// Returns [`ServiceError::NotFound`], [`ServiceError::NoCodeYet`] or [`ServiceError::Passcode`].
     pub fn passcode(&self, id: EntryId) -> Result<Passcode, ServiceError> {
-        let key = &self.entry(id).ok_or(ServiceError::NotFound)?.key.value;
+        self.passcode_of(self.entry(id).ok_or(ServiceError::NotFound)?)
+    }
+
+    /// [`VaultService::passcode`] of an entry already at hand, such as one from [`VaultService::ordered`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ServiceError::NoCodeYet`] or [`ServiceError::Passcode`].
+    pub fn passcode_of(&self, entry: &Entry) -> Result<Passcode, ServiceError> {
+        let id = entry.id;
+        let key = &entry.key.value;
         match key.spec.kind() {
             CodeKind::TimeBased { .. } => {
                 let seconds = i64::try_from(self.now() / 1000).unwrap_or(i64::MAX);
@@ -362,8 +408,12 @@ impl VaultService {
         (self.now_ms)()
     }
 
+    /// The only way the document changes, so the positions and the revision always follow it.
     fn commit(&mut self, doc: VaultDoc) -> Result<(), ServiceError> {
-        Ok(self.open.save(doc)?)
+        self.open.save(doc)?;
+        self.positions = positions(self.open.doc());
+        self.revision = self.revision.wrapping_add(1);
+        Ok(())
     }
 
     fn current_text(&self, id: EntryId, field: HistoryField) -> Option<&str> {
@@ -384,6 +434,14 @@ impl VaultService {
         self.local = local;
         Ok(())
     }
+}
+
+fn positions(doc: &VaultDoc) -> HashMap<EntryId, usize> {
+    doc.entries
+        .iter()
+        .enumerate()
+        .map(|(index, e)| (e.id, index))
+        .collect()
 }
 
 /// Whether every field of `new` is the same change as in `old` or a later one.

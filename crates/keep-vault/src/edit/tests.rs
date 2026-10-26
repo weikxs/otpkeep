@@ -3,8 +3,9 @@ use proptest::prelude::*;
 
 use super::{
     Change, EditError, NOTE_MAX_CHARS, NewEntry, Placement, TAG_MAX_CHARS, TAGS_MAX,
-    TITLE_MAX_CHARS, TRASH_RETENTION_MS, add_entry, edit_entry, find_duplicate, move_entry,
-    move_to_trash, next_hotp, ordered, purge, purge_expired_trash, replace_key, restore, trashed,
+    TITLE_MAX_CHARS, TRASH_RETENTION_MS, add_entry, edit_entry, edit_entry_all, edit_entry_mut,
+    find_duplicate, move_entry, move_to_trash, move_to_trash_mut, next_hotp, ordered, purge,
+    purge_expired_trash, replace_key, restore, trashed,
 };
 use crate::{DeviceTag, EntryId, Extra, Hlc, VaultDoc};
 
@@ -503,4 +504,75 @@ fn an_entry_can_be_added_with_a_given_id_once() {
         super::add_entry_with_id(&doc, new_entry("B", 2), id, DAY_MS),
         Err(EditError::Duplicate { existing }) if existing == id
     ));
+}
+
+#[test]
+fn several_changes_to_one_entry_share_one_stamp() {
+    let (doc, id) = add(&empty(), "Cloud", 1, 1_000);
+
+    let next = edit_entry_all(
+        &doc,
+        id,
+        vec![
+            Change::Title("Example Mail".to_owned()),
+            Change::Note("demo note".to_owned()),
+            Change::Tags(vec!["work".to_owned()]),
+            Change::Pinned(true),
+        ],
+        2_000,
+    )
+    .unwrap();
+
+    let e = entry(&next, id);
+    assert_eq!(e.title.value, "Example Mail");
+    assert_eq!(e.note.value, "demo note");
+    assert_eq!(e.tags.value, ["work"]);
+    assert!(e.pinned.value);
+    assert_eq!(e.title.stamp, next.clock);
+    assert_eq!(e.pinned.stamp, next.clock);
+    assert_eq!(e.issuer.stamp, entry(&doc, id).issuer.stamp);
+}
+
+#[test]
+fn one_bad_value_rejects_all_changes_made_together() {
+    let (doc, id) = add(&empty(), "Cloud", 1, 1_000);
+
+    let result = edit_entry_all(
+        &doc,
+        id,
+        vec![
+            Change::Note("demo note".to_owned()),
+            Change::Title("  ".to_owned()),
+        ],
+        2_000,
+    );
+
+    assert_eq!(result, Err(EditError::TitleEmpty));
+}
+
+#[test]
+fn changes_on_an_owned_copy_equal_changes_on_new_copies() {
+    let (doc, a) = add(&empty(), "Cloud", 1, 1_000);
+    let (doc, b) = add(&doc, "Mail", 2, 1_000);
+    let tags = || Change::Tags(vec!["work".to_owned()]);
+    let copied = move_to_trash(&edit_entry(&doc, a, tags(), 2_000).unwrap(), b, 2_000).unwrap();
+
+    let mut owned = doc.clone();
+    edit_entry_mut(&mut owned, a, tags(), 2_000).unwrap();
+    move_to_trash_mut(&mut owned, b, 2_000).unwrap();
+
+    assert_eq!(owned, copied);
+}
+
+#[test]
+fn a_rejected_change_leaves_the_owned_copy_as_it_was() {
+    let (doc, id) = add(&empty(), "Cloud", 1, 1_000);
+    let mut owned = doc.clone();
+
+    let bad = edit_entry_mut(&mut owned, id, Change::Title(String::new()), 2_000);
+    let missing = move_to_trash_mut(&mut owned, EntryId([9; 16]), 2_000);
+
+    assert_eq!(bad, Err(EditError::TitleEmpty));
+    assert_eq!(missing, Err(EditError::NotFound));
+    assert_eq!(owned, doc);
 }
