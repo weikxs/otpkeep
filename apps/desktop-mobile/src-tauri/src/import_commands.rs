@@ -12,8 +12,8 @@ use tauri::ipc::{InvokeBody, Request};
 use tauri::{AppHandle, Emitter, State};
 use zeroize::Zeroizing;
 
-use crate::commands::{AppCore, CommandError};
-use crate::core::{ImportView, ManualForm};
+use crate::commands::{AppCore, CommandError, blocking};
+use crate::core::{ImportView, ManualForm, read_bytes};
 
 /// Files larger than this are no import source OTPKeep reads.
 const MAX_IMPORT_BYTES: usize = 32 * 1024 * 1024;
@@ -23,7 +23,7 @@ const PASSWORD_HEADER: &str = "x-backup-password";
 type Result<T> = std::result::Result<T, CommandError>;
 
 /// Pasted or typed text: a link, several links, or transfer codes.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn stage_text(text: String, vault: State<'_, AppCore>) -> Result<ImportView> {
     let text = Zeroizing::new(text);
     Ok(vault.get().stage_text(&text)?)
@@ -31,7 +31,7 @@ pub fn stage_text(text: String, vault: State<'_, AppCore>) -> Result<ImportView>
 
 /// A file or picture, sent as raw bytes; a backup's password in the `x-backup-password` header.
 #[tauri::command]
-pub fn stage_file(request: Request<'_>, vault: State<'_, AppCore>) -> Result<ImportView> {
+pub async fn stage_file(request: Request<'_>, vault: State<'_, AppCore>) -> Result<ImportView> {
     let InvokeBody::Raw(bytes) = request.body() else {
         return Err(CommandError::code("BAD_REQUEST"));
     };
@@ -45,13 +45,16 @@ pub fn stage_file(request: Request<'_>, vault: State<'_, AppCore>) -> Result<Imp
         .map(|encoded| {
             Zeroizing::new(percent_decode_str(encoded).decode_utf8_lossy().into_owned())
         });
-    Ok(vault
-        .get()
-        .stage_bytes(bytes, password.as_deref().map(String::as_str))?)
+    // Decoding a picture or deriving a backup's key takes a moment: it happens on a blocking thread, without
+    // holding the core. The copy of the bytes (a picture may show secrets) is wiped when done.
+    let bytes = Zeroizing::new(bytes.clone());
+    let source =
+        blocking(move || read_bytes(&bytes, password.as_deref().map(String::as_str))).await??;
+    Ok(vault.get().stage_source(source)?)
 }
 
 /// One account typed into the form.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn stage_manual(form: ManualForm, vault: State<'_, AppCore>) -> Result<ImportView> {
     Ok(vault.get().stage_manual(&form)?)
 }
@@ -63,7 +66,7 @@ pub fn staged_view(token: &str, vault: State<'_, AppCore>) -> Result<ImportView>
 }
 
 /// Adds the chosen rows; returns how many were added.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn commit_import(
     token: &str,
     fresh: Vec<bool>,

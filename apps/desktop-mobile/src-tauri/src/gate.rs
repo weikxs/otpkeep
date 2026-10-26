@@ -6,7 +6,7 @@ use keep_gate::{Asset, Backend, Copied, EntryEdit, GateEntry, GateError, Running
 use keep_vault::service::system_now_ms;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::commands::{AppCore, list_places};
+use crate::commands::AppCore;
 use crate::core::{CoreError, EntryInfo, EntryKind, PanelEntry};
 use crate::hotkeys::{
     Hotkeys, SetError, UpdateError, set_entry_shortcut, taken_detail, update_settings,
@@ -28,11 +28,9 @@ impl AppBackend {
 
     fn shown(&self, infos: Vec<EntryInfo>) -> Result<Vec<GateEntry>, GateError> {
         let vault = self.core()?;
-        let places = list_places(&vault.get());
+        let (state, places) = vault.get().state_and_places("", true);
         // The same codes as the panel and the main window.
-        let mut rows: std::collections::HashMap<String, PanelEntry> = vault
-            .get()
-            .state_all("")
+        let mut rows: std::collections::HashMap<String, PanelEntry> = state
             .entries
             .into_iter()
             .map(|row| (row.id.clone(), row))

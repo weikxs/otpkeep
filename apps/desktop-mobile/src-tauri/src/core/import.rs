@@ -89,13 +89,21 @@ impl Core {
     /// # Errors
     ///
     /// Returns [`CoreError::Import`] when the source cannot be read at all.
+    #[cfg(test)]
     pub fn stage_bytes(
         &mut self,
         bytes: &[u8],
         password: Option<&str>,
     ) -> Result<ImportView, CoreError> {
-        let source =
-            read_source(bytes, password).map_err(|e| CoreError::Import(source_problem(e)))?;
+        self.stage_source(read_bytes(bytes, password)?)
+    }
+
+    /// Stages what [`read_bytes`] read.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CoreError`] when the data is not open or no token can be made.
+    pub fn stage_source(&mut self, source: Source) -> Result<ImportView, CoreError> {
         self.stage(source)
     }
 
@@ -142,7 +150,10 @@ impl Core {
         if matches!(self.vault, Vault::Fresh) {
             self.create()?;
         }
-        let Vault::Open { service, read_only } = &mut self.vault else {
+        let Vault::Open {
+            service, read_only, ..
+        } = &mut self.vault
+        else {
             return Err(CoreError::NeedsPassword);
         };
         if *read_only {
@@ -209,6 +220,16 @@ impl Core {
         self.vault = self.opened(open, false);
         Ok(())
     }
+}
+
+/// Reads a file or picture: decodes QR codes, or derives a backup's key from `password`. This is the slow part
+/// of staging and needs nothing from the vault, so the app runs it without holding the core.
+///
+/// # Errors
+///
+/// Returns [`CoreError::Import`] when the source cannot be read at all.
+pub fn read_bytes(bytes: &[u8], password: Option<&str>) -> Result<Source, CoreError> {
+    read_source(bytes, password).map_err(|e| CoreError::Import(source_problem(e)))
 }
 
 fn source_problem(error: SourceError) -> ImportProblem {

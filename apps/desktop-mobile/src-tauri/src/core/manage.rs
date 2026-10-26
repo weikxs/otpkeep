@@ -187,6 +187,7 @@ impl Core {
         if let Vault::Open {
             service,
             read_only: false,
+            ..
         } = &mut self.vault
             && service.purge_expired_trash().is_err()
         {
@@ -207,7 +208,7 @@ impl Core {
 }
 
 /// A change whose history could not be saved is still a change made.
-fn settle(result: Result<(), ServiceError>) -> Result<(), CoreError> {
+pub(super) fn settle(result: Result<(), ServiceError>) -> Result<(), CoreError> {
     match result {
         Ok(()) | Err(ServiceError::HistoryNotSaved) => Ok(()),
         Err(error) => Err(error.into()),

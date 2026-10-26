@@ -145,3 +145,58 @@ fn changes_nothing_when_one_entry_fails() {
     assert_eq!(app.list("").unwrap().len(), 3);
     assert_eq!(tags_of(&app), [Vec::<String>::new(), vec![], vec![]]);
 }
+
+/// A stamp without its device part, which is random per vault.
+type Stamp = (u64, u32);
+
+/// One entry's title, tags, trash state and the stamps of both.
+type Changes = (String, Vec<String>, Stamp, bool, Stamp);
+
+/// Every entry's [`Changes`], by title (ids are random per vault).
+fn changes_of(app: &Core) -> Vec<Changes> {
+    let crate::core::Vault::Open { service, .. } = &app.vault else {
+        panic!("the vault is not open");
+    };
+    let stamp = |s: keep_vault::Hlc| (s.wall_ms, s.logical);
+    let mut entries: Vec<_> = service.doc().entries.iter().collect();
+    entries.sort_by(|a, b| a.title.value.cmp(&b.title.value));
+    entries
+        .into_iter()
+        .map(|e| {
+            (
+                e.title.value.clone(),
+                e.tags.value.clone(),
+                stamp(e.tags.stamp),
+                e.trashed_at.value.is_some(),
+                stamp(e.trashed_at.stamp),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn a_batch_saves_once_what_one_change_after_another_would_save() {
+    let (one_dir, other_dir) = (temp_dir(), temp_dir());
+    let (mut batched, ids) = with_three(one_dir.path());
+    let (mut stepped, step_ids) = with_three(other_dir.path());
+    let before = batched.revision().unwrap();
+
+    batched
+        .batch(
+            &ids,
+            &BatchAction::AddTag {
+                tag: "work".to_owned(),
+            },
+        )
+        .unwrap();
+    batched.batch(&ids[1..], &BatchAction::Trash).unwrap();
+    for id in &step_ids {
+        stepped.set_tags(id, vec!["work".to_owned()]).unwrap();
+    }
+    for id in &step_ids[1..] {
+        stepped.trash(id).unwrap();
+    }
+
+    assert_eq!(batched.revision(), Some(before + 2));
+    assert_eq!(changes_of(&batched), changes_of(&stepped));
+}

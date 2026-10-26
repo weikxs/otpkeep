@@ -84,13 +84,14 @@ fn builder() -> tauri::Builder<tauri::Wry> {
     tauri::Builder::default()
         .plugin(hotkeys::plugin())
         .plugin(tauri_plugin_dialog::init())
-        .manage(commands::AppCore(core))
+        .manage(commands::AppCore::new(core))
         .manage(hotkeys)
         .manage(gate::GateServer::default())
         .invoke_handler(tauri::generate_handler![
             commands::panel_state,
             commands::main_state,
             commands::edit_entry,
+            commands::update_entry,
             commands::copy_code,
             commands::next_hotp,
             commands::unlock,

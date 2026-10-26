@@ -6,30 +6,54 @@
     reason = "the signatures Tauri commands take"
 )]
 
-use std::collections::HashMap;
 use std::sync::MutexGuard;
+use std::time::Duration;
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State, WebviewWindow};
-
-use std::time::Duration;
+use zeroize::Zeroizing;
 
 use crate::clipboard::copy_then_clear;
-use crate::core::{Core, CoreError, ImportProblem, PanelEntry, PanelState};
+use crate::core::{Core, CoreError, EntryUpdate, ImportProblem, PanelEntry, PanelState, Places};
 use crate::desktop;
 use crate::hotkeys::Hotkeys;
 use crate::shortcuts::ShortcutMap;
+use crate::sync::SharedCore;
+
+// Commands declared `async` run on Tauri's thread pool, not on the thread that draws the windows, so a save
+// (several `fsync`s) or deriving a key never freezes them. Reading commands stay on the main thread: they are
+// quick, and answering them in order keeps a fast typist's results in order.
 
 /// The vault, shared by the commands.
-pub struct AppCore(pub crate::sync::SharedCore);
+pub struct AppCore {
+    core: SharedCore,
+    /// One unlock at a time, so a second click cannot race the first for the vault's file lock.
+    unlocking: tokio::sync::Mutex<()>,
+}
 
 impl AppCore {
+    pub(crate) fn new(core: SharedCore) -> Self {
+        Self {
+            core,
+            unlocking: tokio::sync::Mutex::new(()),
+        }
+    }
+
     pub(crate) fn get(&self) -> MutexGuard<'_, Core> {
         // A panic while holding the lock leaves the core usable: every change is saved before it returns.
-        self.0
+        self.core
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
+}
+
+/// Runs slow work (deriving a key, decoding a large picture) on a thread meant for blocking.
+pub(crate) async fn blocking<T: Send + 'static>(
+    work: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, CommandError> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|_| CommandError::code("UNKNOWN"))
 }
 
 /// What the panel learns after a copy.
@@ -101,29 +125,11 @@ pub fn panel_state(
     vault: State<'_, AppCore>,
     hotkeys: State<'_, Hotkeys>,
 ) -> PanelState {
-    let core = vault.get();
-    let state = core.state(query);
-    let places = list_places(&core);
+    let (state, places) = vault.get().state_and_places(query, false);
     with_shortcuts(state, &hotkeys.map(), &places)
 }
 
-/// Each entry's place in the whole list, which decides its default shortcut.
-pub(crate) fn list_places(core: &Core) -> HashMap<String, usize> {
-    core.list("")
-        .map(|all| {
-            all.into_iter()
-                .enumerate()
-                .map(|(i, e)| (e.id, i))
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn with_shortcuts(
-    state: PanelState,
-    map: &ShortcutMap,
-    places: &HashMap<String, usize>,
-) -> PanelState {
+fn with_shortcuts(state: PanelState, map: &ShortcutMap, places: &Places) -> PanelState {
     let entries = state
         .entries
         .into_iter()
@@ -149,14 +155,12 @@ pub fn main_state(
     vault: State<'_, AppCore>,
     hotkeys: State<'_, Hotkeys>,
 ) -> PanelState {
-    let core = vault.get();
-    let state = core.state_all(query);
-    let places = list_places(&core);
+    let (state, places) = vault.get().state_and_places(query, true);
     with_shortcuts(state, &hotkeys.map(), &places)
 }
 
 /// Changes an entry's name and / or note.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn edit_entry(
     id: &str,
     title: Option<String>,
@@ -165,6 +169,19 @@ pub fn edit_entry(
     app: AppHandle,
 ) -> CommandResult<()> {
     vault.get().edit(id, title, note)?;
+    let _ = app.emit("vault-changed", ());
+    Ok(())
+}
+
+/// Saves everything the editor changed in one write.
+#[tauri::command(async)]
+pub fn update_entry(
+    id: &str,
+    update: EntryUpdate,
+    vault: State<'_, AppCore>,
+    app: AppHandle,
+) -> CommandResult<()> {
+    vault.get().update(id, update)?;
     let _ = app.emit("vault-changed", ());
     Ok(())
 }
@@ -191,15 +208,29 @@ pub(crate) fn copy_entry(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn next_hotp(id: &str, vault: State<'_, AppCore>) -> CommandResult<PanelEntry> {
     vault.get().next_hotp(id).map_err(CommandError::from)
 }
 
 #[tauri::command]
-pub fn unlock(password: String, vault: State<'_, AppCore>) -> PanelState {
-    let password = zeroize::Zeroizing::new(password);
-    vault.get().unlock(&password)
+pub async fn unlock(password: String, vault: State<'_, AppCore>) -> CommandResult<PanelState> {
+    unlock_with(&vault, Zeroizing::new(password)).await
+}
+
+/// Opens the vault with its master password. The key is derived (Argon2id, at full strength) on a blocking
+/// thread without holding the core, so the panel and sync are not held up meanwhile.
+pub(crate) async fn unlock_with(
+    vault: &AppCore,
+    password: Zeroizing<String>,
+) -> CommandResult<PanelState> {
+    let _one_at_a_time = vault.unlocking.lock().await;
+    let target = vault.get().unlock_target();
+    let opened = match target {
+        Some(target) => Some(blocking(move || target.open(&password)).await?),
+        None => None,
+    };
+    Ok(vault.get().finish_unlock(opened))
 }
 
 #[tauri::command]
@@ -244,5 +275,81 @@ mod tests {
             json(CoreError::Import(ImportProblem::NeedsBackupPassword)),
             r#"{"code":"BACKUP_PASSWORD_NEEDED"}"#
         );
+    }
+
+    mod unlocking {
+        use std::sync::{Arc, Mutex};
+        use std::time::Duration;
+
+        use keep_platform::MemoryKeystore;
+        use keep_vault::open::create_with_master_password;
+        use keep_vault::sealed::KdfParams;
+        use keep_vault::store::VaultPaths;
+        use zeroize::Zeroizing;
+
+        use super::super::{AppCore, unlock_with};
+        use crate::core::{Core, PanelStatus};
+
+        const WAIT: Duration = Duration::from_millis(200);
+        const PASSWORD: &str = "demo password";
+
+        fn locked(dir: &std::path::Path) -> AppCore {
+            // Weak parameters keep the test fast; the app always derives with the vault's own parameters.
+            let params = KdfParams {
+                salt: [6; 16],
+                m_cost_kib: 64,
+                t_cost: 1,
+                p_cost: 1,
+            };
+            drop(
+                create_with_master_password(&VaultPaths::new(dir), PASSWORD, params, WAIT).unwrap(),
+            );
+            let core = Core::start(
+                Some(VaultPaths::new(dir)),
+                Box::new(MemoryKeystore::new()),
+                Arc::new(|| 1_700_000_020_000),
+                WAIT,
+            );
+            AppCore::new(Arc::new(Mutex::new(core)))
+        }
+
+        fn unlock(vault: &AppCore, password: &str) -> PanelStatus {
+            let password = Zeroizing::new(password.to_owned());
+            tauri::async_runtime::block_on(unlock_with(vault, password))
+                .unwrap()
+                .status
+        }
+
+        #[test]
+        fn unlocking_off_the_main_thread_gives_the_same_answers() {
+            let dir = tempfile::Builder::new()
+                .prefix("app-unlock-")
+                .tempdir()
+                .unwrap();
+            let vault = locked(dir.path());
+
+            assert_eq!(unlock(&vault, "wrong"), PanelStatus::NeedsPassword);
+            assert_eq!(unlock(&vault, PASSWORD), PanelStatus::Ready);
+            assert_eq!(unlock(&vault, "wrong"), PanelStatus::Ready);
+            assert_eq!(vault.get().state("").status, PanelStatus::Ready);
+        }
+
+        #[test]
+        fn the_core_answers_while_the_key_is_derived() {
+            let dir = tempfile::Builder::new()
+                .prefix("app-unlock-")
+                .tempdir()
+                .unwrap();
+            let vault = locked(dir.path());
+            let target = vault.get().unlock_target().unwrap();
+
+            // The core is free between taking the target and finishing: other commands are answered.
+            assert_eq!(vault.get().state("").status, PanelStatus::NeedsPassword);
+            let opened = target.open(PASSWORD);
+            let state = vault.get().finish_unlock(Some(opened));
+
+            assert_eq!(state.status, PanelStatus::Ready);
+            assert!(vault.get().unlock_target().is_none());
+        }
     }
 }

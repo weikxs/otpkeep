@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Entering the master password, saving, and importing pictures or backups no longer freeze the windows while
+  they work; searching and changing many accounts at once are faster with large vaults.
+
 ## [0.1.0] - 2026-10-25
 
 The first public release, for macOS and Linux.

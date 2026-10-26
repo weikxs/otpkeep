@@ -26,7 +26,7 @@ pub fn preview_key(id: &str, form: KeyForm, vault: State<'_, AppCore>) -> Result
     Ok(vault.get().preview_key(id, &form)?)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn replace_key(
     id: &str,
     form: KeyForm,
@@ -38,7 +38,7 @@ pub fn replace_key(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn rename_entry(
     id: &str,
     issuer: Option<String>,
