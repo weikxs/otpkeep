@@ -178,13 +178,11 @@ impl Core {
     ) -> Result<(), CoreError> {
         let service = self.writable()?;
         let entry = find(service, id)?;
-        for change in [issuer.map(Change::Issuer), account.map(Change::Account)]
+        let changes = [issuer.map(Change::Issuer), account.map(Change::Account)]
             .into_iter()
             .flatten()
-        {
-            service.edit(entry, change)?;
-        }
-        Ok(())
+            .collect();
+        Ok(service.edit_all(entry, changes)?)
     }
 
     fn read_key(&self, id: &str, form: &KeyForm) -> Result<(SecretKey, CodeSpec, u64), CoreError> {

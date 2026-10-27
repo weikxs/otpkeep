@@ -13,8 +13,8 @@ mod lifecycle;
 mod order;
 
 pub use lifecycle::{
-    TRASH_RETENTION_MS, move_to_trash, next_hotp, old_key_copy, purge, purge_expired_trash,
-    replace_key, restore,
+    TRASH_RETENTION_MS, move_to_trash, move_to_trash_mut, next_hotp, old_key_copy, purge,
+    purge_expired_trash, replace_key, restore,
 };
 pub use order::{Placement, move_entry, ordered, trashed};
 
@@ -201,43 +201,81 @@ pub fn edit_entry(
     change: Change,
     now_ms: u64,
 ) -> Result<VaultDoc, EditError> {
+    edit_entry_all(doc, id, vec![change], now_ms)
+}
+
+/// Applies several changes to one entry's descriptive fields as one change: one new stamp for all of them, so
+/// an editor's Save is saved once. Every value is checked before anything changes.
+///
+/// # Errors
+///
+/// Returns [`EditError`] for an unknown entry or an invalid value.
+pub fn edit_entry_all(
+    doc: &VaultDoc,
+    id: EntryId,
+    changes: Vec<Change>,
+    now_ms: u64,
+) -> Result<VaultDoc, EditError> {
     update_entry(doc, id, now_ms, |entry, stamp| {
-        let mut entry = entry.clone();
-        match change {
-            Change::Title(value) => {
-                entry.title = Field {
-                    value: title(&value)?,
-                    stamp,
-                }
-            }
-            Change::Issuer(value) => {
-                entry.issuer = Field {
-                    value: name(&value, EditError::IssuerTooLong)?,
-                    stamp,
-                }
-            }
-            Change::Account(value) => {
-                entry.account = Field {
-                    value: name(&value, EditError::AccountTooLong)?,
-                    stamp,
-                };
-            }
-            Change::Note(value) => {
-                entry.note = Field {
-                    value: note(&value)?,
-                    stamp,
-                }
-            }
-            Change::Tags(value) => {
-                entry.tags = Field {
-                    value: tags(&value)?,
-                    stamp,
-                }
-            }
-            Change::Pinned(value) => entry.pinned = Field { value, stamp },
-        }
-        Ok(entry)
+        changes
+            .into_iter()
+            .try_fold(entry.clone(), |entry, change| applied(entry, change, stamp))
     })
+}
+
+/// [`edit_entry`] on a copy the caller owns, for many changes in a row without copying the vault each time.
+/// On failure `doc` is unchanged.
+///
+/// # Errors
+///
+/// Returns [`EditError`] for an unknown entry or an invalid value.
+pub fn edit_entry_mut(
+    doc: &mut VaultDoc,
+    id: EntryId,
+    change: Change,
+    now_ms: u64,
+) -> Result<(), EditError> {
+    update_entry_mut(doc, id, now_ms, |entry, stamp| {
+        applied(entry.clone(), change, stamp)
+    })
+}
+
+/// `entry` with `change` applied and stamped.
+fn applied(mut entry: Entry, change: Change, stamp: Hlc) -> Result<Entry, EditError> {
+    match change {
+        Change::Title(value) => {
+            entry.title = Field {
+                value: title(&value)?,
+                stamp,
+            }
+        }
+        Change::Issuer(value) => {
+            entry.issuer = Field {
+                value: name(&value, EditError::IssuerTooLong)?,
+                stamp,
+            }
+        }
+        Change::Account(value) => {
+            entry.account = Field {
+                value: name(&value, EditError::AccountTooLong)?,
+                stamp,
+            };
+        }
+        Change::Note(value) => {
+            entry.note = Field {
+                value: note(&value)?,
+                stamp,
+            }
+        }
+        Change::Tags(value) => {
+            entry.tags = Field {
+                value: tags(&value)?,
+                stamp,
+            }
+        }
+        Change::Pinned(value) => entry.pinned = Field { value, stamp },
+    }
+    Ok(entry)
 }
 
 /// The entry that already holds `secret`, including entries in the trash. Only the secret bytes count, not
@@ -272,20 +310,28 @@ pub(crate) fn update_entry(
     now_ms: u64,
     change: impl FnOnce(&Entry, Hlc) -> Result<Entry, EditError>,
 ) -> Result<VaultDoc, EditError> {
+    let mut next = doc.clone();
+    update_entry_mut(&mut next, id, now_ms, change)?;
+    Ok(next)
+}
+
+/// [`update_entry`] in a document the caller owns. The old entry is dropped (and its secret wiped) only once
+/// the new one is ready, so on failure `doc` is unchanged.
+pub(crate) fn update_entry_mut(
+    doc: &mut VaultDoc,
+    id: EntryId,
+    now_ms: u64,
+    change: impl FnOnce(&Entry, Hlc) -> Result<Entry, EditError>,
+) -> Result<(), EditError> {
     let index = doc
         .entries
         .iter()
         .position(|e| e.id == id)
         .ok_or(EditError::NotFound)?;
     let stamp = next_stamp(doc, now_ms);
-    let updated = change(&doc.entries[index], stamp)?;
-    let mut entries = doc.entries.clone();
-    entries[index] = updated;
-    Ok(VaultDoc {
-        entries,
-        clock: stamp,
-        ..doc.clone()
-    })
+    doc.entries[index] = change(&doc.entries[index], stamp)?;
+    doc.clock = stamp;
+    Ok(())
 }
 
 fn title(value: &str) -> Result<String, EditError> {

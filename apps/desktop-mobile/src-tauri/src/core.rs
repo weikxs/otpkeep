@@ -1,15 +1,15 @@
-//! What the quick panel shows and does, kept apart from Tauri so it can be tested (design/12 §6).
+//! What the windows and the menu bar menu show and do, kept apart from Tauri so it can be tested (design/12 §6).
 //!
-//! The panel only ever receives display fields and codes; secrets stay here.
+//! The windows only ever receive display fields and codes; secrets stay here.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use keep_find::{FindContext, FindIndex};
 use keep_passcode::{CodeKind, Passcode};
 use keep_platform::Keystore;
 use keep_vault::edit::{Change, EditError, NOTE_MAX_CHARS, TITLE_MAX_CHARS};
-use keep_vault::open::{Startup, StopReason, UnlockError, start, unlock_with_password};
+use keep_vault::open::{OpenVault, Startup, StopReason, UnlockError, start, unlock_with_password};
 use keep_vault::service::{ServiceError, VaultService};
 use keep_vault::store::VaultPaths;
 use keep_vault::{Entry, EntryId};
@@ -24,15 +24,26 @@ mod import;
 pub mod import_view;
 mod key;
 mod manage;
+mod menu;
+mod reopen;
+#[cfg(unix)]
+mod script;
+mod search;
 #[cfg(desktop)]
 pub mod sync;
+mod update;
+mod upkeep;
 
 pub use batch::BatchAction;
 pub use export::{ExportFormat, GoogleExport, LeftOut, QrImage};
-pub use import::{ImportProblem, ManualForm};
+pub use import::{ImportProblem, ManualForm, read_bytes};
 pub use import_view::ImportView;
 pub use key::{KeyForm, KeyInfo};
 pub use manage::{History, MoveTo, TrashItem};
+pub use menu::MenuView;
+pub use update::EntryUpdate;
+
+use search::{FindCache, select};
 
 /// The panel lists at most this many entries without a search (design/12 §3).
 pub const PANEL_LIMIT: usize = 20;
@@ -42,6 +53,9 @@ const MS_PER_S: u64 = 1000;
 
 /// The clock, in Unix milliseconds.
 pub type Clock = Arc<dyn Fn() -> u64 + Send + Sync>;
+
+/// Each entry's place in the whole list by id, which decides its default shortcut.
+pub type Places = HashMap<String, usize>;
 
 /// One row.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -116,6 +130,10 @@ pub enum Problem {
 }
 
 /// Everything the panel shows.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "independent facts the windows read as they are, not a state machine"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PanelState {
@@ -127,6 +145,8 @@ pub struct PanelState {
     pub problem: Option<Problem>,
     pub in_group: bool,
     pub read_only: bool,
+    /// The vault file is damaged and its previous version can be put back.
+    pub can_restore: bool,
 }
 
 /// Why an action on one entry failed.
@@ -180,6 +200,8 @@ enum Vault {
     Open {
         service: Box<VaultService>,
         read_only: bool,
+        /// Kept with the vault it indexes: a vault opened anew starts without one.
+        find: FindCache,
     },
     /// Protected by a master password that has not been entered in this run.
     NeedsPassword,
@@ -194,7 +216,15 @@ pub struct Core {
     lock_wait: Duration,
     uses_master_password: bool,
     vault: Vault,
+    /// The vault could not be opened and has a previous version to put back.
+    restorable: bool,
+    /// When the trash was last emptied of old entries.
+    tidied_ms: Option<u64>,
     staging: Staging,
+    /// The clock of the data the latest sync session started from; the session's result is merged with the
+    /// data once more when it changed since.
+    #[cfg(desktop)]
+    session_base: Option<keep_vault::Hlc>,
 }
 
 impl Core {
@@ -213,13 +243,18 @@ impl Core {
             lock_wait,
             uses_master_password: false,
             vault: Vault::NeedsPassword,
+            restorable: false,
+            tidied_ms: None,
             staging: Staging::default(),
+            #[cfg(desktop)]
+            session_base: None,
         };
         core.open();
         core
     }
 
     fn open(&mut self) {
+        self.restorable = false;
         let Some(paths) = &self.paths else {
             self.vault = Vault::Unavailable(Problem::NoDataDir);
             return;
@@ -232,9 +267,20 @@ impl Core {
                 self.uses_master_password = true;
                 Vault::NeedsPassword
             }
-            Startup::Stopped(reason) => Vault::Unavailable(problem(reason)),
+            Startup::Stopped(reason) => self.stopped(reason),
         };
         self.tidy();
+    }
+
+    /// Why the vault cannot be opened; remembers whether a previous version can be put back.
+    fn stopped(&mut self, reason: StopReason) -> Vault {
+        self.restorable = matches!(
+            reason,
+            StopReason::Damaged {
+                previous_available: true
+            }
+        );
+        Vault::Unavailable(problem(reason))
     }
 
     fn opened(&self, open: keep_vault::open::OpenVault, read_only: bool) -> Vault {
@@ -242,32 +288,55 @@ impl Core {
         Vault::Open {
             service: Box::new(VaultService::new(open, move || clock())),
             read_only,
+            find: FindCache::default(),
         }
     }
 
     /// What the panel shows for `query`.
     #[must_use]
     pub fn state(&self, query: &str) -> PanelState {
-        self.state_limited(query, Some(PANEL_LIMIT))
+        self.state_and_places(query, false).0
     }
 
-    /// Every entry matching `query` (all of them when empty), for the main window.
+    /// Every entry matching `query` (all of them when empty), as the main window shows them.
+    #[cfg(test)]
     #[must_use]
     pub fn state_all(&self, query: &str) -> PanelState {
-        self.state_limited(query, None)
+        self.state_and_places(query, true).0
     }
 
-    fn state_limited(&self, query: &str, limit: Option<usize>) -> PanelState {
+    /// What the panel (or with `everything`, the main window) shows for `query`, and every entry's place in
+    /// the whole list, both from one pass over the list.
+    #[must_use]
+    pub fn state_and_places(&self, query: &str, everything: bool) -> (PanelState, Places) {
+        let limit = (!everything).then_some(PANEL_LIMIT);
         let now_ms = (self.clock)();
+        let mut places = Places::new();
         let (status, entries, problem, in_group, read_only) = match &self.vault {
             Vault::Fresh => (PanelStatus::Ready, Vec::new(), None, false, false),
-            Vault::Open { service, read_only } => (
-                PanelStatus::Ready,
-                rows(service, query, limit, now_ms),
-                None,
-                service.doc().group.is_some(),
-                *read_only,
-            ),
+            Vault::Open {
+                service,
+                read_only,
+                find,
+            } => {
+                let ordered = service.ordered();
+                places = ordered
+                    .iter()
+                    .enumerate()
+                    .map(|(place, e)| (e.id.to_string(), place))
+                    .collect();
+                let rows = select(service, find, &ordered, query, limit)
+                    .into_iter()
+                    .map(|entry| row(service, entry, now_ms))
+                    .collect();
+                (
+                    PanelStatus::Ready,
+                    rows,
+                    None,
+                    service.doc().group.is_some(),
+                    *read_only,
+                )
+            }
             Vault::NeedsPassword => (PanelStatus::NeedsPassword, Vec::new(), None, false, false),
             Vault::Unavailable(problem) => (
                 PanelStatus::Unavailable,
@@ -277,7 +346,7 @@ impl Core {
                 false,
             ),
         };
-        PanelState {
+        let state = PanelState {
             status,
             entries,
             now_ms,
@@ -285,7 +354,9 @@ impl Core {
             problem,
             in_group,
             read_only,
-        }
+            can_restore: self.restorable && problem == Some(Problem::Damaged),
+        };
+        (state, places)
     }
 
     /// The current code of `id`, for the clipboard.
@@ -307,18 +378,11 @@ impl Core {
     /// Returns [`CoreError`]; nothing changes on failure.
     pub fn next_hotp(&mut self, id: &str) -> Result<PanelEntry, CoreError> {
         let now_ms = (self.clock)();
-        let Vault::Open { service, read_only } = &mut self.vault else {
-            return Err(CoreError::NeedsPassword);
-        };
-        if *read_only {
-            return Err(CoreError::ReadOnly);
-        }
+        let service = self.writable()?;
         let entry = find(service, id)?;
         service.next_hotp(entry)?;
-        rows(service, "", None, now_ms)
-            .into_iter()
-            .find(|row| row.id == id)
-            .ok_or(CoreError::NotFound)
+        let entry = service.entry(entry).ok_or(CoreError::NotFound)?;
+        Ok(row(service, entry, now_ms))
     }
 
     /// Every entry matching `query` (all of them, in list order, when empty), with names and notes.
@@ -327,8 +391,14 @@ impl Core {
     ///
     /// Returns [`CoreError::NeedsPassword`] before the master password is entered.
     pub fn list(&self, query: &str) -> Result<Vec<EntryInfo>, CoreError> {
-        let service = self.service()?;
-        Ok(select(service, query, None).into_iter().map(info).collect())
+        let Vault::Open { service, find, .. } = &self.vault else {
+            return Err(CoreError::NeedsPassword);
+        };
+        let ordered = service.ordered();
+        Ok(select(service, find, &ordered, query, None)
+            .into_iter()
+            .map(info)
+            .collect())
     }
 
     /// Changes an entry's display name and / or note. Both are checked before either is saved.
@@ -343,40 +413,65 @@ impl Core {
         note: Option<String>,
     ) -> Result<EntryInfo, CoreError> {
         check_title_and_note(title.as_deref(), note.as_deref())?;
-        let Vault::Open { service, read_only } = &mut self.vault else {
-            return Err(CoreError::NeedsPassword);
-        };
-        if *read_only {
-            return Err(CoreError::ReadOnly);
-        }
+        let service = self.writable()?;
         let entry = find(service, id)?;
-        for change in [title.map(Change::Title), note.map(Change::Note)]
+        let changes = [title.map(Change::Title), note.map(Change::Note)]
             .into_iter()
             .flatten()
-        {
-            match service.edit(entry, change) {
-                // The change itself is saved; only this device's history of it is missing.
-                Ok(()) | Err(ServiceError::HistoryNotSaved) => {}
-                Err(error) => return Err(error.into()),
-            }
-        }
+            .collect();
+        manage::settle(service.edit_all(entry, changes))?;
         service.entry(entry).map(info).ok_or(CoreError::NotFound)
     }
 
     /// Opens a vault protected by a master password; it then stays open for this run. Returns the new state.
+    /// The app does the same in steps (see [`Core::unlock_target`]).
+    #[cfg(test)]
     pub fn unlock(&mut self, password: &str) -> PanelState {
+        let opened = self.unlock_target().map(|target| target.open(password));
+        self.finish_unlock(opened)
+    }
+
+    /// What unlocking needs while the vault waits for its master password. Deriving the key is the slow part
+    /// and needs only this, so the app runs it without holding the core: the windows and sync keep working.
+    #[must_use]
+    pub fn unlock_target(&self) -> Option<UnlockTarget> {
         let (Vault::NeedsPassword, Some(paths)) = (&self.vault, &self.paths) else {
-            return self.state("");
+            return None;
         };
-        match unlock_with_password(paths, password, self.lock_wait) {
-            Ok(open) => {
-                self.vault = self.opened(open, false);
-                self.tidy();
+        Some(UnlockTarget {
+            paths: paths.clone(),
+            lock_wait: self.lock_wait,
+        })
+    }
+
+    /// Takes the vault [`UnlockTarget::open`] opened (or why it did not) and returns the new state. A vault
+    /// opened meanwhile by another unlock stays as it is.
+    pub fn finish_unlock(&mut self, opened: Option<Result<OpenVault, UnlockError>>) -> PanelState {
+        if matches!(self.vault, Vault::NeedsPassword) {
+            match opened {
+                Some(Ok(open)) => {
+                    self.vault = self.opened(open, false);
+                    self.tidy();
+                }
+                Some(Err(UnlockError::Stopped(reason))) => {
+                    self.vault = self.stopped(reason);
+                }
+                Some(Err(UnlockError::WrongPassword)) | None => {}
             }
-            Err(UnlockError::WrongPassword) => {}
-            Err(UnlockError::Stopped(reason)) => self.vault = Vault::Unavailable(problem(reason)),
         }
         self.state("")
+    }
+
+    /// Whether the vault is protected by a master password (rather than a key in the system keychain).
+    #[must_use]
+    pub const fn uses_master_password(&self) -> bool {
+        self.uses_master_password
+    }
+
+    /// How many changes the open vault has saved in this run, to count writes in tests.
+    #[cfg(test)]
+    fn revision(&self) -> Option<u64> {
+        self.service().ok().map(VaultService::revision)
     }
 
     fn service(&self) -> Result<&VaultService, CoreError> {
@@ -387,50 +482,40 @@ impl Core {
     }
 }
 
+/// Where a vault waiting for its master password is; see [`Core::unlock_target`].
+pub struct UnlockTarget {
+    paths: VaultPaths,
+    lock_wait: Duration,
+}
+
+impl UnlockTarget {
+    /// Derives the key from `password` (Argon2id with the vault's own parameters) and opens the vault.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnlockError`] for a wrong password or a vault that cannot be opened.
+    pub fn open(&self, password: &str) -> Result<OpenVault, UnlockError> {
+        unlock_with_password(&self.paths, password, self.lock_wait)
+    }
+}
+
+/// An entry in the list (not in the trash).
 fn find(service: &VaultService, id: &str) -> Result<EntryId, CoreError> {
-    service
-        .ordered()
-        .iter()
-        .find(|e| e.id.to_string() == id)
-        .map(|e| e.id)
-        .ok_or(CoreError::NotFound)
+    find_any(service, id).and_then(|found| {
+        service
+            .entry(found)
+            .filter(|e| e.trashed_at.value.is_none())
+            .map(|e| e.id)
+            .ok_or(CoreError::NotFound)
+    })
 }
 
 /// Any entry, also one in the trash.
 fn find_any(service: &VaultService, id: &str) -> Result<EntryId, CoreError> {
-    service
-        .doc()
-        .entries
-        .iter()
-        .find(|e| e.id.to_string() == id)
+    EntryId::parse(id)
+        .and_then(|id| service.entry(id))
         .map(|e| e.id)
         .ok_or(CoreError::NotFound)
-}
-
-/// Without a search, the entries in list order (pinned first), at most `limit`; with one, the best matches.
-fn select<'a>(service: &'a VaultService, query: &str, limit: Option<usize>) -> Vec<&'a Entry> {
-    let ordered = service.ordered();
-    if query.trim().is_empty() {
-        return ordered
-            .into_iter()
-            .take(limit.unwrap_or(usize::MAX))
-            .collect();
-    }
-    let index = FindIndex::build(&ordered);
-    index
-        .find(query, &FindContext::default())
-        .into_iter()
-        .take(SEARCH_LIMIT)
-        .filter_map(|hit| ordered.iter().find(|e| e.id == hit.entry).copied())
-        .collect()
-}
-
-/// The panel's rows: at most [`PANEL_LIMIT`] without a search.
-fn rows(service: &VaultService, query: &str, limit: Option<usize>, now_ms: u64) -> Vec<PanelEntry> {
-    select(service, query, limit)
-        .into_iter()
-        .map(|entry| row(service, entry, now_ms))
-        .collect()
 }
 
 fn kind_of(entry: &Entry) -> EntryKind {
@@ -469,7 +554,7 @@ fn check_title_and_note(title: Option<&str>, note: Option<&str>) -> Result<(), C
 }
 
 fn row(service: &VaultService, entry: &Entry, now_ms: u64) -> PanelEntry {
-    let passcode: Option<Passcode> = service.passcode(entry.id).ok();
+    let passcode: Option<Passcode> = service.passcode_of(entry).ok();
     let kind = kind_of(entry);
     let period_s = match entry.key.value.spec.kind() {
         CodeKind::TimeBased { period_s } => Some(period_s),

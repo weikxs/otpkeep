@@ -1,0 +1,8 @@
+/* The password window: the prompt fills it. Colours come from ../shared/tokens.css. */
+#unlock {
+  display: flex;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  font-size: 13px;
+}

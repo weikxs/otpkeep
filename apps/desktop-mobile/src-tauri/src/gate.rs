@@ -6,12 +6,12 @@ use keep_gate::{Asset, Backend, Copied, EntryEdit, GateEntry, GateError, Running
 use keep_vault::service::system_now_ms;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::commands::{AppCore, list_places};
+use crate::commands::AppCore;
 use crate::core::{CoreError, EntryInfo, EntryKind, PanelEntry};
 use crate::hotkeys::{
     Hotkeys, SetError, UpdateError, set_entry_shortcut, taken_detail, update_settings,
 };
-use crate::preferences::{SettingsPatch, view};
+use crate::preferences::SettingsPatch;
 
 /// The page server, while it runs.
 #[derive(Default)]
@@ -28,25 +28,24 @@ impl AppBackend {
 
     fn shown(&self, infos: Vec<EntryInfo>) -> Result<Vec<GateEntry>, GateError> {
         let vault = self.core()?;
-        let places = list_places(&vault.get());
+        let (state, places) = vault.get().state_and_places("", true);
         // The same codes as the panel and the main window.
-        let mut rows: std::collections::HashMap<String, PanelEntry> = vault
-            .get()
-            .state_all("")
+        let mut rows: std::collections::HashMap<String, PanelEntry> = state
             .entries
             .into_iter()
             .map(|row| (row.id.clone(), row))
             .collect();
-        let map = self
-            .app
-            .try_state::<Hotkeys>()
-            .map(|h| h.map())
-            .ok_or(GateError::Save)?;
+        let hotkeys = self.app.try_state::<Hotkeys>().ok_or(GateError::Save)?;
+        let (map, active) = (hotkeys.map(), hotkeys.active());
         Ok(infos
             .into_iter()
             .map(|info| {
                 let shortcut = map.own(&info.id).map(str::to_owned);
-                let default_shortcut = places.get(&info.id).and_then(|&p| map.default_for(p));
+                // A default the system refused is not offered as if it worked.
+                let default_shortcut = places
+                    .get(&info.id)
+                    .and_then(|&p| map.default_for(p))
+                    .filter(|s| active.contains(s));
                 let row = rows.remove(&info.id);
                 let (code, next_code, period_s, valid_until_ms) = row
                     .map_or((None, None, None, None), |r| {
@@ -117,15 +116,17 @@ impl Backend for AppBackend {
     }
 
     fn copy(&self, id: &str) -> Result<Copied, GateError> {
-        let clear_after = self
-            .app
-            .try_state::<Hotkeys>()
-            .ok_or(GateError::Save)?
-            .settings()
-            .clear_after();
-        let code = self.core()?.get().code(id).map_err(gate_error)?;
+        let hotkeys = self.app.try_state::<Hotkeys>().ok_or(GateError::Save)?;
+        let clear_after = hotkeys.settings().clear_after();
+        let vault = self.core()?;
+        let code = vault.get().code(id).map_err(gate_error)?;
         // Same rules as the panel: kept out of clipboard history, cleared later.
-        crate::clipboard::copy_then_clear(code, clear_after).map_err(|_| GateError::Clipboard)?;
+        vault
+            .clipboard()
+            .copy_then_clear(code, clear_after)
+            .map_err(|_| GateError::Clipboard)?;
+        vault.used(&hotkeys, id);
+        crate::tray::refresh(&self.app);
         Ok(Copied {
             clears_in_s: clear_after.map_or(0, |d| d.as_secs()),
         })
@@ -147,8 +148,11 @@ impl Backend for AppBackend {
             UpdateError::Invalid(rule) => GateError::Invalid(rule),
             UpdateError::Save => GateError::Save,
         })?;
-        // OTPKeep's windows follow at once.
-        let _ = self.app.emit("settings-changed", view(&settings));
+        // OTPKeep's windows and menu follow at once.
+        let _ = self.app.emit(
+            "settings-changed",
+            crate::settings_commands::shown(&self.app, &settings),
+        );
         Ok(settings.language.unwrap_or_else(|| "system".to_owned()))
     }
 

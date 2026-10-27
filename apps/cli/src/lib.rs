@@ -20,6 +20,8 @@ mod init;
 pub mod lan;
 mod open;
 mod sources;
+#[cfg(unix)]
+mod via_app;
 
 use args::{Command, Options, UsageError, parse};
 
@@ -45,6 +47,8 @@ pub const EXIT_CANCELLED: u8 = 9;
 pub const EXIT_INVALID_INPUT: u8 = 10;
 /// A pairing or sync did not complete; the JSON error code says why.
 pub const EXIT_NOT_SYNCED: u8 = 11;
+/// The running app does not allow scripts to get codes (its Settings can allow it).
+pub const EXIT_SCRIPTS_DISABLED: u8 = 12;
 /// The command line could not be understood.
 pub const EXIT_USAGE: u8 = 64;
 
@@ -58,7 +62,8 @@ const HELP: &str = "\
 Usage: otpkeep <command>
 
 Commands:
-  code <query>   Print the code of the one entry matching <query>
+  code <query>   Print the code of the one entry matching <query>; while the OTPKeep app runs, it is asked
+                 instead (see docs/scripting.md)
                    --next            for counter-based (HOTP) entries: generate the next code
   list           List entries (names only, never codes)
                    --tag <tag>       only entries with this tag
@@ -99,6 +104,10 @@ Commands:
 Options for every vault command:
   --json             Print {\"ok\": …, \"data\" | \"error\": …}
   --password-stdin   Read the master password from the first line of standard input
+
+Exit codes: 0 ok, 2 no match, 3 several matches, 4 locked, 5 wrong or missing password, 6 data busy,
+7 data cannot be opened, 8 read-only, 9 cancelled, 10 invalid input, 11 not synced,
+12 the running app does not allow scripts, 64 usage. See docs/scripting.md.
 ";
 
 /// What the command line may ask the person at the terminal.
@@ -204,11 +213,7 @@ pub fn run(
             query,
             next,
             options,
-        } => (
-            options,
-            open::open_service(context, options)
-                .and_then(|mut service| commands::code(&mut service, &query, next)),
-        ),
+        } => (options, code(context, &query, next, options)),
         Command::List { tag, options } => (
             options,
             open::open_service(context, options)
@@ -235,6 +240,23 @@ pub fn run(
         Command::Lan { action, options } => (options, run_lan(context, action, options, out)),
     };
     report(options, result, out, err)
+}
+
+/// `otpkeep code`: from the running app when there is one (it holds the vault), otherwise from the vault.
+fn code(
+    context: &mut Context<'_>,
+    query: &[String],
+    next: bool,
+    options: Options,
+) -> Result<commands::Printed, CliError> {
+    #[cfg(unix)]
+    if let Some(dir) = context.data_dir.as_deref()
+        && let via_app::Asked::Answer(answer) = via_app::ask(dir, &query.join(" "), next)
+    {
+        return answer;
+    }
+    open::open_service(context, options)
+        .and_then(|mut service| commands::code(&mut service, query, next))
 }
 
 fn run_lan(

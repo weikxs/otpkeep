@@ -175,3 +175,21 @@ fn nothing_to_export_from_an_empty_start() {
         Some(CoreError::NeedsPassword)
     );
 }
+
+#[test]
+fn the_core_answers_while_a_backup_key_is_derived() {
+    let dir = temp_dir();
+    let (mut app, ids) = with_two(dir.path());
+    let job = app.export_job(ExportFormat::Backup, None).unwrap();
+
+    // The job holds its own copy: the core is free to change while the key is derived.
+    app.trash(&ids[0]).unwrap();
+    let file = job.finish_with(Some("备份口令"), quick()).unwrap();
+
+    assert_eq!(
+        file.count, 2,
+        "the entries as they were when the export began"
+    );
+    let back = read_source(&file.bytes, Some("备份口令")).unwrap();
+    assert_eq!(back.candidates.len(), 2);
+}

@@ -20,12 +20,24 @@ mod icon;
 mod import_commands;
 #[cfg(desktop)]
 mod key_commands;
+#[cfg(target_os = "macos")]
+pub mod large_frees;
+#[cfg(desktop)]
+mod log;
 #[cfg(desktop)]
 mod manage_commands;
 #[cfg(desktop)]
 mod native;
+#[cfg(target_os = "macos")]
+mod native_unlock;
+#[cfg(desktop)]
+mod panels;
 #[cfg(desktop)]
 mod preferences;
+#[cfg(desktop)]
+mod private_file;
+#[cfg(all(desktop, unix))]
+mod script_socket;
 #[cfg(desktop)]
 mod settings;
 #[cfg(desktop)]
@@ -39,9 +51,15 @@ mod sync;
 #[cfg(desktop)]
 mod sync_commands;
 #[cfg(desktop)]
+mod tray;
+#[cfg(desktop)]
+mod tray_menu;
+#[cfg(desktop)]
 mod typing;
 #[cfg(desktop)]
 mod typing_commands;
+#[cfg(desktop)]
+mod unlock;
 
 /// Starts the app and blocks until it exits.
 ///
@@ -49,8 +67,48 @@ mod typing_commands;
 ///
 /// Returns the [`tauri::Error`] reported when the app cannot start.
 pub fn try_run() -> Result<(), tauri::Error> {
-    builder().run(tauri::generate_context!())
+    let app = builder().build(tauri::generate_context!())?;
+    app.run(on_event);
+    Ok(())
 }
+
+/// The app lives in the menu bar: closing its last window (windows are closed when unused) does not end it;
+/// only Quit, which asks with an exit code, does. A code waiting to be cleared from the clipboard is cleared when
+/// the app quits, not left behind.
+#[cfg(desktop)]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the signature Tauri's run loop calls"
+)]
+fn on_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
+    use tauri::Manager;
+    match event {
+        tauri::RunEvent::ExitRequested { code, api, .. } if !quits(code) => api.prevent_exit(),
+        tauri::RunEvent::Exit => {
+            if let Some(core) = app.try_state::<commands::AppCore>() {
+                core.clipboard().clear_now();
+            }
+            #[cfg(target_os = "macos")]
+            native_unlock::stop(app);
+            #[cfg(unix)]
+            script_socket::stop(app);
+        }
+        _ => {}
+    }
+}
+
+/// Whether an exit request ends the app: Quit asks with a code, the last window closing asks without one.
+#[cfg(desktop)]
+const fn quits(code: Option<i32>) -> bool {
+    code.is_some()
+}
+
+#[cfg(mobile)]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the signature Tauri's run loop calls"
+)]
+const fn on_event(_app: &tauri::AppHandle, _event: tauri::RunEvent) {}
 
 #[cfg(desktop)]
 fn builder() -> tauri::Builder<tauri::Wry> {
@@ -66,6 +124,8 @@ fn builder() -> tauri::Builder<tauri::Wry> {
     /// How long to wait for another OTPKeep process to release the data.
     const LOCK_WAIT: Duration = Duration::from_secs(2);
 
+    // First, so that what happens while the data opens is kept too.
+    let log = log::Log::install();
     let keystore: Box<dyn Keystore> = if std::env::var(KEYSTORE_OVERRIDE).as_deref() == Ok("memory")
     {
         Box::new(MemoryKeystore::new())
@@ -75,7 +135,7 @@ fn builder() -> tauri::Builder<tauri::Wry> {
     let dir = data_dir();
     let hotkeys = hotkeys::Hotkeys::load(settings::SettingsFile::new(dir.as_deref()));
     let core = Arc::new(Mutex::new(core::Core::start(
-        dir.map(|dir| VaultPaths::new(&dir)),
+        dir.as_deref().map(VaultPaths::new),
         keystore,
         Arc::new(system_now_ms),
         LOCK_WAIT,
@@ -84,16 +144,19 @@ fn builder() -> tauri::Builder<tauri::Wry> {
     tauri::Builder::default()
         .plugin(hotkeys::plugin())
         .plugin(tauri_plugin_dialog::init())
-        .manage(commands::AppCore(core))
+        .manage(commands::AppCore::new(core))
         .manage(hotkeys)
         .manage(gate::GateServer::default())
         .invoke_handler(tauri::generate_handler![
             commands::panel_state,
             commands::main_state,
             commands::edit_entry,
+            commands::update_entry,
             commands::copy_code,
             commands::next_hotp,
             commands::unlock,
+            commands::retry_open,
+            commands::restore_previous,
             commands::open_main,
             commands::open_gate,
             import_commands::stage_text,
@@ -140,18 +203,39 @@ fn builder() -> tauri::Builder<tauri::Wry> {
             commands::hide_panel,
         ])
         .setup(move |app| {
-            use tauri::Manager;
-            let notify = Arc::new(sync_commands::AppNotify(app.handle().clone()));
-            app.manage(sync::Syncer::new(
-                session_core,
-                keep_link::Network::System,
-                notify,
-                Arc::new(system_now_ms),
-            ));
-            desktop::setup(app.handle())?;
-            hotkeys::register_all(app.handle());
+            log.attach_to(app.handle());
+            start_desktop(app.handle(), session_core, dir.as_deref())?;
             Ok(())
         })
+}
+
+/// Starts what runs beside the windows: sync, the menu bar icon, the scripts' socket and the shortcuts.
+#[cfg(desktop)]
+fn start_desktop(
+    app: &tauri::AppHandle,
+    core: sync::SharedCore,
+    data_dir: Option<&std::path::Path>,
+) -> tauri::Result<()> {
+    use tauri::Manager;
+    let notify = std::sync::Arc::new(sync_commands::AppNotify(app.clone()));
+    app.manage(sync::Syncer::new(
+        core,
+        keep_link::Network::System,
+        notify,
+        std::sync::Arc::new(keep_vault::service::system_now_ms),
+    ));
+    // The state of the system's password dialog, which only macOS uses.
+    #[cfg(target_os = "macos")]
+    app.manage(crate::native_unlock::Prompt::default());
+    desktop::setup(app)?;
+    #[cfg(unix)]
+    if let Some(dir) = data_dir {
+        script_socket::start(app, dir);
+    }
+    #[cfg(not(unix))]
+    let _ = data_dir;
+    hotkeys::register_all(app);
+    Ok(())
 }
 
 #[cfg(mobile)]
@@ -166,6 +250,21 @@ fn builder() -> tauri::Builder<tauri::Wry> {
 pub fn run() {
     if let Err(error) = try_run() {
         report_startup_failure(&error);
+    }
+}
+
+#[cfg(all(test, desktop))]
+mod tests {
+    use super::quits;
+
+    #[test]
+    fn closing_the_last_window_leaves_the_app_in_the_menu_bar() {
+        assert!(!quits(None));
+    }
+
+    #[test]
+    fn quit_ends_the_app() {
+        assert!(quits(Some(0)));
     }
 }
 

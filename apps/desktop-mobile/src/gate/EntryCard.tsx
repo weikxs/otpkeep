@@ -112,7 +112,15 @@ export function EntryCard(props: EntryCardProps) {
         )}
       </div>
       {remainingS !== undefined && entry.periodS !== undefined ? (
-        <Ring remaining={remainingS} period={entry.periodS} ending={ending} label={text.seconds(remainingS)} />
+        <Ring
+          remaining={remainingS}
+          period={entry.periodS}
+          ending={ending}
+          label={text.seconds(remainingS)}
+          validUntilMs={entry.validUntilMs ?? coreNow}
+          coreNow={coreNow}
+          epoch={0}
+        />
       ) : (
         <span class="ring-space" />
       )}

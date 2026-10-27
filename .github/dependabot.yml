@@ -1,4 +1,4 @@
-# One pull request per ecosystem per week at most: the week's updates are grouped together.
+# One pull request per ecosystem per month at most: the month's updates are grouped together.
 # Major versions of Rust crates and npm packages are not proposed automatically: they change APIs (the
 # RustCrypto 0.11/0.13 family, Preact 11, TypeScript 7) and are upgraded on purpose, with their own tests.
 version: 2
@@ -6,7 +6,7 @@ updates:
   - package-ecosystem: cargo
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 1
     groups:
       cargo:
@@ -19,7 +19,7 @@ updates:
   - package-ecosystem: npm
     directory: /apps/desktop-mobile
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 1
     groups:
       npm:
@@ -32,7 +32,7 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 1
     groups:
       github-actions:

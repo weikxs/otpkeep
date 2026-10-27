@@ -50,6 +50,14 @@ impl EntryId {
     pub fn random() -> Self {
         Self(*uuid::Uuid::new_v4().as_bytes())
     }
+
+    /// Reads an identifier in the form [`EntryId`]'s `Display` writes; `None` for anything else.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        uuid::Uuid::try_parse(text)
+            .ok()
+            .map(|uuid| Self(*uuid.as_bytes()))
+    }
 }
 
 impl fmt::Display for EntryId {

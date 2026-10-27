@@ -116,6 +116,16 @@ export interface KeyForm {
   counter: number;
 }
 
+/** The fields of one entry the editor changed; absent fields stay as they are. */
+export interface EntryUpdate {
+  title?: string;
+  note?: string;
+  issuer?: string;
+  account?: string;
+  tags?: string[];
+  pinned?: boolean;
+}
+
 export type BatchAction = { action: "trash" } | { action: "addTag"; tag: string } | { action: "removeTag"; tag: string };
 
 export interface Settings {
@@ -125,8 +135,12 @@ export interface Settings {
   clipboardClearS: number;
   rowShortcuts: boolean;
   rowShortcutsDefault: boolean;
-  /** The quick panel's opacity in percent (70–100). */
-  panelOpacity: number;
+  /** How many accounts the menu bar menu shows on its first level (10–50); the rest are under "More accounts". */
+  menuAccounts: number;
+  /** Whether scripts (`otpkeep code`) may get codes from the running app. */
+  scripts: boolean;
+  /** What `scripts` is for this vault when never changed: on without a master password. */
+  scriptsDefault: boolean;
   /** The search panel's global shortcut; null when it is off. */
   searchShortcut: string | null;
   /** What it is on this system when never changed; null where there is none. */
@@ -135,7 +149,7 @@ export interface Settings {
 }
 
 export type SettingsPatch = Partial<
-  Pick<Settings, "language" | "theme" | "clipboardClearS" | "rowShortcuts" | "panelOpacity">
+  Pick<Settings, "language" | "theme" | "clipboardClearS" | "rowShortcuts" | "menuAccounts" | "scripts">
 >;
 
 export type ExportFormat = "backup" | "links" | "goldenPassport";
@@ -167,7 +181,13 @@ export interface MainApi extends SyncApi {
   copy(id: string): Promise<CopyResult>;
   nextHotp(id: string): Promise<PanelEntry>;
   edit(id: string, change: { title?: string; note?: string }): Promise<void>;
+  /** Saves every changed field of one entry at once: all of them or, when one is refused, none. */
+  update(id: string, change: EntryUpdate): Promise<void>;
   unlock(password: string): Promise<MainState>;
+  /** Tries again to open data that could not be opened. */
+  retryOpen(): Promise<void>;
+  /** Puts back the previous version of a damaged vault; the damaged file is kept beside it. */
+  restorePrevious(): Promise<void>;
   setPinned(id: string, pinned: boolean): Promise<void>;
   setTags(id: string, tags: string[]): Promise<void>;
   move(id: string, to: MoveTo): Promise<void>;
@@ -204,10 +224,20 @@ export interface MainApi extends SyncApi {
   commit(token: string, fresh: boolean[], duplicates: boolean[]): Promise<number>;
   cancel(token: string): Promise<void>;
   openGate(): Promise<void>;
-  /** Calls `listener` when the data changed elsewhere; returns how to stop. */
+  /** Calls `listener` when the data changed elsewhere or the window was shown again; returns how to stop. */
   onChange(listener: () => void): () => void;
   /** Calls `listener` when the panel or the tray asks for a page (`add`, `import`, `settings`). */
   onPage(listener: (page: string) => void): () => void;
+}
+
+/**
+ * The page the window was opened at (`#page=sync`), taken out of the address so a reload starts plain. A window
+ * opened at a page gets it this way because an event sent before the page loaded would be missed.
+ */
+export function takeInitialPage(): string | null {
+  const page = new URLSearchParams(location.hash.slice(1)).get("page");
+  if (page !== null) history.replaceState(null, "", location.pathname + location.search);
+  return page;
 }
 
 /** Turns what a command threw into a {@link CommandFailure}. */
@@ -240,7 +270,10 @@ export async function tauriMainApi(): Promise<MainApi> {
     copy: (id) => call("copy_code", { id }),
     nextHotp: (id) => call("next_hotp", { id }),
     edit: (id, change) => call("edit_entry", { id, title: change.title ?? null, note: change.note ?? null }),
+    update: (id, change) => call("update_entry", { id, update: change }),
     unlock: (password) => call("unlock", { password }),
+    retryOpen: () => call("retry_open"),
+    restorePrevious: () => call("restore_previous"),
     setPinned: (id, pinned) => call("set_pinned", { id, pinned }),
     setTags: (id, tags) => call("set_tags", { id, tags }),
     move: (id, to) => call("move_entry", { id, to }),
@@ -275,7 +308,13 @@ export async function tauriMainApi(): Promise<MainApi> {
     commit: (token, fresh, duplicates) => call("commit_import", { token, fresh, duplicates }),
     cancel: (token) => call("cancel_import", { token }),
     openGate: () => call("open_gate"),
-    onChange: (listener) => subscribe("vault-changed", () => listener()),
+    onChange: (listener) => {
+      // The data changed elsewhere, or the window was brought up again: either way it reloads.
+      const stops = ["vault-changed", "main-shown"].map((name) => subscribe(name, () => listener()));
+      return () => {
+        for (const stop of stops) stop();
+      };
+    },
     syncState: () => call("sync_state"),
     openSyncWindow: () => call("open_sync_window", { minutes: null }),
     openPairWindow: (name) => call("open_pair_window", { name, minutes: null }),
@@ -289,6 +328,10 @@ export async function tauriMainApi(): Promise<MainApi> {
     removeDevice: (fingerprint) => call("remove_device", { fingerprint }),
     leaveGroup: () => call("leave_group"),
     onSyncView: (listener) => subscribe<SyncView>("sync-view", listener),
-    onPage: (listener) => subscribe<string>("open-page", listener),
+    onPage: (listener) => {
+      const first = takeInitialPage();
+      if (first !== null) queueMicrotask(() => listener(first));
+      return subscribe<string>("open-page", listener);
+    },
   };
 }

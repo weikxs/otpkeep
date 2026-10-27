@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { type LanguageControl, LanguageSelect } from "../shared/LanguageSelect";
+import { useSecondTick } from "../shared/tick";
+import { needsReload, useVisible } from "../shared/visible";
 import { type AddTab, AddDialog } from "./AddDialog";
-import { CommandFailure, type Entry, type MainApi, type MainState, type Settings } from "./api";
+import { CommandFailure, type Entry, type MainApi, type MainState, type MoveTo, type Settings } from "./api";
 import type { EntryChange } from "./EntryEditor";
 import { ENTRY_DRAG_TYPE, EntryRow } from "./EntryRow";
 import { BatchBar } from "./BatchBar";
@@ -11,9 +13,11 @@ import { syncStrings } from "./sync/i18n";
 import { SyncDialog } from "./sync/SyncDialog";
 import { ToolButton } from "./Toolbar";
 import { TrashDialog } from "./TrashDialog";
+import { useListWindow } from "../shared/useListWindow";
+import type { ListItem } from "../shared/windowing";
+import { MainUnavailable } from "./Unavailable";
 import { type MainStrings, describe } from "./i18n";
 
-const TICK_MS = 250;
 const COPIED_MS = 1200;
 const TOAST_MS = 2600;
 
@@ -35,7 +39,7 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
   const [state, setState] = useState<MainState | null>(null);
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
-  const [now, setNow] = useState(clock());
+  const [epoch, setEpoch] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -51,21 +55,29 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
   const [chosen, setChosen] = useState<string[]>([]);
   /** An entry the search panel asked to edit; its row opens its editor once shown. */
   const [editId, setEditId] = useState<string | null>(null);
+  /** Rows with their editor open; while there are any, every row is drawn (an editor has its own height). */
+  const [editing, setEditing] = useState<readonly string[]>([]);
 
+  /** Asks for the list again; the trash only changes with the data, so a code rolling over skips it. */
   const load = useCallback(
-    async (q: string) => {
+    async (q: string, withTrash = true) => {
       const next = await api.state(q);
       setOffset(next.nowMs - clock());
       setNow(clock());
+      setEpoch((n) => n + 1);
       setState(next);
       if (q === "") setAllCount(next.entries.length);
-      if (next.status === "ready") setTrashCount((await api.trashList()).length);
+      if (withTrash && next.status === "ready") setTrashCount((await api.trashList()).length);
     },
     [api, clock],
   );
 
   useEffect(() => void load(query), [query, load]);
   useEffect(() => api.onChange(() => void load(query)), [api, load, query]);
+  // Hidden, the window stops ticking; shown again, it catches up.
+  const visible = useVisible(() => void load(query));
+  const ticking = visible && (state?.entries ?? []).some((e) => e.validUntilMs !== undefined);
+  const [now, setNow] = useSecondTick(clock, offset, ticking);
   useEffect(
     () =>
       api.onPage((page) => {
@@ -83,19 +95,15 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
     [api],
   );
   useEffect(() => {
-    const timer = setInterval(() => setNow(clock()), TICK_MS);
-    return () => clearInterval(timer);
-  }, [clock]);
-  useEffect(() => {
     if (toast === null) return;
     const timer = setTimeout(() => setToast(null), TOAST_MS);
     return () => clearTimeout(timer);
   }, [toast]);
 
   const coreNow = now + offset;
-  const expired = state?.entries.some((e) => e.validUntilMs !== undefined && e.validUntilMs <= coreNow) ?? false;
+  const expired = visible && needsReload(state?.entries, coreNow);
   useEffect(() => {
-    if (expired) void load(query);
+    if (expired) void load(query, false);
   }, [expired, load, query]);
 
   const show = (thrown: unknown) => {
@@ -119,13 +127,8 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
   };
 
   const save = async (id: string, change: EntryChange) => {
-    const { tags, pinned, issuer, account, ...names } = change;
-    if (names.title !== undefined || names.note !== undefined) await api.edit(id, names);
-    if (issuer !== undefined || account !== undefined) {
-      await api.rename(id, { ...(issuer === undefined ? {} : { issuer }), ...(account === undefined ? {} : { account }) });
-    }
-    if (tags !== undefined) await api.setTags(id, tags);
-    if (pinned !== undefined) await api.setPinned(id, pinned);
+    // One call for every changed field: the vault is written once.
+    await api.update(id, change);
     setToast(text.saved);
     await load(query);
   };
@@ -150,6 +153,57 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
     if (file) setDialog({ tab: "file", dropped: new Uint8Array(await file.arrayBuffer()) });
   };
 
+  const entries = state?.entries;
+  const allTags = useMemo(
+    () => [...new Set((entries ?? []).flatMap((e) => e.tags))].sort((a, b) => a.localeCompare(b)),
+    [entries],
+  );
+  const shown = useMemo(
+    () => (tag === null ? (entries ?? []) : (entries ?? []).filter((e) => e.tags.includes(tag))),
+    [entries, tag],
+  );
+  const chosenTags = useMemo(
+    () => [...new Set(shown.filter((e) => chosen.includes(e.id)).flatMap((e) => e.tags))].sort(),
+    [shown, chosen],
+  );
+  const sortable = query === "" && tag === null && !selecting;
+  const grouped = sortable && shown.some((e) => e.pinned);
+  const items = useMemo(() => listItems(shown, grouped, text), [shown, grouped, text]);
+  const kinds = useMemo<ListItem[]>(() => items.map((item) => (item.entry ? "row" : "heading")), [items]);
+  const windowed = useListWindow(kinds, editing.length === 0, ".entry-row:not(.editing)");
+  const editIndex = editId === null ? -1 : items.findIndex((item) => item.entry?.id === editId);
+  const { reveal } = windowed;
+  // A row asked for from the search panel is scrolled to first, so it is drawn and can open its editor.
+  useEffect(() => {
+    if (editIndex >= 0) reveal(editIndex);
+  }, [editIndex, reveal]);
+
+  const toggle = (id: string) =>
+    setChosen((current) => (current.includes(id) ? current.filter((c) => c !== id) : [...current, id]));
+  // Rows are drawn again only when what they show changes (EntryRow's sameRow), so their handlers go through
+  // this reference to the current render's functions instead of the ones from when the row was last drawn.
+  const current = useRef({ copy, save, after, load: () => load(query), setToast, setEditId, toggle });
+  current.current = { copy, save, after, load: () => load(query), setToast, setEditId, toggle };
+  const rowActions = useMemo(
+    () => ({
+      copy: (entry: Entry) => void current.current.copy(entry),
+      save: (id: string, change: EntryChange) => current.current.save(id, change),
+      changed: (message: string) => {
+        current.current.setToast(message);
+        void current.current.load();
+      },
+      move: (id: string, to: MoveTo) => current.current.after(api.move(id, to)),
+      trash: (id: string) => current.current.after(api.trash(id), text.trashed),
+      dropRow: (id: string, moved: string, place: "before" | "after") =>
+        void current.current.after(api.move(moved, { to: place, other: id })),
+      toggle: (id: string) => current.current.toggle(id),
+      editStarted: () => current.current.setEditId(null),
+      editing: (id: string, open: boolean) =>
+        setEditing((ids) => (open ? [...ids.filter((e) => e !== id), id] : ids.filter((e) => e !== id))),
+    }),
+    [api, text],
+  );
+
   if (state === null) return <div class="main" aria-busy="true" />;
   const languageMenu = language && (
     <LanguageSelect control={language} systemLabel={text.languages.system} label={text.language} />
@@ -163,23 +217,28 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
     );
   }
   if (state.status === "unavailable") {
+    const settle = async (action: Promise<void>) => {
+      try {
+        await action;
+      } catch (thrown) {
+        show(thrown);
+      }
+      await load(query);
+    };
     return (
-      <main class="welcome" role="alert">
-        {languageMenu && <span class="corner-language">{languageMenu}</span>}
-        <h1>{text.unavailable}</h1>
-        {state.problem && <p class="muted">{text.problems[state.problem]}</p>}
-      </main>
+      <MainUnavailable
+        state={state}
+        text={text}
+        corner={languageMenu}
+        notice={toast}
+        onRetry={() => settle(api.retryOpen())}
+        onRestore={() => settle(api.restorePrevious())}
+      />
     );
   }
 
   const empty = state.entries.length === 0 && query === "" && trashCount === 0;
-  const allTags = [...new Set(state.entries.flatMap((e) => e.tags))].sort((a, b) => a.localeCompare(b));
-  const shown = tag === null ? state.entries : state.entries.filter((e) => e.tags.includes(tag));
-  const sortable = query === "" && tag === null && !selecting;
-  const toggle = (id: string) =>
-    setChosen((current) => (current.includes(id) ? current.filter((c) => c !== id) : [...current, id]));
-  const chosenTags = [...new Set(shown.filter((e) => chosen.includes(e.id)).flatMap((e) => e.tags))].sort();
-  const grouped = sortable && shown.some((e) => e.pinned);
+  const span = windowed.span ?? { first: 0, end: items.length, before: 0, after: 0 };
   return (
     <div
       class={`main${dragging ? " dragging" : ""}`}
@@ -220,7 +279,7 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
       {empty ? (
         <Welcome text={text} onChoose={(tab) => setDialog({ tab })} />
       ) : (
-        <main class="list">
+        <main class="list" ref={windowed.scroller} onScroll={windowed.onScroll}>
           <div class="list-head">
             <span class="muted">{text.count(shown.length)}</span>
             {!selecting && shown.length > 0 && (
@@ -245,50 +304,51 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
             )}
           </div>
           {shown.length === 0 && <p class="empty-search">{text.noMatch}</p>}
-          <ul class="entries-list">
-            {shown.flatMap((entry, index) => {
-              // A flat list of keyed rows: headings are their own items, so moving a row keeps its element.
-              const heading =
-                grouped && index === 0
-                  ? text.pinned
-                  : grouped && !entry.pinned && shown[index - 1]?.pinned
-                    ? text.others
-                    : null;
-              const row = (
+          <ul
+            class="entries-list"
+            ref={windowed.list}
+            style={{ "--list-before": `${span.before}px`, "--list-after": `${span.after}px` }}
+          >
+            {/* A flat list of keyed items: headings are their own items, so moving a row keeps its element. */}
+            {items.slice(span.first, span.end).map((item, offset) => {
+              const index = span.first + offset;
+              const entry = item.entry;
+              if (!entry) {
+                return (
+                  <li key={`heading-${item.heading}`} class="group-title" aria-posinset={index + 1} aria-setsize={items.length}>
+                    {item.heading}
+                  </li>
+                );
+              }
+              const at = item.index;
+              return (
                 <EntryRow
                   key={entry.id}
                   entry={entry}
                   coreNow={coreNow}
+                  epoch={epoch}
                   copied={copiedId === entry.id}
                   text={text}
                   isMac={isMac}
                   sortable={sortable}
-                  previous={shown[index - 1]?.id}
-                  next={shown[index + 1]?.id}
-                  onCopy={(e) => void copy(e)}
-                  onSave={(change) => save(entry.id, change)}
+                  previous={shown[at - 1]?.id}
+                  next={shown[at + 1]?.id}
+                  posInSet={index + 1}
+                  setSize={items.length}
+                  onCopy={rowActions.copy}
+                  onSave={(change) => rowActions.save(entry.id, change)}
                   keyApi={api}
-                  onChanged={(message) => {
-                    setToast(message);
-                    void load(query);
-                  }}
-                  onMove={(to) => after(api.move(entry.id, to))}
-                  onTrash={() => after(api.trash(entry.id), text.trashed)}
+                  onChanged={rowActions.changed}
+                  onMove={(to) => rowActions.move(entry.id, to)}
+                  onTrash={() => rowActions.trash(entry.id)}
                   loadHistory={() => api.history(entry.id)}
-                  onDropRow={(moved, place) => void after(api.move(moved, { to: place, other: entry.id }))}
-                  selection={selecting ? { chosen: chosen.includes(entry.id), onToggle: () => toggle(entry.id) } : undefined}
+                  onDropRow={(moved, place) => rowActions.dropRow(entry.id, moved, place)}
+                  selection={selecting ? { chosen: chosen.includes(entry.id), onToggle: () => rowActions.toggle(entry.id) } : undefined}
                   startEditing={editId === entry.id}
-                  onEditStarted={() => setEditId(null)}
+                  onEditStarted={rowActions.editStarted}
+                  onEditing={rowActions.editing}
                 />
               );
-              return heading === null
-                ? [row]
-                : [
-                    <li key={`heading-${heading}`} class="group-title">
-                      {heading}
-                    </li>,
-                    row,
-                  ];
             })}
           </ul>
         </main>
@@ -370,6 +430,24 @@ export function MainApp({ api, text, isMac, clock = Date.now, onSettingsSaved, l
       )}
     </div>
   );
+}
+
+/** An item of the main list: a row, or a group heading ("Pinned", "Others"). */
+interface Item {
+  entry?: Entry;
+  /** The row's place among the rows shown. */
+  index: number;
+  heading?: string;
+}
+
+/** The rows shown, with the group headings before pinned and other rows when the list is grouped. */
+function listItems(shown: readonly Entry[], grouped: boolean, text: MainStrings): Item[] {
+  return shown.flatMap((entry, index) => {
+    const heading =
+      grouped && index === 0 ? text.pinned : grouped && !entry.pinned && shown[index - 1]?.pinned ? text.others : null;
+    const row: Item = { entry, index };
+    return heading === null ? [row] : [{ heading, index }, row];
+  });
 }
 
 function Welcome({ text, onChoose }: { text: MainStrings; onChoose: (tab: AddTab) => void }) {

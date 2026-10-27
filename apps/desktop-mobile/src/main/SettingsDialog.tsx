@@ -6,6 +6,8 @@ import { CommandFailure, type MainApi, type Settings, type SettingsPatch } from 
 import { type MainStrings, describe } from "./i18n";
 
 const CLEAR_CHOICES = [0, 10, 20, 30, 45, 60, 90, 120];
+/** How many accounts the menu bar menu may show on its first level. */
+const MENU_CHOICES = [10, 15, 20, 25, 30, 40, 50];
 
 export interface SettingsDialogProps {
   api: Pick<MainApi, "settings" | "setSettings" | "setSearchShortcut" | "typingStatus" | "askTypingPermission">;
@@ -85,6 +87,35 @@ export function SettingsDialog({ api, text, isMac, onSaved, onClose }: SettingsD
             </label>
             <label class="setting">
               <span class="setting-name">
+                {text.menuAccounts}
+                <span class="muted">{text.menuAccountsHint}</span>
+              </span>
+              <select
+                value={String(settings.menuAccounts)}
+                aria-label={text.menuAccounts}
+                onChange={(e) => void change({ menuAccounts: Number(value(e)) })}
+              >
+                {MENU_CHOICES.map((n) => (
+                  <option key={n} value={String(n)}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label class="setting">
+              <span class="setting-name">
+                {text.scripts}
+                <span class="muted">{text.scriptsHint}</span>
+              </span>
+              <input
+                type="checkbox"
+                class="switch"
+                checked={settings.scripts}
+                onChange={(e) => void change({ scripts: (e.target as HTMLInputElement).checked })}
+              />
+            </label>
+            <label class="setting">
+              <span class="setting-name">
                 {text.rowShortcuts}
                 <span class="muted">{text.rowShortcutsHint(isMac)}</span>
               </span>
@@ -118,24 +149,6 @@ export function SettingsDialog({ api, text, isMac, onSaved, onClose }: SettingsD
                 )}
               </span>
             </div>
-            <label class="setting">
-              <span class="setting-name">
-                {text.panelOpacity}
-                <span class="muted">{text.panelOpacityHint}</span>
-              </span>
-              <span class="setting-value opacity">
-                <input
-                  type="range"
-                  min={70}
-                  max={100}
-                  step={5}
-                  value={settings.panelOpacity}
-                  aria-label={text.panelOpacity}
-                  onChange={(e) => void change({ panelOpacity: Number((e.target as HTMLInputElement).value) })}
-                />
-                <span class="muted">{settings.panelOpacity}%</span>
-              </span>
-            </label>
             {typing && (
               <div class="setting">
                 <span class="setting-name">

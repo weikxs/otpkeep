@@ -22,10 +22,32 @@
   stroke: var(--line);
 }
 
+/*
+ * One animation per code empties the ring (Ring.tsx sets the period and how far in it starts). It moves in
+ * whole-second steps, like the seconds it stands for, so the window draws it once a second rather than on every
+ * frame. The dash is the circle's length, 2π × 7.
+ */
 .ring-value {
   stroke: var(--accent);
   stroke-linecap: round;
-  transition: stroke-dasharray 240ms linear;
+  stroke-dasharray: 43.99 43.99;
+  animation: ring-drain var(--ring-period, 30s) steps(var(--ring-steps, 30), end) var(--ring-delay, 0s) 1 both;
+}
+
+@keyframes ring-drain {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 43.99;
+  }
+}
+
+/* Reduced motion: the same whole-second steps, never a smooth sweep. */
+@media (prefers-reduced-motion: reduce) {
+  .ring-value {
+    animation-timing-function: steps(var(--ring-steps, 30), end);
+  }
 }
 
 .ring.ending .ring-value {

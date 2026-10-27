@@ -197,7 +197,8 @@ button {
   align-items: start;
   gap: 8px;
   margin: 0;
-  padding: 0;
+  /* Stand-ins for the rows not drawn (useListWindow). */
+  padding: var(--list-before, 0) 0 var(--list-after, 0);
   list-style: none;
 }
 
@@ -455,6 +456,19 @@ textarea {
 .welcome h1 {
   margin: 0;
   font-size: 22px;
+}
+
+.welcome-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 440px;
+}
+
+.welcome-confirm p {
+  flex-basis: 100%;
+  margin: 0;
 }
 
 .welcome-choices {
@@ -1252,17 +1266,6 @@ textarea {
 .setting-value .warn {
   color: var(--amber);
   font-size: 13px;
-}
-
-.setting-value.opacity {
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-}
-
-.setting-value.opacity input {
-  width: 140px;
-  accent-color: var(--accent);
 }
 
 /* The language menu in the top bar matches the buttons beside it. */

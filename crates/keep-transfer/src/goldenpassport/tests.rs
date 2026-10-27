@@ -406,3 +406,32 @@ fn macos_reads_the_file_the_way_goldenpassport_imports_it() {
     );
     assert_eq!(printed.trim(), "ok 3");
 }
+
+#[test]
+fn a_name_repeating_the_account_is_imported_as_the_service_name() {
+    let link = "otpauth://totp/demo-user?secret=JBSWY3DPEHPK3PXP";
+    let json = format!(r#"[{{"name":"Example Cloud:demo-user","url":"{link}"}}]"#);
+    let read = read_accounts_json(json.as_bytes()).unwrap();
+
+    let empty = keep_vault::VaultDoc {
+        vault_id: [0; 16],
+        entries: vec![],
+        tombstones: vec![],
+        group: None,
+        device: None,
+        clock: keep_vault::Hlc {
+            wall_ms: 0,
+            logical: 0,
+            device: keep_vault::DeviceTag([0; 8]),
+        },
+        device_tag: keep_vault::DeviceTag([1; 8]),
+        extra: keep_vault::Extra::new(),
+    };
+
+    let preview = crate::import::preview(read.candidates, &empty);
+
+    let imported = &preview.fresh[0].candidate;
+    assert_eq!(imported.title, "Example Cloud");
+    assert_eq!(imported.issuer, "Example Cloud");
+    assert_eq!(imported.account, "demo-user");
+}

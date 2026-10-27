@@ -20,8 +20,6 @@ export function AdvancedSection({ entry, text, isMac, api, onChanged }: Advanced
   const [error, setError] = useState<string | null>(null);
   const [qr, setQr] = useState<QrImage | null>(null);
 
-  useEffect(() => void api.keyInfo(entry.id).then(setInfo), [api, entry.id]);
-
   const showQr = async () => {
     try {
       setQr(await api.entryQr(entry.id));
@@ -35,6 +33,11 @@ export function AdvancedSection({ entry, text, isMac, api, onChanged }: Advanced
     const failure = thrown instanceof CommandFailure ? thrown : new CommandFailure("UNKNOWN");
     return describe(text, failure.code, failure.detail);
   };
+
+  // An entry removed meanwhile (on another device, or a list drawn from older data) has no settings to show.
+  useEffect(() => {
+    api.keyInfo(entry.id).then(setInfo, (thrown: unknown) => setError(explain(thrown)));
+  }, [api, entry.id]);
 
   const saveShortcut = async (shortcut: string | null) => {
     try {
@@ -53,6 +56,7 @@ export function AdvancedSection({ entry, text, isMac, api, onChanged }: Advanced
         <ShortcutField
           {...(entry.ownShortcut === undefined ? {} : { shortcut: entry.ownShortcut })}
           {...(entry.ownShortcut === undefined && entry.shortcut !== undefined ? { defaultShortcut: entry.shortcut } : {})}
+          inactive={entry.ownShortcut !== undefined && entry.shortcut !== entry.ownShortcut}
           isMac={isMac}
           text={text.shortcutTexts}
           onSave={saveShortcut}

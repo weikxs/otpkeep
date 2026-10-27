@@ -182,11 +182,15 @@ impl Core {
         })
     }
 
-    /// Deletes what has been in the trash for more than 30 days; called whenever the data opens.
+    /// Deletes what has been in the trash for more than 30 days; called whenever the data opens, and daily.
     pub(super) fn tidy(&mut self) {
+        if matches!(self.vault, Vault::Open { .. }) {
+            self.tidied_ms = Some((self.clock)());
+        }
         if let Vault::Open {
             service,
             read_only: false,
+            ..
         } = &mut self.vault
             && service.purge_expired_trash().is_err()
         {
@@ -207,7 +211,7 @@ impl Core {
 }
 
 /// A change whose history could not be saved is still a change made.
-fn settle(result: Result<(), ServiceError>) -> Result<(), CoreError> {
+pub(super) fn settle(result: Result<(), ServiceError>) -> Result<(), CoreError> {
     match result {
         Ok(()) | Err(ServiceError::HistoryNotSaved) => Ok(()),
         Err(error) => Err(error.into()),

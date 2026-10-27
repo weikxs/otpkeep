@@ -8,7 +8,7 @@
 
 点一下或按一个快捷键就能拿到验证码。账号只留在你自己的设备上：不用注册，不上云，没有遥测。
 
-[English](README.md) · [功能](#功能) · [截图](#截图) · [安装](#安装) · [使用](#使用) · [安全](#数据安全与隐私)
+[English](README.md) · [功能](#功能) · [安装](#安装) · [快速上手](#快速上手) · [脚本](#脚本与命令行) · [安全](#数据安全与隐私)
 
 [![最新版本](https://img.shields.io/github/v/release/weikxs/otpkeep)](https://github.com/weikxs/otpkeep/releases/latest)
 ![平台](https://img.shields.io/badge/平台-macOS%20%7C%20Linux-lightgrey)
@@ -29,54 +29,118 @@
 
 ## 目录
 
-- [当前状态](#当前状态)
+- [为什么选 OTPKeep](#为什么选-otpkeep)
 - [功能](#功能)
+- [对比](#对比)
+- [性能](#性能)
 - [截图](#截图)
-- [安装](#安装)
-- [从源码构建](#从源码构建)
+- [安装](#安装) · [卸载](#卸载)
+- [快速上手](#快速上手)
 - [使用](#使用)
-- [快捷键](#快捷键)
-- [命令行](#命令行)
+- [脚本与命令行](#脚本与命令行)
 - [数据安全与隐私](#数据安全与隐私)
-- [开发](#开发)
-- [项目结构](#项目结构)
-- [常见问题](#常见问题)
-- [参与贡献](#参与贡献) · [安全问题报告](#安全问题报告) · [许可证](#许可证)
+- [常见问题与故障排查](#常见问题与故障排查)
+- [开发](#开发) · [参与贡献](#参与贡献) · [安全问题报告](#安全问题报告) · [许可证](#许可证)
 
-## 当前状态
+## 为什么选 OTPKeep
+
+- **不用服务器的同步。** 自己的设备配对一次，之后在同一局域网或蓝牙范围内、在你打开的限时窗口里端到端加密同步。不用注册，不上云。
+- **原生的菜单栏菜单。** 点一下图标，系统自带的菜单就列出最近使用的账号和当前验证码，选一个即复制。
+- **搜得到。** 按名称、服务商、账号、标签、备注搜索，支持中文拼音和首字母（输入 `yh` 能找到"银行"）。
+- **能配合脚本。** `otpkeep code github --json` 输出验证码，App 运行时也可以用。
+- **轻量。** OTPKeep 在菜单栏待命时不运行任何网页；见[性能](#性能)。
+
+## 功能
+
+### 随手取码
+
+- **菜单栏 / 托盘菜单**：先列出最近使用的账号，再列出其余账号，都带当前验证码，点一下即复制。这是系统自带的菜单，OTPKeep 在菜单栏待命时不运行任何网页。
+- **全局快捷键**：`⌃⌥⌘1` … `⌃⌥⌘0` 复制列表前 10 个账号（macOS）；任何账号都可以单独设快捷键。
+- **搜索面板**（`⌃⌥⌘Space`）：输入名称，回车复制，`⇧回车` **把验证码直接输入**到正在用的程序。
+- **照顾剪贴板**：复制的验证码不进入剪贴板历史类应用，30 秒（可调）后自动清除。
+
+### 搜索
+
+- 按名称、服务商、账号、标签、备注搜索，支持中文拼音和首字母（输入 `yh` 能找到"银行"）。
+
+### 整理
+
+- 置顶、拖动排序、标签与筛选、备注、30 天回收站、每个账号的修改历史。
+- **浏览器管理页**：改名称、写备注、设快捷键、复制验证码。页面只在 `127.0.0.1` 上提供，用一次性链接打开。
+
+### 导入与导出
+
+- **常见格式都能加**：`otpauth://` 链接（单个或多个）、二维码图片（也可以直接粘贴截图）、Google Authenticator 转移码、Steam 令牌、OTPKeep 备份、GoldenPassport 导出文件。链接里的小错误（多余空格、小写、缺服务商）会自动修正；微软、Oracle 的私有格式会识别并说明原因，不会无声失败。
+- **导出到哪都行**：加密的 OTPKeep 备份、`otpauth://` 链接、Google Authenticator 转移二维码、GoldenPassport 文件。
+
+### 同步
+
+- **局域网同步，没有服务器**：设备配对一次后，在同一局域网或蓝牙范围内、在你打开的限时窗口里端到端加密同步；每次都要输入一次性码，并在另一台设备上确认。
+
+### 脚本与命令行
+
+- `otpkeep code github` 直接输出验证码；`--json` 供程序使用。App 运行时也可以用（macOS、Linux），见[脚本与命令行](#脚本与命令行)。
+
+### 隐私与观感
+
+- **隐私优先**：数据加密保存，密钥放在系统钥匙串里，或由可选的主口令派生。没有遥测、不用注册、不上云。
+- **原生观感**：浅色 / 深色主题，English / 简体中文，菜单栏使用系统自带的菜单，macOS 上用系统自带的口令对话框。
+
+### 平台
 
 | 平台 | 状态 |
 |---|---|
-| macOS 11+ | 已发布：同一个 App 同时支持 Apple 芯片和 Intel——菜单栏面板、主窗口、搜索面板、自动输入、浏览器管理页、导入导出、局域网同步 |
+| macOS 11+ | 已发布：同一个 App 同时支持 Apple 芯片和 Intel——菜单栏菜单、主窗口、搜索面板、自动输入、浏览器管理页、导入导出、局域网同步 |
 | Linux（x86_64、arm64） | 已发布：`.deb`、`.rpm` 和 AppImage；自动输入支持 X11，不支持 Wayland |
 | Windows | 后续支持 |
 | Android（APK） | 后续支持 |
 | iOS | 后续支持 |
 | 命令行（`otpkeep`） | 三个桌面系统均可用 |
 
-## 功能
+## 对比
 
-- **随手取码**
-  - 菜单栏 / 托盘**快速面板**：点账号即复制验证码；倒计时圈显示剩余时间，最后 5 秒同时显示下一个验证码。
-  - **全局快捷键**：`⌃⌥⌘1` … `⌃⌥⌘0` 复制列表前 10 个账号（macOS）；任何账号都可以单独设快捷键。
-  - **搜索面板**（`⌃⌥⌘Space`）：输入名称，回车复制，`⇧回车` **把验证码直接输入**到正在用的程序。
-  - **命令行**：`otpkeep code github` 直接输出验证码。
-- **搜得到**：按名称、服务商、账号、标签、备注搜索，支持中文拼音和首字母（输入 `yh` 能找到"银行"）。
-- **好整理**：置顶、拖动排序、标签与筛选、备注、30 天回收站、每个账号的修改历史。
-- **常见格式都能加**：`otpauth://` 链接（单个或多个）、二维码图片（也可以直接粘贴截图）、Google Authenticator 转移码、Steam 令牌、OTPKeep 备份、GoldenPassport 导出文件。链接里的小错误（多余空格、小写、缺服务商）会自动修正；微软、Oracle 的私有格式会识别并说明原因，不会无声失败。
-- **导出到哪都行**：加密的 OTPKeep 备份、`otpauth://` 链接、Google Authenticator 转移二维码、GoldenPassport 文件。
-- **浏览器管理页**：改名称、写备注、设快捷键、复制验证码。页面只在 `127.0.0.1` 上提供，用一次性链接打开。
-- **局域网同步，没有服务器**：设备配对一次后，在同一局域网或蓝牙范围内、在你打开的限时窗口里端到端加密同步；每次都要输入一次性码，并在另一台设备上确认。
-- **隐私优先**：数据加密保存，密钥放在系统钥匙串里，或由可选的主口令派生。没有遥测、不用注册、不上云。
-- **原生观感**：浅色 / 深色主题，English / 简体中文，半透明的菜单栏面板，透明度可调。
+| | 桌面 App | 菜单栏 / 托盘 | 无需账号或云的同步 | 云同步 | 加密备份导出 | 导入 Google 转移码 | 源代码 | 价格 |
+|---|---|---|---|---|---|---|---|---|
+| **OTPKeep** | macOS、Linux（Windows 计划中） | 有 | 有（局域网、蓝牙） | 无 | 有 | 有 | 公开；许可证待定 | 免费 |
+| GoldenPassport | macOS | 有 | — | — | — | — | — | — |
+| Google Authenticator | 无（手机） | 无 | 无 | 有（Google 账号） | 无 | 有 | 闭源 | 免费 |
+| Microsoft Authenticator | 无（手机） | 无 | 无 | 有（微软账号） | 无 | — | 闭源 | 免费 |
+| Authy | 无（桌面版已于 2024 年停止） | 无 | 无 | 有（Authy 账号） | 无 | — | 闭源 | 免费 |
+| Ente Auth | macOS、Windows、Linux | — | 无 | 有（端到端加密，Ente 账号） | 有 | 有 | 开源 | 免费 |
+| 2FAS | —（手机 App 和浏览器扩展） | — | — | 有（Google Drive / iCloud 备份） | 有 | 有 | 开源 | 免费 |
+| Aegis | 无（Android） | 无 | 无 | 无 | 有 | 有 | 开源 | 免费 |
+
+"—"表示我们无法确认。依据截至 2025 年已知的各产品公开文档整理；如有错误，欢迎提 issue 指正。
+
+## 性能
+
+<!-- PERFORMANCE: filled in by measurement -->
+
+2026 年 10 月 27 日在同一台 Mac 上实测。内存是 macOS 计入该程序的实际占用（physical footprint），把程序运行的所有进程
+加在一起；越低越好。
+
+| 场景 | 程序 | 实际内存占用 | CPU | 进程数 |
+|---|---|---|---|---|
+| 菜单栏常驻，锁定 | **OTPKeep 0.1.0** | **13.5 MB** | 0.00 % | 1 |
+| | GoldenPassport 0.1.7 | 47.6 MB | 0.00 % | 1 |
+| 菜单栏常驻，已解锁，尚未打开过菜单 | **OTPKeep 0.1.0** | **13.6 MB** | 未记录 | 1 |
+
+常驻菜单栏时，OTPKeep 的内存比 GoldenPassport **少约 70 %**。打开窗口（搜索面板、主窗口、浏览器管理页）时会启动
+WebKit，窗口开着期间一直存在；最后一个窗口关闭 30 秒后这些进程结束，程序回到上表的数值。其他场景测出后会补充。
+
+**测试方法。** MacBook Air，Apple M3（Mac15,13，24 GB），macOS 27.0.1。OTPKeep 由本仓库构建（`fix/performance`，
+e3cc9a4），8 个演示账户并设置主密码；GoldenPassport 0.1.7 为使用者日常使用的状态，两者保存的账户并不相同。内存取
+`vmmap --summary <pid>` 输出中的 “Physical footprint”，并把程序自己的所有进程（包括它启动的 `com.apple.WebKit.*`）
+相加；CPU 为 30～60 秒内由 `ps` 的 CPU 时间算出的平均值。设置主密码时，在 macOS 密码框中输入密码会让系统启动其
+自动填充服务（约 14 MB，归属系统、与其他程序共用）；默认的钥匙串方式无需输入密码，不会启动它。复现方法：用一个临时
+数据目录启动 OTPKeep（`OTPKEEP_DATA_DIR=/tmp/otpkeep-demo OTPKEEP_KEYSTORE=memory`），用 `otpkeep import` 导入演示账户，
+在菜单栏放置一分钟，然后对其进程运行 `vmmap --summary`。
+
+<!-- /PERFORMANCE -->
 
 ## 截图
 
 <table>
-  <tr>
-    <td align="center" width="50%"><img alt="快速面板（浅色）" src="docs/images/zh/panel-light.png" width="300"><br><sub>菜单栏快速面板</sub></td>
-    <td align="center" width="50%"><img alt="快速面板（深色）" src="docs/images/zh/panel-dark.png" width="300"><br><sub>深色模式</sub></td>
-  </tr>
   <tr>
     <td align="center" colspan="2"><img alt="搜索面板" src="docs/images/zh/search.png" width="560"><br><sub>搜索面板：回车复制，⇧回车输入验证码，⌘E 编辑</sub></td>
   </tr>
@@ -92,7 +156,8 @@
   </tr>
 </table>
 
-截图中均为虚构的演示账号，在 `apps/desktop-mobile` 下运行 `README_SHOTS=../../docs/images pnpm e2e readme-shots` 生成。
+菜单栏菜单的截图（`docs/images/zh/tray-menu.png`）稍后补上：这个菜单由系统绘制，浏览器测试无法生成。截图中均为虚构的演示账号，
+在 `apps/desktop-mobile` 下运行 `README_SHOTS=../../docs/images pnpm e2e readme-shots` 生成。
 
 ## 安装
 
@@ -144,21 +209,7 @@ macOS 版没有 Apple 签名，也没有经过 Apple 公证，今后也不打算
 请先用 `checksums.txt` 核对，打开一次 OTPKeep，再到"系统设置 → 隐私与安全性"里点"仍要打开"，然后再打开一次——或者运行
 `xattr -dr com.apple.quarantine /Applications/OTPKeep.app`。详见 [SECURITY.md](SECURITY.md#release-packages-and-macos)。
 
-### 卸载
-
-| 安装方式 | 卸载方法 |
-|---|---|
-| 安装脚本或磁盘镜像（macOS） | 先退出 OTPKeep（菜单栏图标 → 退出），再把 `OTPKeep.app` 移到废纸篓 |
-| Homebrew | `brew uninstall --cask otpkeep` |
-| `.deb` | `sudo apt remove otp-keep` |
-| `.rpm` | `sudo dnf remove otp-keep`（或 `sudo zypper remove otp-keep`） |
-| AppImage | `rm ~/.local/bin/otpkeep-app ~/.local/share/applications/otpkeep.desktop ~/.local/share/icons/hicolor/256x256/apps/otpkeep.png` |
-
-卸载不会碰你的账号：它们留在 OTPKeep 的[数据目录](#数据安全与隐私)里。如果也要删除，请先导出备份以防万一，再删除那个目录。
-
-## 从源码构建
-
-### 准备
+### 从源码构建
 
 | 工具 | 版本 |
 |---|---|
@@ -166,8 +217,6 @@ macOS 版没有 Apple 签名，也没有经过 Apple 公证，今后也不打算
 | Node.js | 当前的 LTS 版本 |
 | pnpm | 11（`corepack enable`） |
 | Tauri 系统依赖 | 见 [Tauri 环境准备](https://v2.tauri.app/start/prerequisites/)（macOS 需要 Xcode Command Line Tools，Windows 需要 WebView2，Linux 需要 WebKitGTK） |
-
-### 构建与运行
 
 ```sh
 git clone https://github.com/weikxs/otpkeep.git
@@ -186,26 +235,69 @@ cd apps/desktop-mobile
 OTPKEEP_DATA_DIR=/tmp/otpkeep-demo OTPKEEP_KEYSTORE=memory pnpm tauri dev
 ```
 
+### 卸载
+
+| 安装方式 | 卸载方法 |
+|---|---|
+| 安装脚本或磁盘镜像（macOS） | 先退出 OTPKeep（菜单栏图标 → 退出），再把 `OTPKeep.app` 移到废纸篓 |
+| Homebrew | `brew uninstall --cask otpkeep` |
+| `.deb` | `sudo apt remove otp-keep` |
+| `.rpm` | `sudo dnf remove otp-keep`（或 `sudo zypper remove otp-keep`） |
+| AppImage | `rm ~/.local/bin/otpkeep-app ~/.local/share/applications/otpkeep.desktop ~/.local/share/icons/hicolor/256x256/apps/otpkeep.png` |
+
+卸载不会碰你的账号：它们留在 OTPKeep 的[数据目录](#数据安全与隐私)里。如果也要删除，请先导出备份以防万一，再删除那个目录。
+
+## 快速上手
+
+1. **启动 OTPKeep。** 它常驻在**菜单栏**（macOS）或**系统托盘**（Windows、Linux），程序坞里没有图标。点图标打开菜单，选**打开 OTPKeep**。
+2. **添加账号**：粘贴链接、拖入或粘贴二维码图片，或者导入文件——Google Authenticator 转移码、OTPKeep 备份或 GoldenPassport 导出文件。
+   每次导入都会先显示预览和当前验证码，可以先到网站上核对再保存。
+3. **取验证码**：点菜单栏图标选择账号，或按 `⌃⌥⌘Space` 输入名称，或运行 `otpkeep code <名称>`。验证码会被复制，30 秒后从剪贴板清除。
+
 ## 使用
 
-### 第一次启动
+### 菜单栏菜单
 
-OTPKeep 启动后常驻在**菜单栏**（macOS）或**系统托盘**（Windows、Linux），程序坞里没有图标。点图标打开快速面板，添加第一个账号：粘贴链接、拖入或粘贴二维码图片，或者导入文件。
+点图标会打开一个由系统绘制的菜单（不为它运行网页）：
 
-- **左键**点图标：快速面板。
-- **右键**点图标：打开主窗口、在浏览器中管理、同步、设置、退出。
+- 最上面是**搜索…**，打开搜索面板（旁边显示它的快捷键，macOS 上是 `⌃⌥⌘Space`）。
+- 接着是 30 个账号（可在设置中改为 10–50）：最近复制过验证码的排在前面，其余按主窗口的顺序（置顶的在前）补足。
+  每项显示为 `123 456   名称 · 备注`，验证码在前，便于对齐。没有备注时显示账号名（名称里已有时不再重复）；
+  导入的名称如 `Example Cloud:ops@example.com` 显示为 `Example Cloud`。名称和备注截到约 20–24 个字；账号有自己的快捷键时也会显示。
+- **更多账号（N）** 是一个子菜单，按主窗口的顺序列出其余所有账号，可以滚动；超过 1000 个时会说明还有多少个没列出，可用搜索面板找到。
+- 然后是**打开 OTPKeep**（主窗口）、**在浏览器中管理…**、**同步…**、**设置…**和**退出 OTPKeep**。
 
-### 主窗口
+点账号即复制验证码，剪贴板照常按时清除。计数器型（HOTP）账号显示**（点击取码）**，点它时生成新的验证码。
+最近复制过验证码的 10 个账号（无论从菜单、快捷键、搜索面板、主窗口还是管理页复制）只以 id 记在本机的设置文件里，从不同步。
 
-列出所有账号和验证码，点一行即复制。**编辑**可以修改名称、备注、标签、置顶、排序位置、验证码参数、本条快捷键，也能查看二维码和修改历史。**选择**可以一次给多个账号加标签、导出或移入回收站。
+验证码到期、账号变化以及鼠标移到图标上时，菜单里的验证码都会更新。设置了主口令时，输入口令之前菜单只提供**解锁…**：
+在 macOS 上由系统自带的口令对话框询问（不启动网页，因此不会运行 WebKit 或自动填充的辅助进程）；在 Windows 和 Linux 上打开一个小窗口输入主口令，数据打开后窗口自动关闭。在此之前按下快捷键也会这样询问。数据无法打开时，菜单会说明原因，并提供**重试**或打开主窗口。
+
+主窗口和搜索面板关闭 30 秒后会被彻底关掉，所以 OTPKeep 在菜单栏待命时不运行任何网页。
+
+### 快捷键
+
+| 位置 | 按键 | 作用 |
+|---|---|---|
+| 任何地方（macOS 默认） | `⌃⌥⌘1` … `⌃⌥⌘0` | 复制列表第 1–10 个账号的验证码 |
+| 任何地方（macOS 默认） | `⌃⌥⌘Space` | 打开搜索面板 |
+| 任何地方 | 自定 | 复制某个账号的验证码（逐个设置） |
+| 搜索面板 | `回车` / `⇧回车` | 复制 / 输入验证码 |
+| 搜索面板 | `⌘E`、`Esc` | 在主窗口编辑；先清空再关闭 |
+
+Windows 和 Linux 上全局快捷键默认关闭，可在设置中选择。只带 `Shift` 的组合会被拒绝，避免拦截正常打字。
 
 ### 搜索面板与自动输入
 
 在任何地方按 `⌃⌥⌘Space`（macOS 默认，可在设置中更改或关闭），输入名称、账号、备注或标签的一部分：
 
 - `回车`：复制验证码并关闭。
-- `⇧回车`：把验证码输入到刚才所在的输入框。macOS 上需要**辅助功能**授权（系统设置 → 隐私与安全性 → 辅助功能）；没有授权或在 Wayland 下会改为复制，并给出提示。
+- `⇧回车`：把验证码输入到刚才所在的输入框。macOS 上需要**辅助功能**授权（系统设置 → 隐私与安全性 → 辅助功能）；没有授权、在 Wayland 下、主窗口开着时（macOS）或按键没能发出时，会改为复制，并给出提示。
 - `⌘E`（`Ctrl+E`）：在主窗口中打开这个账号；`Esc`：先清空搜索词，再按一次关闭。
+
+### 主窗口
+
+列出所有账号和验证码，点一行即复制。**编辑**可以修改名称、备注、标签、置顶、排序位置、验证码参数、本条快捷键，也能查看二维码和修改历史。**选择**可以一次给多个账号加标签、导出或移入回收站。
 
 ### 计数器型（HOTP）账号
 
@@ -241,23 +333,9 @@ OTPKeep 启动后常驻在**菜单栏**（macOS）或**系统托盘**（Windows�
 
 ### 设置
 
-语言（跟随系统 / English / 中文）、主题、复制后清除剪贴板（默认 30 秒）、前 10 个账号的快捷键、搜索面板快捷键、菜单栏面板透明度、自动输入授权。
+语言（跟随系统 / English / 中文）、主题、复制后清除剪贴板（默认 30 秒）、前 10 个账号的快捷键、搜索面板快捷键、菜单栏菜单中的账号数、是否允许脚本从运行中的 OTPKeep 获取验证码、自动输入授权。
 
-## 快捷键
-
-| 位置 | 按键 | 作用 |
-|---|---|---|
-| 任何地方（macOS 默认） | `⌃⌥⌘1` … `⌃⌥⌘0` | 复制列表第 1–10 个账号的验证码 |
-| 任何地方（macOS 默认） | `⌃⌥⌘Space` | 打开搜索面板 |
-| 任何地方 | 自定 | 复制某个账号的验证码（逐个设置） |
-| 快速面板 | `↑` `↓` `回车` | 选择并复制 |
-| 快速面板 | `⌘1` … `⌘9`、`⌘0` | 复制第 1–10 行 |
-| 搜索面板 | `回车` / `⇧回车` | 复制 / 输入验证码 |
-| 搜索面板 | `⌘E`、`Esc` | 在主窗口编辑；先清空再关闭 |
-
-Windows 和 Linux 上全局快捷键默认关闭，可在设置中选择。只带 `Shift` 的组合会被拒绝，避免拦截正常打字。
-
-## 命令行
+## 脚本与命令行
 
 ```console
 $ otpkeep code github          # 输出唯一匹配 "github" 的账号的验证码
@@ -270,6 +348,23 @@ $ otpkeep sync join            # 与打开了同步窗口的设备同步
 运行 `otpkeep help` 查看全部命令（`init`、`import`、`export`、`sync wait|join`、`pair open|join`、`devices`、`group leave`、`rename` 等）。
 所有读写数据的命令都支持 `--json`（机器可读输出）和 `--password-stdin`（从标准输入读主口令）。
 
+App 运行时 `otpkeep code` 同样可用（macOS 和 Linux）：由 App 通过私有的本地套接字回答，命令行不必等待数据。
+由 设置 → **允许脚本从运行中的 OTPKeep 获取验证码** 控制：没有主口令时默认开启；有主口令时默认关闭（需手动开启），
+因为开启后脚本可以不输口令取得验证码。脚本取得的验证码不算作最近使用。
+
+```sh
+otpkeep code github --json | jq -r .data.code
+```
+
+```python
+import json, subprocess
+reply = json.loads(subprocess.run(["otpkeep", "code", "github", "--json"], capture_output=True, text=True).stdout)
+print(reply["data"]["code"] if reply["ok"] else reply["error"]["code"])
+```
+
+匹配规则、全部退出码和错误代码、Node.js、fish、快捷指令 / Raycast / Alfred 示例、套接字协议和安全说明见
+**[在脚本中使用 OTPKeep](docs/scripting.zh-CN.md)**。
+
 ## 数据安全与隐私
 
 | | |
@@ -278,14 +373,30 @@ $ otpkeep sync join            # 与打开了同步窗口的设备同步
 | **本地加密** | XChaCha20-Poly1305；密钥存放在系统钥匙串（macOS 钥匙串、Windows 凭据管理器、Linux Secret Service），或用 Argon2id 从可选的主口令派生 |
 | **备份** | 用单独的备份口令加密 |
 | **同步** | 设备身份为 Ed25519，通道为 Noise XX（X25519、ChaCha20-Poly1305、BLAKE2s）；一次性码用 SPAKE2 校验，录下的会话无法离线暴力破解 |
-| **剪贴板** | 复制的验证码不进入剪贴板历史类应用，30 秒（可调）后清除，且只在剪贴板里仍是这个码时才清除 |
+| **剪贴板** | 复制的验证码不进入剪贴板历史类应用，最后一次复制 30 秒（可调）后或退出 OTPKeep 时清除，且只在剪贴板里仍是这个码时才清除 |
 | **网络** | 除了你打开窗口期间的局域网 / 蓝牙同步，以及 `127.0.0.1` 上的管理页，不联网 |
+| **脚本** | 设置中允许时，数据目录里有一个只有你能访问的本地套接字（[详情](docs/scripting.zh-CN.md#安全)） |
 | **遥测** | 没有 |
+| **日志** | 只记警告和错误，从不记密钥、验证码或账号名称，写在 `otpkeep.log`（最多 1 MB，另留一个旧文件）：macOS 在 `~/Library/Logs/io.github.weikxs.otpkeep`，其他系统在本地应用数据目录下 `io.github.weikxs.otpkeep` 的 `logs` 文件夹 |
 
 OTPKeep 有意**不提供应用锁**：主口令（可选）每次启动输入一次，离开电脑时由系统锁屏保护。
 程序不会读取自己之外的任何密钥、口令或钥匙串条目。
 
-菜单栏面板使用透明窗口，需要 macOS 私有接口，因此 OTPKeep 采用直接分发，不上架 Mac App Store。
+## 常见问题与故障排查
+
+**为什么有的账号显示"生成"而不是验证码？** 它是计数器型（HOTP）账号，见[上文](#计数器型hotp账号)。
+
+**能通过 iCloud、Dropbox 或服务器同步吗？** 不能。只在你打开窗口时、在彼此靠近的设备之间直接同步。想在别处留一份，请用加密备份。
+
+**有 Mac App Store 版本吗？** 没有。OTPKeep 通过发布页、安装脚本和 Homebrew 分发。
+
+**为什么 Linux 安装包叫 `otp-keep`？** 打包工具是从 App 名称自动生成这个名字的；程序本身叫 `otpkeep-app`，命令行工具叫 `otpkeep`。
+
+**自动输入没反应？** macOS 上请授予辅助功能权限；Wayland 下无法自动输入，会改为复制。
+
+**`otpkeep code` 报 `DISABLED` 或 `BUSY`？** App 正在运行但不允许脚本（在设置中开启），或者在 Windows 上运行，目前脚本还无法询问它。见[脚本的故障排查](docs/scripting.zh-CN.md#故障排查)。
+
+**macOS 提示无法打开 App？** 它没有 Apple 签名，见[安装包](#安装包)。
 
 ## 开发
 
@@ -300,7 +411,7 @@ cd apps/desktop-mobile && pnpm e2e      # 浏览器测试（Playwright）
 
 测试只写 `/tmp/otpkeep-test`，只用演示数据。详见 [CONTRIBUTING.md](CONTRIBUTING.md) 和[开发规范](docs/development/standards.md)。
 
-## 项目结构
+### 项目结构
 
 ```
 apps/
@@ -312,27 +423,15 @@ crates/
   keep-vault        加密保管库：条目、密钥、存储、锁、版本迁移
   keep-find         支持拼音与首字母的搜索
   keep-transfer     备份、Google Authenticator 转移码、二维码、GoldenPassport 文件
-  keep-platform     钥匙串、数据目录等平台服务
+  keep-platform     钥匙串、数据目录、脚本套接字等平台服务
   keep-sync         配对与同步：窗口、握手、成员、合并
   keep-link         通过局域网或蓝牙连接另一台设备
   keep-ble          低功耗蓝牙传输
   keep-gate         浏览器管理页服务
   keep-ffi          预留给 Swift / Kotlin 绑定
-docs/               开发规范与图片
+docs/               开发规范、脚本指南与图片
 fuzz/               解析器的模糊测试
 ```
-
-## 常见问题
-
-**为什么有的账号显示"生成"而不是验证码？** 它是计数器型（HOTP）账号，见[上文](#计数器型hotp账号)。
-
-**能通过 iCloud、Dropbox 或服务器同步吗？** 不能。只在你打开窗口时、在彼此靠近的设备之间直接同步。想在别处留一份，请用加密备份。
-
-**有 Mac App Store 版本吗？** 没有，原因见[数据安全与隐私](#数据安全与隐私)。
-
-**为什么 Linux 安装包叫 `otp-keep`？** 打包工具是从 App 名称自动生成这个名字的；程序本身叫 `otpkeep-app`，命令行工具叫 `otpkeep`。
-
-**自动输入没反应？** macOS 上请授予辅助功能权限；Wayland 下无法自动输入，会改为复制。
 
 ## 参与贡献
 

@@ -3,7 +3,9 @@ use std::io::Cursor;
 use image::{GrayImage, ImageFormat, Luma};
 use qrcode::{Color, QrCode};
 
-use super::{MAX_IMAGE_SIDE, QrEcc, QrError, decode_qr_image, decode_qr_luma, qr_svg};
+use super::{
+    MAX_IMAGE_SIDE, QrEcc, QrError, SCAN_SIDE, decode_qr_image, decode_qr_luma, qr_svg, scan_size,
+};
 
 const LINK: &str =
     "otpauth://totp/Example%20Cloud:alex?secret=JBSWY3DPEHPK3PXP&issuer=Example%20Cloud";
@@ -173,4 +175,49 @@ fn a_degenerate_frame_does_not_crash_the_detector() {
     let pixels = &data[1..=usize::try_from(width * height).unwrap()];
 
     let _ = decode_qr_luma(width, height, pixels);
+}
+
+#[test]
+fn a_large_picture_is_searched_at_a_reduced_size_first() {
+    assert_eq!(scan_size(SCAN_SIDE, 900), None);
+    assert_eq!(scan_size(4000, 3000), Some((SCAN_SIDE, 1200)));
+    assert_eq!(scan_size(3000, 4000), Some((1200, SCAN_SIDE)));
+    assert_eq!(scan_size(MAX_IMAGE_SIDE, 1), Some((SCAN_SIDE, 1)));
+}
+
+#[test]
+fn reads_a_code_from_a_picture_larger_than_the_reduced_size() {
+    // About 2200 pixels wide: read from the reduced copy.
+    let image = picture(&[LINK], 60);
+    assert!(image.width() > SCAN_SIDE);
+
+    let found = decode_qr_image(&png(&image)).unwrap();
+
+    assert_eq!(found.len(), 1);
+    assert_eq!(*found[0], LINK);
+}
+
+#[test]
+fn a_small_code_in_a_large_picture_is_found_in_the_full_picture() {
+    // Two pixels per module in a 4000-pixel-wide screenshot: too small to survive the reduction.
+    let code = picture(&[LINK], 2);
+    let mut canvas = GrayImage::from_pixel(4000, code.height(), Luma([255]));
+    image::imageops::replace(&mut canvas, &code, 0, 0);
+
+    let found = decode_qr_image(&png(&canvas)).unwrap();
+
+    assert_eq!(found.len(), 1);
+    assert_eq!(*found[0], LINK);
+}
+
+#[test]
+fn every_code_of_a_large_screenshot_is_read() {
+    let texts = [LINK, "otpauth://totp/b?secret=GEZDGNBVGY3TQOJQ"];
+    let image = picture(&texts, 30);
+    assert!(image.width() > SCAN_SIDE);
+
+    let found = decode_qr_image(&png(&image)).unwrap();
+
+    let found: Vec<&str> = found.iter().map(|t| t.as_str()).collect();
+    assert_eq!(found, texts);
 }

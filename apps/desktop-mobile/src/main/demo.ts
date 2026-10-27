@@ -77,7 +77,9 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
     clipboardClearS: 30,
     rowShortcuts: true,
     rowShortcutsDefault: true,
-    panelOpacity: 90,
+    menuAccounts: 30,
+    scripts: true,
+    scriptsDefault: true,
     searchShortcut: "control+alt+super+Space",
     searchShortcutDefault: "control+alt+super+Space",
     version: "0.1.0",
@@ -91,6 +93,25 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
   const change = (id: string, update: (a: DemoAccount) => DemoAccount) => {
     if (!accounts.some((a) => a.id === id)) throw new CommandFailure("NOT_FOUND");
     accounts = accounts.map((a) => (a.id === id ? update(a) : a));
+  };
+
+  const edit = async (id: string, names: { title?: string; note?: string }) => {
+    if (names.title !== undefined && names.title.trim() === "") throw new CommandFailure("INVALID", "TITLE_EMPTY");
+    const before = accounts.find((a) => a.id === id);
+    if (before) {
+      const old = history.get(id) ?? { title: [], note: [] };
+      history.set(id, {
+        title: names.title !== undefined ? [{ value: before.title, atMs: clock() }, ...old.title] : old.title,
+        note: names.note !== undefined ? [{ value: before.note, atMs: clock() }, ...old.note] : old.note,
+      });
+    }
+    change(id, (a) => ({ ...a, ...names }));
+  };
+  const cleanTags = (tags: string[]) => {
+    const clean = [...new Set(tags.map((t) => t.trim()).filter((t) => t !== ""))];
+    if (clean.some((t) => t.length > TAG_MAX)) throw new CommandFailure("INVALID", "TAG_TOO_LONG");
+    if (clean.length > TAGS_MAX) throw new CommandFailure("INVALID", "TOO_MANY_TAGS");
+    return clean;
   };
 
   const entry = (a: DemoAccount, now: number): Entry => {
@@ -193,23 +214,25 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
       if (!account) throw new CommandFailure("NOT_FOUND");
       return entry(account, clock());
     },
-    edit: async (id, edit) => {
-      if (edit.title !== undefined && edit.title.trim() === "") throw new CommandFailure("INVALID", "TITLE_EMPTY");
-      const before = accounts.find((a) => a.id === id);
-      if (before) {
-        const old = history.get(id) ?? { title: [], note: [] };
-        history.set(id, {
-          title: edit.title !== undefined ? [{ value: before.title, atMs: clock() }, ...old.title] : old.title,
-          note: edit.note !== undefined ? [{ value: before.note, atMs: clock() }, ...old.note] : old.note,
-        });
-      }
-      change(id, (a) => ({ ...a, ...edit }));
+    edit,
+    update: async (id, fields) => {
+      const { tags, pinned, issuer, account, ...names } = fields;
+      // Everything is checked before anything changes, as in the app.
+      if (names.title !== undefined && names.title.trim() === "") throw new CommandFailure("INVALID", "TITLE_EMPTY");
+      const clean = tags === undefined ? undefined : cleanTags(tags);
+      if (!accounts.some((a) => a.id === id)) throw new CommandFailure("NOT_FOUND");
+      if (names.title !== undefined || names.note !== undefined) await edit(id, names);
+      change(id, (a) => ({
+        ...a,
+        ...(issuer === undefined ? {} : { issuer }),
+        ...(account === undefined ? {} : { account }),
+        ...(clean === undefined ? {} : { tags: clean }),
+        ...(pinned === undefined ? {} : { pinned }),
+      }));
     },
     setPinned: async (id, pinned) => change(id, (a) => ({ ...a, pinned })),
     setTags: async (id, tags) => {
-      const clean = [...new Set(tags.map((t) => t.trim()).filter((t) => t !== ""))];
-      if (clean.some((t) => t.length > TAG_MAX)) throw new CommandFailure("INVALID", "TAG_TOO_LONG");
-      if (clean.length > TAGS_MAX) throw new CommandFailure("INVALID", "TOO_MANY_TAGS");
+      const clean = cleanTags(tags);
       change(id, (a) => ({ ...a, tags: clean }));
     },
     move: async (id, to) => {
@@ -259,6 +282,8 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
       if (seconds !== undefined && seconds !== 0 && (seconds < 10 || seconds > 120)) {
         throw new CommandFailure("INVALID", "CLIPBOARD");
       }
+      const count = patch.menuAccounts;
+      if (count !== undefined && (count < 10 || count > 50)) throw new CommandFailure("INVALID", "MENU_ACCOUNTS");
       settings = { ...settings, ...patch };
       return settings;
     },
@@ -319,6 +344,9 @@ export function demoMain({ clock = Date.now, empty = false, needsPassword = fals
       if (password === "demo") locked = false;
       return state("");
     },
+    // The demo data always opens.
+    retryOpen: async () => {},
+    restorePrevious: async () => {},
     stageText: async (text) => {
       const lines = text.split("\n").map((l) => l.trim()).filter((l) => l !== "");
       const skipped: ImportView["skipped"] = [];

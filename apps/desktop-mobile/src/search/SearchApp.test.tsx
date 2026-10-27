@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/preact";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 import { strings } from "../panel/i18n";
 import type { SearchApi } from "./api";
@@ -35,6 +35,23 @@ function press(key: string, extra: Partial<KeyboardEventInit> = {}) {
 }
 
 describe("typing a code with ⇧Enter", () => {
+  it("says so when nothing could be typed and the code was copied instead", async () => {
+    const { api } = demoSearch();
+    let failed: (result: { typed: boolean; fallback?: "FAILED"; clearsInS: number }) => void = () => {};
+    show({
+      ...api,
+      onTypingFailed: (listener) => {
+        failed = listener;
+        return () => {};
+      },
+    });
+    await screen.findAllByTestId("entry");
+
+    act(() => failed({ typed: false, fallback: "FAILED", clearsInS: 30 }));
+
+    expect((await screen.findByRole("status")).textContent).toBe("无法输入验证码，已改为复制（30 秒后清除）");
+  });
+
   it("waits for Shift to be let go, then types and leaves hiding to the core", async () => {
     const { api } = demoSearch();
     await api.askTypingPermission();

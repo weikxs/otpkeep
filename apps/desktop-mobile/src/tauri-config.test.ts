@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 interface TauriConfig {
-  app: { security: { csp: string; freezePrototype: boolean } };
+  app: { security: { csp: string; freezePrototype: boolean }; macOSPrivateApi?: boolean };
 }
 
 const config = JSON.parse(
@@ -31,7 +31,9 @@ interface WindowConfig {
   label: string;
   url?: string;
   visible?: boolean;
+  create?: boolean;
   decorations?: boolean;
+  incognito?: boolean;
 }
 
 function windowsFor(os: string): WindowConfig[] {
@@ -39,19 +41,23 @@ function windowsFor(os: string): WindowConfig[] {
   return (JSON.parse(raw) as { app: { windows: WindowConfig[] } }).app.windows;
 }
 
+describe("macOS private API", () => {
+  it("stays off: no window is transparent since the menu is drawn by the system", () => {
+    expect(config.app.macOSPrivateApi ?? false).toBe(false);
+  });
+});
+
 describe("desktop window settings", () => {
   const macos = windowsFor("macos");
 
-  it("starts in the menu bar: every window hidden until asked for", () => {
-    expect(macos.map((w) => w.label)).toEqual(["main", "panel", "search"]);
+  it("starts in the menu bar: only the search panel is configured, hidden, and the app makes it when asked", () => {
+    expect(macos.map((w) => w.label)).toEqual(["search"]);
     expect(macos.every((w) => w.visible === false)).toBe(true);
+    expect(macos.every((w) => w.create === false)).toBe(true);
   });
 
-  it("shows the panel without a title bar", () => {
-    const panel = macos.find((w) => w.label === "panel");
-
-    expect(panel?.url).toBe("panel.html");
-    expect(panel?.decorations).toBe(false);
+  it("keeps no website data, so WebKit's networking helper ends with the last window", () => {
+    expect(macos.every((w) => w.incognito === true)).toBe(true);
   });
 
   it("shows the search panel without a title bar", () => {

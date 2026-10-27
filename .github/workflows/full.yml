@@ -1,0 +1,127 @@
+name: Full
+
+# The runs a pull request leaves out, on demand (Actions >
+# Full > Run workflow): clippy and the tests on macOS and Windows, the iOS and
+# Android builds, the installer size, and fuzzing. Nothing requires these jobs
+# to merge.
+on:
+  # The weekly run is off for now; only the Run workflow button starts it.
+  # To turn it back on, uncomment these two lines.
+  # schedule:
+  #   - cron: "41 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  UI_DIR: apps/desktop-mobile
+
+jobs:
+  rust:
+    name: rust (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test
+        shell: bash
+        run: |
+          # Tests write only under /tmp on Unix (docs/development/standards.md, section 2).
+          if [ "$RUNNER_OS" != "Windows" ]; then
+            export TMPDIR=/tmp/otpkeep-test/
+            mkdir -p "$TMPDIR"
+          fi
+          cargo test --workspace --no-fail-fast
+
+  ios:
+    name: ios (simulator build)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: rustup target add aarch64-apple-ios-sim
+      - name: Build
+        working-directory: ${{ env.UI_DIR }}
+        run: pnpm tauri ios build --debug --target aarch64-sim --ci
+
+  android:
+    name: android (debug build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NDK_VERSION: 28.2.13676358
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install the NDK
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+      - run: rustup target add aarch64-linux-android
+      - name: Build
+        working-directory: ${{ env.UI_DIR }}
+        run: pnpm tauri android build --debug --apk --target aarch64 --ci
+
+  size:
+    name: installer size (at most 20 MB)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: Build release bundles
+        working-directory: ${{ env.UI_DIR }}
+        run: pnpm tauri build --bundles deb --ci
+      - name: Check size
+        run: |
+          limit=$((20 * 1024 * 1024))
+          for file in target/release/bundle/deb/*.deb; do
+            size=$(stat -c %s "$file")
+            echo "$file: $size bytes"
+            if [ "$size" -gt "$limit" ]; then
+              echo "::error::$file is larger than 20 MB"
+              exit 1
+            fi
+          done
+
+  fuzz:
+    name: fuzz (10 minutes per target)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - name: Find fuzz targets
+        id: targets
+        run: |
+          if [ -d fuzz ]; then
+            echo "list=$(find fuzz/fuzz_targets -name '*.rs' -exec basename {} .rs \; | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: dtolnay/rust-toolchain@nightly
+        if: steps.targets.outputs.list != ''
+      - uses: taiki-e/install-action@v2
+        if: steps.targets.outputs.list != ''
+        with:
+          tool: cargo-fuzz
+      - name: Fuzz
+        if: steps.targets.outputs.list != ''
+        run: |
+          for target in ${{ steps.targets.outputs.list }}; do
+            cargo +nightly fuzz run "$target" -- -max_total_time=600
+          done
+      - name: No targets yet
+        if: steps.targets.outputs.list == ''
+        run: echo "No fuzz targets yet; parsers add them in M1."

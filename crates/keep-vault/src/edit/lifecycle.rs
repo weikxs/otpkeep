@@ -2,7 +2,7 @@
 
 use keep_passcode::{CodeKind, CodeSpec, SecretKey};
 
-use super::{EditError, next_stamp, update_entry};
+use super::{EditError, next_stamp, update_entry, update_entry_mut};
 use crate::model::{Entry, EntryId, Extra, Field, Hlc, KeyMaterial, Tombstone, VaultDoc};
 
 /// Entries stay in the trash for 30 days (PRD FR-4.3).
@@ -17,15 +17,27 @@ const OLD_KEY_COPY_CONTEXT: &str = "otpkeep old key copy v1";
 ///
 /// Returns [`EditError::NotFound`] for an unknown entry.
 pub fn move_to_trash(doc: &VaultDoc, id: EntryId, now_ms: u64) -> Result<VaultDoc, EditError> {
-    update_entry(doc, id, now_ms, |entry, stamp| {
-        Ok(Entry {
-            trashed_at: Field {
-                value: Some(stamp),
-                stamp,
-            },
-            ..entry.clone()
-        })
-    })
+    update_entry(doc, id, now_ms, |entry, stamp| Ok(trashed(entry, stamp)))
+}
+
+/// [`move_to_trash`] on a copy the caller owns, for many entries in a row. On failure `doc` is unchanged.
+///
+/// # Errors
+///
+/// Returns [`EditError::NotFound`] for an unknown entry.
+pub fn move_to_trash_mut(doc: &mut VaultDoc, id: EntryId, now_ms: u64) -> Result<(), EditError> {
+    update_entry_mut(doc, id, now_ms, |entry, stamp| Ok(trashed(entry, stamp)))
+}
+
+/// `entry` moved to the trash at `stamp`.
+fn trashed(entry: &Entry, stamp: Hlc) -> Entry {
+    Entry {
+        trashed_at: Field {
+            value: Some(stamp),
+            stamp,
+        },
+        ..entry.clone()
+    }
 }
 
 /// Takes an entry out of the trash.

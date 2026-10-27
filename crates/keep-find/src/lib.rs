@@ -12,6 +12,7 @@ mod matcher;
 mod syllable;
 
 use matcher::{Prepared, best_match, merge};
+use syllable::Readings;
 
 /// Score added for an entry used in the last 7 days.
 const RECENT_BONUS: u32 = 100;
@@ -84,6 +85,7 @@ impl FindIndex {
     /// Prepares `entries`; results with equal scores keep this order.
     #[must_use]
     pub fn build(entries: &[&Entry]) -> Self {
+        let mut readings = Readings::default();
         let records = entries
             .iter()
             .map(|e| Record {
@@ -91,11 +93,23 @@ impl FindIndex {
                 pinned: e.pinned.value,
                 note: e.note.value.clone(),
                 fields: vec![
-                    (FieldKind::Title, Prepared::new(&e.title.value)),
-                    (FieldKind::Issuer, Prepared::new(&e.issuer.value)),
-                    (FieldKind::Account, Prepared::new(&e.account.value)),
-                    (FieldKind::Tags, Prepared::new(&e.tags.value.join(" "))),
-                    (FieldKind::Note, Prepared::new(&e.note.value)),
+                    (
+                        FieldKind::Title,
+                        Prepared::new(&e.title.value, &mut readings),
+                    ),
+                    (
+                        FieldKind::Issuer,
+                        Prepared::new(&e.issuer.value, &mut readings),
+                    ),
+                    (
+                        FieldKind::Account,
+                        Prepared::new(&e.account.value, &mut readings),
+                    ),
+                    (
+                        FieldKind::Tags,
+                        Prepared::new(&e.tags.value.join(" "), &mut readings),
+                    ),
+                    (FieldKind::Note, Prepared::new(&e.note.value, &mut readings)),
                 ],
             })
             .collect();

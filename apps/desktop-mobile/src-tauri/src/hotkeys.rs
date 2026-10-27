@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Manager, Runtime, Wry};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
 
 use crate::commands::{AppCore, copy_entry};
@@ -64,10 +64,34 @@ impl Hotkeys {
         self.state().map.clone()
     }
 
+    /// The shortcuts the system accepted, in canonical form.
+    #[must_use]
+    pub fn active(&self) -> std::collections::HashSet<String> {
+        self.state()
+            .registered
+            .values()
+            .map(|(text, _)| text.clone())
+            .collect()
+    }
+
     /// This device's settings.
     #[must_use]
     pub fn settings(&self) -> Settings {
         self.state().settings.clone()
+    }
+
+    /// Remembers in this device's settings that the code of `id` was just used, dropping entries for which
+    /// `exists` does not hold. A failure to save only costs the order of the menu, so it is logged.
+    pub fn record_use(&self, id: &str, exists: impl Fn(&str) -> bool) {
+        let mut state = self.state();
+        let next = state.settings.with_recent(id, exists);
+        if next.recent_entries == state.settings.recent_entries {
+            return;
+        }
+        if self.file.save(&next).is_err() {
+            tracing::warn!("the recently used accounts could not be saved");
+        }
+        state.settings = next;
     }
 }
 
@@ -86,10 +110,10 @@ fn valid_only(settings: &Settings) -> std::collections::BTreeMap<String, String>
 
 /// The plugin, with one handler for every shortcut.
 #[must_use]
-pub fn plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
+pub fn plugin() -> tauri::plugin::TauriPlugin<Wry> {
     tauri_plugin_global_shortcut::Builder::new()
         .with_handler(
-            |app: &AppHandle<R>, _shortcut: &Shortcut, event: ShortcutEvent| {
+            |app: &AppHandle, _shortcut: &Shortcut, event: ShortcutEvent| {
                 if event.state == ShortcutState::Pressed {
                     pressed(app, event.id);
                 }
@@ -336,21 +360,25 @@ pub fn taken_detail<R: Runtime>(app: &AppHandle<R>, holder: &Holder) -> String {
     }
 }
 
-fn pressed<R: Runtime>(app: &AppHandle<R>, id: u32) {
+fn pressed(app: &AppHandle, id: u32) {
     let Some(hotkeys) = app.try_state::<Hotkeys>() else {
         return;
     };
     let Some((_, target)) = hotkeys.state().registered.get(&id).cloned() else {
         return;
     };
-    if target == Target::Search {
-        crate::desktop::show_search(app);
-        return;
-    }
-    let clear_after = hotkeys.settings().clear_after();
     let Some(core) = app.try_state::<AppCore>() else {
         return;
     };
+    // Before the master password a small window asks for it, rather than the shortcut doing nothing.
+    if core.get().unlock_target().is_some() {
+        crate::unlock::show(app);
+        return;
+    }
+    if target == Target::Search {
+        crate::panels::show_search(app);
+        return;
+    }
     let entry = match target {
         Target::Entry(entry) => Some(entry),
         Target::Search => None,
@@ -361,10 +389,33 @@ fn pressed<R: Runtime>(app: &AppHandle<R>, id: u32) {
             .and_then(|entries| entries.into_iter().nth(index))
             .map(|e| e.id),
     };
-    // A shortcut for an entry that no longer exists, or before the master password, does nothing.
+    // A shortcut for an entry that no longer exists does nothing.
     if let Some(entry) = entry
-        && copy_entry(&core, &entry, clear_after).is_err()
+        && copy_entry(&core, &hotkeys, &entry).is_err()
     {
         tracing::info!("a global shortcut found no code to copy");
+    }
+    // The entry is now the most recently used one.
+    crate::tray::refresh(app);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Hotkeys;
+    use crate::settings::SettingsFile;
+
+    #[test]
+    fn a_used_entry_is_remembered_on_this_device_across_starts() {
+        let dir = tempfile::Builder::new()
+            .prefix("app-hotkeys-")
+            .tempdir()
+            .unwrap();
+        let hotkeys = Hotkeys::load(SettingsFile::new(Some(dir.path())));
+
+        hotkeys.record_use("e1", |_| true);
+        hotkeys.record_use("e2", |id| id != "e1");
+
+        let again = Hotkeys::load(SettingsFile::new(Some(dir.path())));
+        assert_eq!(again.settings().recent_entries, ["e2"]);
     }
 }

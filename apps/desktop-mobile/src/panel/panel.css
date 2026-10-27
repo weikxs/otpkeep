@@ -1,39 +1,14 @@
-/* The menu bar quick panel (design/12 §2). Colours come from ../shared/tokens.css. */
+/* The account list, password prompt and messages shared by the search panel and the password window
+   (design/12 §2). Colours come from ../shared/tokens.css. */
 html,
 body {
   margin: 0;
   height: 100%;
-  /* The window is transparent: the system's frosted glass shows through the panel (design/12 §2). */
-  background: transparent;
+  background: var(--paper);
   color: var(--text);
   overflow: hidden;
   -webkit-user-select: none;
   user-select: none;
-}
-
-/* Set from the settings page (inline on the root element): 100% is solid, 70% the most see-through. */
-:root {
-  --panel-opacity: 90%;
-}
-
-#panel {
-  height: 100%;
-}
-
-/* Compact, so about ten accounts fit without scrolling. */
-.panel {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  box-sizing: border-box;
-  padding: 8px;
-  gap: 8px;
-  font-size: 13px;
-  border-radius: 12px;
-  overflow: hidden;
-  background: var(--paper);
-  background: color-mix(in srgb, var(--paper) var(--panel-opacity), transparent);
 }
 
 button {
@@ -58,77 +33,22 @@ button {
   color: var(--muted);
 }
 
-.icon-button {
-  display: inline-grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
-}
-
-.icon-button:hover {
-  background: var(--hover);
-  color: var(--text);
-}
-
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
-}
-
-/* Search */
-.panel-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 6px 0 10px;
-  height: 32px;
-  flex: none;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--card);
-  background: color-mix(in srgb, var(--card) var(--panel-opacity), transparent);
-  color: var(--muted);
-}
-
-.panel-search:focus-within {
-  border-color: var(--accent);
-}
-
-.panel-search input {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  outline: none;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
-}
-
-.panel-search .icon {
-  width: 14px;
-  height: 14px;
-}
-
-.panel-search input::-webkit-search-cancel-button {
-  display: none;
 }
 
 /* List */
 .entries {
   flex: 1;
   margin: 0;
-  padding: 3px;
+  /* Stand-ins for the rows not drawn (useListWindow) inside the list's own padding. */
+  padding: calc(3px + var(--list-before, 0px)) 3px calc(3px + var(--list-after, 0px));
   list-style: none;
   overflow-y: auto;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--card);
-  background: color-mix(in srgb, var(--card) var(--panel-opacity), transparent);
 }
 
 .group-title {
@@ -337,57 +257,3 @@ button {
   color: var(--amber);
 }
 
-/* Footer */
-.panel-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex: none;
-  gap: 8px;
-  height: 24px;
-  padding: 0 0 0 4px;
-}
-
-.panel-footer .icon-button {
-  width: 24px;
-  height: 24px;
-}
-
-.panel-footer .icon {
-  width: 14px;
-  height: 14px;
-}
-
-.status-line {
-  font-size: 11px;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.footer-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.footer-actions .language-select {
-  height: 22px;
-  margin-right: 4px;
-  font-size: 11px;
-}
-
-.toast {
-  position: absolute;
-  left: 50%;
-  bottom: 8px;
-  transform: translateX(-50%);
-  padding: 7px 12px;
-  border-radius: 9px;
-  background: var(--toast);
-  color: var(--toast-text);
-  font-size: 12px;
-  white-space: nowrap;
-  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
-}

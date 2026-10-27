@@ -6,32 +6,44 @@
     reason = "the signatures Tauri commands take"
 )]
 
+use std::time::Duration;
+
 use keep_transfer::import::Choice;
 use percent_encoding::percent_decode_str;
 use tauri::ipc::{InvokeBody, Request};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use zeroize::Zeroizing;
 
-use crate::commands::{AppCore, CommandError};
-use crate::core::{ImportView, ManualForm};
+use crate::commands::{AppCore, CommandError, blocking};
+use crate::core::{ImportView, ManualForm, read_bytes};
 
 /// Files larger than this are no import source OTPKeep reads.
 const MAX_IMPORT_BYTES: usize = 32 * 1024 * 1024;
+/// How long a staged import waits (see [`crate::staging::STAGED_TTL_MS`]).
+const STAGED_TTL: Duration = Duration::from_millis(crate::staging::STAGED_TTL_MS);
+/// Past the deadline, so the import counts as too old when looked at.
+const EXPIRY_MARGIN: Duration = Duration::from_secs(1);
 /// The backup password travels percent-encoded in this header beside the file's raw bytes.
 const PASSWORD_HEADER: &str = "x-backup-password";
 
 type Result<T> = std::result::Result<T, CommandError>;
 
 /// Pasted or typed text: a link, several links, or transfer codes.
-#[tauri::command]
-pub fn stage_text(text: String, vault: State<'_, AppCore>) -> Result<ImportView> {
+#[tauri::command(async)]
+pub fn stage_text(text: String, vault: State<'_, AppCore>, app: AppHandle) -> Result<ImportView> {
     let text = Zeroizing::new(text);
-    Ok(vault.get().stage_text(&text)?)
+    let view = vault.get().stage_text(&text)?;
+    expire_later(app);
+    Ok(view)
 }
 
 /// A file or picture, sent as raw bytes; a backup's password in the `x-backup-password` header.
 #[tauri::command]
-pub fn stage_file(request: Request<'_>, vault: State<'_, AppCore>) -> Result<ImportView> {
+pub async fn stage_file(
+    request: Request<'_>,
+    vault: State<'_, AppCore>,
+    app: AppHandle,
+) -> Result<ImportView> {
     let InvokeBody::Raw(bytes) = request.body() else {
         return Err(CommandError::code("BAD_REQUEST"));
     };
@@ -45,15 +57,37 @@ pub fn stage_file(request: Request<'_>, vault: State<'_, AppCore>) -> Result<Imp
         .map(|encoded| {
             Zeroizing::new(percent_decode_str(encoded).decode_utf8_lossy().into_owned())
         });
-    Ok(vault
-        .get()
-        .stage_bytes(bytes, password.as_deref().map(String::as_str))?)
+    // Decoding a picture or deriving a backup's key takes a moment: it happens on a blocking thread, without
+    // holding the core. The copy of the bytes (a picture may show secrets) is wiped when done.
+    let bytes = Zeroizing::new(bytes.clone());
+    let source =
+        blocking(move || read_bytes(&bytes, password.as_deref().map(String::as_str))).await??;
+    let view = vault.get().stage_source(source)?;
+    expire_later(app);
+    Ok(view)
 }
 
 /// One account typed into the form.
-#[tauri::command]
-pub fn stage_manual(form: ManualForm, vault: State<'_, AppCore>) -> Result<ImportView> {
-    Ok(vault.get().stage_manual(&form)?)
+#[tauri::command(async)]
+pub fn stage_manual(
+    form: ManualForm,
+    vault: State<'_, AppCore>,
+    app: AppHandle,
+) -> Result<ImportView> {
+    let view = vault.get().stage_manual(&form)?;
+    expire_later(app);
+    Ok(view)
+}
+
+/// Drops a staged import that is still waiting once it is too old, so its secrets do not stay in memory until
+/// the next import; one sleeping task per import, nothing that ticks.
+fn expire_later(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(STAGED_TTL + EXPIRY_MARGIN).await;
+        if let Some(vault) = app.try_state::<AppCore>() {
+            vault.get().upkeep();
+        }
+    });
 }
 
 /// A staged import as it is now.
@@ -63,7 +97,7 @@ pub fn staged_view(token: &str, vault: State<'_, AppCore>) -> Result<ImportView>
 }
 
 /// Adds the chosen rows; returns how many were added.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn commit_import(
     token: &str,
     fresh: Vec<bool>,

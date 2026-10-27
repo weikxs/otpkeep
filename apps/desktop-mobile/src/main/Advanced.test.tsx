@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
+import { CommandFailure } from "./api";
 import { demoMain } from "./demo";
 import { mainStrings } from "./i18n";
 import { MainApp } from "./MainApp";
@@ -18,14 +19,23 @@ async function openAdvanced(title: string, api = demoMain({ clock: () => STEADY 
 }
 
 describe("the editor's advanced part", () => {
+  it("says so when the entry's code settings cannot be read", async () => {
+    const api = demoMain({ clock: () => STEADY });
+    vi.spyOn(api, "keyInfo").mockRejectedValue(new CommandFailure("NOT_FOUND"));
+
+    const { editor } = await openAdvanced("GitHub", api);
+
+    expect(await editor.findByText("这个账号已不存在")).toBeTruthy();
+  });
+
   it("renames the service and account with the rest of the form", async () => {
     const { api, editor } = await openAdvanced("GitHub");
-    const rename = vi.spyOn(api, "rename");
+    const update = vi.spyOn(api, "update");
 
     fireEvent.input(editor.getByLabelText("服务商"), { target: { value: "GitHub Enterprise" } });
     fireEvent.click(editor.getByText("保存"));
 
-    await waitFor(() => expect(rename).toHaveBeenCalledWith("a1", { issuer: "GitHub Enterprise" }));
+    await waitFor(() => expect(update).toHaveBeenCalledWith("a1", { issuer: "GitHub Enterprise" }));
   });
 
   it("sets the entry's own shortcut and names a default it collides with", async () => {
@@ -39,6 +49,25 @@ describe("the editor's advanced part", () => {
     fireEvent.click(editor.getByText("设置"));
     fireEvent.keyDown(screen.getByTestId("recorder"), { code: "KeyG", ctrlKey: true, altKey: true, metaKey: true });
     expect(await screen.findByText("快捷键已设置")).toBeTruthy();
+  });
+
+  it("says when the system did not accept the entry's own shortcut", async () => {
+    const demo = demoMain({ clock: () => STEADY });
+    const refused = {
+      ...demo,
+      state: async (query: string) => {
+        const state = await demo.state(query);
+        const entries = state.entries.map((e, i) => {
+          if (i !== 0) return e;
+          const { shortcut: _active, ...rest } = e;
+          return { ...rest, ownShortcut: "control+alt+super+KeyG" };
+        });
+        return { ...state, entries };
+      },
+    };
+    const { editor } = await openAdvanced("GitHub", refused);
+
+    expect(editor.getByText("未生效：系统没有接受这个组合，可能被其他应用占用")).toBeTruthy();
   });
 
   it("shows the code settings and previews a change before saving it", async () => {

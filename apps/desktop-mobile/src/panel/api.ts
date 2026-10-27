@@ -1,6 +1,6 @@
 /**
- * What the quick panel asks of the core. The panel never receives secrets: only display fields and the
- * current and next codes (design/12 §6).
+ * What the search panel and the password window ask of the core. They never receive secrets: only display
+ * fields and the current and next codes (design/12 §6).
  */
 
 export type EntryKind = "totp" | "hotp" | "steam";
@@ -55,6 +55,8 @@ export interface PanelState {
   inGroup: boolean;
   /** A newer OTPKeep uses the data, so nothing may be changed. */
   readOnly: boolean;
+  /** The vault file is damaged and its previous version can be put back (main window). */
+  canRestore?: boolean;
 }
 
 export interface CopyResult {
@@ -67,10 +69,10 @@ export interface PanelApi {
   copy(id: string): Promise<CopyResult>;
   nextHotp(id: string): Promise<PanelEntry>;
   unlock(password: string): Promise<PanelState>;
+  /** Tries again to open data that could not be opened; every window is told when it opened. */
+  retryOpen(): Promise<void>;
   openMain(page?: "add" | "import" | "settings"): Promise<void>;
-  /** Opens the management page in the default browser. */
-  openGate(): Promise<void>;
-  /** Calls `listener` when the data changed elsewhere or the panel was shown; returns how to stop. */
+  /** Calls `listener` when the data changed elsewhere; returns how to stop. */
   onChange(listener: () => void): () => void;
   hide(): Promise<void>;
 }
@@ -84,14 +86,12 @@ export async function tauriApi(): Promise<PanelApi> {
     copy: (id) => invoke<CopyResult>("copy_code", { id }),
     nextHotp: (id) => invoke<PanelEntry>("next_hotp", { id }),
     unlock: (password) => invoke<PanelState>("unlock", { password }),
+    retryOpen: () => invoke<void>("retry_open"),
     openMain: (page) => invoke<void>("open_main", { page: page ?? null }),
     hide: () => invoke<void>("hide_panel"),
-    openGate: () => invoke<void>("open_gate"),
     onChange: (listener) => {
-      const stops = ["vault-changed", "panel-shown"].map((name) => listen(name, () => listener()));
-      return () => {
-        for (const stop of stops) void stop.then((unlisten) => unlisten());
-      };
+      const stop = listen("vault-changed", () => listener());
+      return () => void stop.then((unlisten) => unlisten());
     },
   };
 }

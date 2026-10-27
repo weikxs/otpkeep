@@ -458,3 +458,6 @@ fn a_terminal_prompts_for_the_master_password() {
 mod transfer;
 
 mod lan;
+
+#[cfg(unix)]
+mod app;

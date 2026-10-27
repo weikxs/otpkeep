@@ -1,5 +1,5 @@
 import { previewCopy } from "../shared/previewClipboard";
-import type { CopyResult, PanelApi, PanelEntry, PanelState } from "./api";
+import type { CopyResult, PanelApi, PanelEntry, PanelState, Problem } from "./api";
 
 /** Made-up accounts for the browser preview and tests; the codes are derived from the clock, not secrets. */
 const DEMO_ENTRIES: Omit<PanelEntry, "code" | "nextCode" | "validUntilMs" | "shortcut" | "note" | "tags">[] = [
@@ -23,11 +23,13 @@ export function fakeCode(id: string, step: number): string {
 export interface DemoOptions {
   clock?: () => number;
   status?: PanelState["status"];
+  /** Why the data cannot be opened, when `status` is unavailable. */
+  problem?: Problem;
   empty?: boolean;
 }
 
 /** A PanelApi with demo data, for previews and tests. */
-export function demoApi({ clock = Date.now, status = "ready", empty = false }: DemoOptions = {}): PanelApi & {
+export function demoApi({ clock = Date.now, status = "ready", problem = "DATA_MISSING", empty = false }: DemoOptions = {}): PanelApi & {
   copied: string[];
 } {
   let current = status;
@@ -68,7 +70,7 @@ export function demoApi({ clock = Date.now, status = "ready", empty = false }: D
     usesMasterPassword: true,
     inGroup: false,
     readOnly: false,
-    ...(current === "unavailable" ? { problem: "DATA_MISSING" as const } : {}),
+    ...(current === "unavailable" ? { problem } : {}),
   });
 
   return {
@@ -91,8 +93,11 @@ export function demoApi({ clock = Date.now, status = "ready", empty = false }: D
       if (password === "demo") current = "ready";
       return state("");
     },
+    // Trying again works, as when the other OTPKeep has quit.
+    retryOpen: async () => {
+      if (current === "unavailable") current = "ready";
+    },
     openMain: async () => {},
-    openGate: async () => {},
     onChange: () => () => {},
     hide: async () => {},
   };

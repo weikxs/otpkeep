@@ -521,3 +521,99 @@ fn a_backup_before_pairing_is_written_encrypted_in_the_backups_folder() {
         );
     }
 }
+
+#[test]
+fn several_changes_to_one_entry_are_saved_once_with_their_history() {
+    let clock = TestClock::at(0);
+    let (dir, keystore, mut service) = service(&clock);
+    let id = service
+        .add(new_entry("first name", 1, CodeSpec::default()))
+        .unwrap();
+    let before = service.revision();
+
+    clock.set(MINUTE_MS);
+    service
+        .edit_all(
+            id,
+            vec![
+                Change::Title("second name".into()),
+                Change::Note("a note".into()),
+                Change::Issuer("Example Mail".into()),
+                Change::Tags(vec!["work".into()]),
+                Change::Pinned(true),
+            ],
+        )
+        .unwrap();
+
+    assert_eq!(service.revision(), before + 1);
+    let service = reopen(&dir, &keystore, service, &clock);
+    let entry = service.entry(id).unwrap();
+    assert_eq!(entry.title.value, "second name");
+    assert_eq!(entry.issuer.value, "Example Mail");
+    assert!(entry.pinned.value);
+    let titles: Vec<_> = service
+        .history(id, HistoryField::Title)
+        .into_iter()
+        .map(|v| v.value.clone())
+        .collect();
+    let notes: Vec<_> = service
+        .history(id, HistoryField::Note)
+        .into_iter()
+        .map(|v| v.value.clone())
+        .collect();
+    assert_eq!(titles, ["first name"]);
+    assert_eq!(notes, [""]);
+}
+
+#[test]
+fn one_rejected_change_among_several_saves_nothing() {
+    let clock = TestClock::at(0);
+    let (_dir, _keystore, mut service) = service(&clock);
+    let id = service
+        .add(new_entry("first name", 1, CodeSpec::default()))
+        .unwrap();
+    let before = (service.revision(), service.doc().clone());
+
+    let result = service.edit_all(
+        id,
+        vec![Change::Note("a note".into()), Change::Title(String::new())],
+    );
+
+    assert_eq!(result, Err(ServiceError::Edit(EditError::TitleEmpty)));
+    assert_eq!((service.revision(), service.doc().clone()), before);
+}
+
+#[test]
+fn entries_are_found_after_others_are_deleted() {
+    let clock = TestClock::at(0);
+    let (_dir, _keystore, mut service) = service(&clock);
+    let first = service
+        .add(new_entry("first", 1, CodeSpec::default()))
+        .unwrap();
+    let second = service
+        .add(new_entry("second", 2, CodeSpec::default()))
+        .unwrap();
+
+    service.purge(first).unwrap();
+
+    assert!(service.entry(first).is_none());
+    assert_eq!(service.entry(second).unwrap().title.value, "second");
+}
+
+#[test]
+fn refuses_a_document_with_an_older_field_than_the_current_one() {
+    let clock = TestClock::at(1_000);
+    let (_dir, _keystore, mut service) = service(&clock);
+    let id = service
+        .add(new_entry("first", 1, CodeSpec::default()))
+        .unwrap();
+    let older = service.doc().clone();
+    service.edit(id, Change::Title("second".into())).unwrap();
+    let mut rolled_back = service.doc().clone();
+    rolled_back.entries = older.entries;
+
+    assert_eq!(
+        service.commit_derived(rolled_back).err(),
+        Some(ServiceError::NotDerived)
+    );
+}

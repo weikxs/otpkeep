@@ -2,6 +2,10 @@
 //!
 //! Images are decoded in memory only. Their size is checked from the header before any pixels are decoded, so a
 //! small file that claims huge dimensions cannot exhaust memory.
+//!
+//! A large picture is first searched at a reduced size: a code in a photo still has several pixels per module
+//! there, and the detector's work grows with the number of pixels. When that finds nothing, or finds a code it
+//! cannot read, the full picture is searched as before, so a small code in a large screenshot is still found.
 
 use std::io::Cursor;
 
@@ -12,6 +16,8 @@ use zeroize::Zeroizing;
 pub const MAX_IMAGE_SIDE: u32 = 10_000;
 /// Most pixels an image may have.
 const MAX_IMAGE_PIXELS: u64 = 40_000_000;
+/// Longest side of the reduced copy a large picture is searched in first.
+const SCAN_SIDE: u32 = 1600;
 /// Smallest side of a drawn code, in SVG units.
 const SVG_MIN_SIDE: u32 = 256;
 
@@ -60,18 +66,43 @@ pub fn decode_qr_image(bytes: &[u8]) -> Result<Vec<Zeroizing<String>>, QrError> 
     let luma = image::load_from_memory(bytes)
         .map_err(|_| QrError::NotAnImage)?
         .to_luma8();
+    if let Some((small_width, small_height)) = scan_size(width, height) {
+        let small = image::imageops::thumbnail(&luma, small_width, small_height);
+        let (found, unreadable) = scan(small_width, small_height, small.as_raw());
+        if !found.is_empty() && unreadable == 0 {
+            return Ok(found);
+        }
+    }
     Ok(decode_qr_luma(width, height, luma.as_raw()))
+}
+
+/// The size of the reduced copy to search first, or `None` when the picture is small enough already.
+fn scan_size(width: u32, height: u32) -> Option<(u32, u32)> {
+    let longest = width.max(height);
+    if longest <= SCAN_SIDE {
+        return None;
+    }
+    let reduced = |side: u32| {
+        let scaled = u64::from(side) * u64::from(SCAN_SIDE) / u64::from(longest);
+        u32::try_from(scaled).unwrap_or(SCAN_SIDE).max(1)
+    };
+    Some((reduced(width), reduced(height)))
 }
 
 /// Every QR code in a grey-scale frame (one byte per pixel, row by row), for example from a camera or a screen
 /// capture. A frame whose size does not match yields nothing.
 #[must_use]
 pub fn decode_qr_luma(width: u32, height: u32, luma: &[u8]) -> Vec<Zeroizing<String>> {
+    scan(width, height, luma).0
+}
+
+/// The codes read from a frame, and how many codes were found but could not be read.
+fn scan(width: u32, height: u32, luma: &[u8]) -> (Vec<Zeroizing<String>>, usize) {
     let (Ok(w), Ok(h)) = (usize::try_from(width), usize::try_from(height)) else {
-        return Vec::new();
+        return (Vec::new(), 0);
     };
     if w.checked_mul(h) != Some(luma.len()) {
-        return Vec::new();
+        return (Vec::new(), 0);
     }
     let mut prepared = rqrr::PreparedImage::prepare_from_greyscale(w, h, |x, y| luma[y * w + x]);
     let mut grids = prepared.detect_grids();
@@ -82,10 +113,12 @@ pub fn decode_qr_luma(width: u32, height: u32, luma: &[u8]) -> Vec<Zeroizing<Str
             .fold((i32::MAX, i32::MAX), |(x, y), p| (x.min(p.x), y.min(p.y)));
         (top_left.1, top_left.0)
     });
-    grids
+    let found: Vec<Zeroizing<String>> = grids
         .iter()
         .filter_map(|grid| grid.decode().ok().map(|(_, text)| Zeroizing::new(text)))
-        .collect()
+        .collect();
+    let unreadable = grids.len() - found.len();
+    (found, unreadable)
 }
 
 /// Draws `text` as an SVG QR code with a quiet zone. The SVG holds the code's modules only, so it is as secret as

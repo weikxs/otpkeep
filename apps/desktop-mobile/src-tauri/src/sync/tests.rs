@@ -360,3 +360,34 @@ async fn an_edit_made_during_a_session_survives_its_result() {
 
     assert_eq!(titles_of(&core), ["A", "Meanwhile"]);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_session_result_ahead_of_the_data_keeps_local_edits_and_counters() {
+    let directory = WindowDirectory::default();
+    let a = device(
+        &directory,
+        "otpauth://totp/A:a?secret=JBSWY3DPEHPK3PXP\notpauth://hotp/Token:b?secret=GEZDGNBVGY3TQOJQ&counter=0",
+    );
+    let mut core = a.core.lock().unwrap();
+    let mut result = core.session_start().unwrap().doc;
+    let ids: Vec<String> = core.list("").unwrap().into_iter().map(|e| e.id).collect();
+    let token = core.list("Token").unwrap()[0].id.clone();
+    let other = ids.iter().find(|id| **id != token).unwrap().clone();
+
+    // Meanwhile, in the window: a rename and a counter code.
+    core.edit(&other, Some("Renamed".to_owned()), None).unwrap();
+    core.next_hotp(&token).unwrap();
+    // The session's result is stamped later than both, as a peer with a faster clock would make it.
+    result.clock.wall_ms += 60_000;
+    let me = keep_vault::DeviceId([1; 32]);
+    core.commit_session(result, &[], &[me, me]).unwrap();
+
+    assert!(titles_of(&core).contains(&"Renamed".to_owned()));
+    let saved = core.session_start().unwrap().doc;
+    let counter = saved
+        .entries
+        .iter()
+        .find(|e| e.id.to_string() == token)
+        .map(|e| e.key.value.counter);
+    assert_eq!(counter, Some(1), "the counter never goes back");
+}

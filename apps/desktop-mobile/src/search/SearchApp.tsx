@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { PanelEntry } from "../panel/api";
 import type { Strings } from "../panel/i18n";
 import { useLiveState } from "../panel/live";
-import { EntryList, PasswordPrompt, SearchIcon, generateIfNeeded } from "../panel/Panel";
+import { Unavailable } from "../panel/Unavailable";
+import { EntryList, PasswordPrompt, SearchIcon, generateIfNeeded } from "../panel/EntryList";
 import { type LanguageControl, LanguageSelect } from "../shared/LanguageSelect";
 import type { SearchApi, TypeResult } from "./api";
 import type { SearchStrings } from "./i18n";
@@ -50,7 +51,7 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now, language 
   const [failed, setFailed] = useState(false);
   const [fallback, setFallback] = useState<TypeResult | null>(null);
   const input = useRef<HTMLInputElement>(null);
-  const { state, setState, coreNow } = useLiveState(api, query, clock);
+  const { state, setState, coreNow, epoch, reload } = useLiveState(api, query, clock);
   const entries = state?.entries ?? [];
 
   useEffect(() => input.current?.focus(), [state?.status]);
@@ -63,9 +64,12 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now, language 
         setFailed(false);
         setFallback(null);
         input.current?.focus();
+        void reload();
       }),
-    [api],
+    [api, reload],
   );
+  // Typing that failed after the window hid brings it back to say so.
+  useEffect(() => api.onTypingFailed(setFallback), [api]);
   useEffect(() => {
     document.querySelector(".entry.selected")?.scrollIntoView?.({ block: "nearest" });
   }, [selected]);
@@ -82,6 +86,7 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now, language 
     },
     [api, setState],
   );
+  const onCopy = useCallback((entry: PanelEntry) => void copy(entry), [copy]);
 
   const typeOut = useCallback(
     async (entry: PanelEntry) => {
@@ -160,13 +165,15 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now, language 
       )}
       {state.status === "needsPassword" && <PasswordPrompt api={api} text={text} onOpened={setState} />}
       {state.status === "unavailable" && (
-        <section class="panel-message">
-          <p class="message-title">{text.unavailable}</p>
-          {state.problem && <p class="message-body">{text.problems[state.problem]}</p>}
-          <button type="button" class="primary" onClick={() => void api.openMain()}>
-            {text.handleInMain}
-          </button>
-        </section>
+        <Unavailable
+          state={state}
+          text={text}
+          onRetry={async () => {
+            await api.retryOpen();
+            await reload();
+          }}
+          onOpenMain={() => void api.openMain()}
+        />
       )}
       {state.status === "ready" && entries.length === 0 && (
         <p class="panel-none">{query === "" ? text.emptyTitle : text.noMatch}</p>
@@ -178,9 +185,10 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now, language 
           selected={selected}
           copiedId={null}
           coreNow={coreNow}
+          epoch={epoch}
           text={text}
           isMac={isMac}
-          onCopy={(entry) => void copy(entry)}
+          onCopy={onCopy}
           onHover={setSelected}
         />
       )}
@@ -196,9 +204,7 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now, language 
           </span>
         ) : fallback ? (
           <span class="search-notice" role="status">
-            {fallback.fallback === "UNSUPPORTED"
-              ? words.unsupported(fallback.clearsInS)
-              : words.noPermission(fallback.clearsInS)}
+            {fallbackWords(words, fallback)}
             {fallback.fallback === "NO_PERMISSION" && (
               <button
                 type="button"
@@ -228,4 +234,18 @@ export function SearchApp({ api, text, words, isMac, clock = Date.now, language 
       </footer>
     </div>
   );
+}
+
+/** Why a code was copied instead of typed, in the person's language. */
+function fallbackWords(words: SearchStrings, result: TypeResult): string {
+  switch (result.fallback) {
+    case "UNSUPPORTED":
+      return words.unsupported(result.clearsInS);
+    case "MAIN_OPEN":
+      return words.mainOpen(result.clearsInS);
+    case "FAILED":
+      return words.failed(result.clearsInS);
+    default:
+      return words.noPermission(result.clearsInS);
+  }
 }

@@ -40,8 +40,8 @@ the [OpenSSF Scorecard](https://scorecard.dev) checks for the supply chain.
 - **One pull request, one purpose.** Do not mix a fix, a refactor and a feature; split them.
 - **Review:** every change reaches `main` through a pull request with green required checks (§6). Contributors'
   pull requests also need an approval from a code owner (`.github/CODEOWNERS`). Maintainers follow the same rule;
-  a maintainer may merge a documentation-only pull request (no code, tests, workflows or build files) without
-  waiting for the checks, only after `make check` passes locally.
+  a documentation-only pull request (no code, tests, workflows or build files) still runs CI's `check` job, which
+  sees that nothing testable changed and passes in seconds. Nobody bypasses the checks.
 - **Response times** are best effort; security reports follow [SECURITY.md](../../SECURITY.md).
 
 ## 3. AI-assisted contributions (MUST)
@@ -115,7 +115,7 @@ CI) and review.
 
 | Rule | Level | Enforced by |
 |---|---|---|
-| `main` is protected: changes arrive through pull requests with green required checks; no force-push or deletion; linear history. Repository admins may bypass the checks inside a pull request, for documentation-only changes (§2) | MUST | repository ruleset |
+| `main` is protected: changes arrive through pull requests with the `check` job green; no force-push or deletion; linear history; nobody bypasses the checks (§2) | MUST | repository ruleset |
 | Release tags `v*` are never moved or deleted once a release is published; nobody can bypass this | MUST | repository ruleset |
 | Workflows declare least-privilege `permissions` (read-only by default; `contents: write` only to publish a release) | MUST | review |
 | Dependencies are updated by Dependabot: one grouped pull request per ecosystem per week; major versions of crates and npm packages are upgraded on purpose | MUST | `.github/dependabot.yml` |
@@ -175,7 +175,7 @@ CI) and review.
 - **Coverage:** at least 80% of lines across the workspace (`make cover` fails below it); core crates aim at 90%.
 - **Style:** descriptive test names; Arrange–Act–Assert; property tests (`proptest`) for parsers and merge.
 - **Vectors:** all RFC 4226 / RFC 6238 test vectors pass.
-- **Fuzzing:** every parser has a `cargo-fuzz` target; the nightly workflow runs each for 10 minutes.
+- **Fuzzing:** every parser has a `cargo-fuzz` target; the full workflow, started by hand before a release, runs each for 10 minutes.
 - **Sync simulation:** merge changes pass the deterministic multi-device simulation (`make sim`, 10 000 seeds;
   `make check` runs 300).
 - **Isolation:** no network outside loopback and in-memory test networks; no real home directory; no real
@@ -183,13 +183,13 @@ CI) and review.
 - **Never install anything on the developer's machine.** Tests that need other systems or CPUs run in containers
   or in CI: at most one container at a time, with a CPU and memory limit, and none started while the machine is
   at 70% CPU or more.
-- **Browser tests** (`pnpm e2e`, Playwright) cover the main window, the quick panel, the search panel and the
+- **Browser tests** (`pnpm e2e`, Playwright) cover the main window, the search panel, the password window and the
   management page in both themes; they pass on macOS and Linux.
 - **Install script:** checked on Ubuntu, Debian, Fedora and Alpine containers (deb, rpm, AppImage, a tampered
   package, musl) and, by the release workflow, on real macOS and Linux x86_64 and arm64 machines that install and
   start every package before it is published.
-- **Platforms:** every change passes `make check` and the browser tests; CI runs clippy and the tests on macOS,
-  Linux and Windows, and builds Android and iOS.
+- **Platforms:** every change passes `make check` and the browser tests; CI runs clippy and the tests on Linux for
+  every pull request, and before each release on macOS, Linux and Windows, where it also builds Android and iOS.
 
 ## 10. Git workflow
 
@@ -249,5 +249,5 @@ A change is done when:
 - [ ] errors are handled and messages are actionable, in both languages;
 - [ ] `CHANGELOG.md`, README (both languages) and help text are updated where relevant;
 - [ ] the author understands and has verified every line, including AI-assisted parts;
-- [ ] the pull request has green required checks (or, documentation only, `make check` passed locally) and is
+- [ ] the pull request has the `check` job green and is
   squash-merged with a Conventional Commit title.

@@ -1,5 +1,6 @@
 //! The commands the main window uses to keep the list in order (PRD FR-3.1, FR-3.11, FR-4.1–4.3). Every
-//! change is announced, so the panel and the management page follow.
+//! change is announced, so the panel and the management page follow. Changes save the vault, so they run off
+//! the main thread (see `commands.rs`).
 
 // Tauri hands commands their state, handles and arguments by value.
 #![allow(
@@ -20,12 +21,12 @@ fn announce(app: &AppHandle, result: std::result::Result<(), CoreError>) -> Resu
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_pinned(id: &str, pinned: bool, vault: State<'_, AppCore>, app: AppHandle) -> Result<()> {
     announce(&app, vault.get().set_pinned(id, pinned))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_tags(
     id: &str,
     tags: Vec<String>,
@@ -35,22 +36,22 @@ pub fn set_tags(
     announce(&app, vault.get().set_tags(id, tags))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn move_entry(id: &str, to: MoveTo, vault: State<'_, AppCore>, app: AppHandle) -> Result<()> {
     announce(&app, vault.get().move_to(id, &to))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn trash_entry(id: &str, vault: State<'_, AppCore>, app: AppHandle) -> Result<()> {
     announce(&app, vault.get().trash(id))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn restore_entry(id: &str, vault: State<'_, AppCore>, app: AppHandle) -> Result<()> {
     announce(&app, vault.get().restore(id))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn purge_entry(id: &str, vault: State<'_, AppCore>, app: AppHandle) -> Result<()> {
     announce(&app, vault.get().purge(id))
 }
@@ -66,7 +67,7 @@ pub fn entry_history(id: &str, vault: State<'_, AppCore>) -> Result<History> {
 }
 
 /// Applies one action to several entries at once; returns how many changed.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn batch_entries(
     ids: Vec<String>,
     action: BatchAction,

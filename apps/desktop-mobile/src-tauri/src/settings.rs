@@ -10,8 +10,10 @@ use serde::{Deserialize, Serialize};
 const FILE: &str = "settings.json";
 /// How long a copied code stays on the clipboard when the setting says nothing (design/10-reference.md §2).
 pub const DEFAULT_CLEAR_S: u16 = 30;
-/// The quick panel's opacity in percent when the setting says nothing.
-pub const DEFAULT_PANEL_OPACITY: u8 = 90;
+/// How many recently used entries the menu bar menu remembers.
+pub const RECENT_LIMIT: usize = 10;
+/// How many accounts the menu bar menu shows on its first level when the setting says nothing.
+pub const DEFAULT_MENU_ACCOUNTS: u8 = 30;
 
 /// The settings this version knows; fields from newer versions are kept as they are.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -35,9 +37,18 @@ pub struct Settings {
     /// The search panel's shortcut; absent is the system's default (`⌃⌥⌘Space` on macOS), empty is off.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub search_shortcut: Option<String>,
-    /// The quick panel's opacity in percent (70–100); absent is [`DEFAULT_PANEL_OPACITY`].
+    /// Ids of the entries whose codes were used most recently on this device, newest first (at most
+    /// [`RECENT_LIMIT`]). Ids only: no names, codes or secrets. Never synced.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recent_entries: Vec<String>,
+    /// How many accounts the menu bar menu shows on its first level (10–50); absent is
+    /// [`DEFAULT_MENU_ACCOUNTS`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub panel_opacity: Option<u8>,
+    pub menu_accounts: Option<u8>,
+    /// Whether scripts may get codes from the running app (docs/scripting.md); absent follows
+    /// [`Settings::scripts_allowed`]'s default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scripts: Option<bool>,
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
 }
@@ -50,6 +61,41 @@ impl Settings {
             0 => None,
             seconds => Some(Duration::from_secs(u64::from(seconds))),
         }
+    }
+
+    /// The settings after the code of `id` was used: `id` first, each entry once, only entries for which
+    /// `exists` holds, at most [`RECENT_LIMIT`] of them.
+    #[must_use]
+    pub fn with_recent(&self, id: &str, exists: impl Fn(&str) -> bool) -> Self {
+        let older = self
+            .recent_entries
+            .iter()
+            .map(String::as_str)
+            .filter(|entry| *entry != id);
+        let recent_entries = std::iter::once(id)
+            .chain(older)
+            .filter(|entry| exists(entry))
+            .take(RECENT_LIMIT)
+            .map(str::to_owned)
+            .collect();
+        Self {
+            recent_entries,
+            ..self.clone()
+        }
+    }
+
+    /// Whether scripts may get codes from the running app. When never chosen: yes for a vault whose key is in
+    /// the system keychain (the command line could read it directly anyway), no for one with a master password
+    /// (otherwise any program of this user would get codes without it).
+    #[must_use]
+    pub fn scripts_allowed(&self, uses_master_password: bool) -> bool {
+        self.scripts.unwrap_or(!uses_master_password)
+    }
+
+    /// How many accounts the menu bar menu shows on its first level.
+    #[must_use]
+    pub fn menu_accounts(&self) -> usize {
+        usize::from(self.menu_accounts.unwrap_or(DEFAULT_MENU_ACCOUNTS))
     }
 
     /// The search panel's shortcut in effect, if any.
@@ -168,6 +214,71 @@ mod tests {
         assert_eq!(again.entry_shortcuts.len(), 2);
         assert_eq!(again.theme.as_deref(), Some("dark"));
         assert_eq!(again.extra["future"], 1);
+    }
+
+    #[test]
+    fn keeps_the_retired_panel_opacity_for_older_versions() {
+        let dir = temp_dir();
+        std::fs::write(dir.path().join("settings.json"), r#"{"panelOpacity":80}"#).unwrap();
+        let file = SettingsFile::new(Some(dir.path()));
+
+        file.save(&file.load()).unwrap();
+
+        assert_eq!(file.load().extra["panelOpacity"], 80);
+    }
+
+    #[test]
+    fn remembers_recently_used_entries_newest_first_once_each() {
+        let all = |_: &str| true;
+        let settings = Settings::default()
+            .with_recent("a", all)
+            .with_recent("b", all)
+            .with_recent("a", all);
+
+        assert_eq!(settings.recent_entries, ["a", "b"]);
+    }
+
+    #[test]
+    fn remembers_at_most_ten_entries_and_drops_those_gone() {
+        let many = (0..15).fold(Settings::default(), |s, n| {
+            s.with_recent(&n.to_string(), |_| true)
+        });
+        assert_eq!(many.recent_entries.len(), 10);
+        assert_eq!(many.recent_entries[0], "14");
+
+        let pruned = many.with_recent("14", |id| id != "13" && id != "12");
+        assert_eq!(pruned.recent_entries[..3], ["14", "11", "10"]);
+    }
+
+    #[test]
+    fn scripts_are_allowed_by_default_only_without_a_master_password() {
+        let unset = Settings::default();
+        let on = Settings {
+            scripts: Some(true),
+            ..Settings::default()
+        };
+        let off = Settings {
+            scripts: Some(false),
+            ..Settings::default()
+        };
+
+        assert!(unset.scripts_allowed(false));
+        assert!(!unset.scripts_allowed(true));
+        assert!(on.scripts_allowed(true));
+        assert!(!off.scripts_allowed(false));
+    }
+
+    #[test]
+    fn keeps_recent_entries_in_the_file() {
+        let dir = temp_dir();
+        let file = SettingsFile::new(Some(dir.path()));
+
+        file.save(&Settings::default().with_recent("e1", |_| true))
+            .unwrap();
+
+        let text = std::fs::read_to_string(dir.path().join("settings.json")).unwrap();
+        assert!(text.contains("\"recentEntries\""));
+        assert_eq!(file.load().recent_entries, ["e1"]);
     }
 
     #[test]

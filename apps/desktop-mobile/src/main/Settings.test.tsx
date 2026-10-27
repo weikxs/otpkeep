@@ -62,6 +62,28 @@ describe("settings", () => {
     await waitFor(() => expect(set).toHaveBeenCalledWith({ rowShortcuts: false }));
   });
 
+  it("lets scripts get codes from the running app", async () => {
+    const api = show();
+    const dialog = await openSettings();
+    const allow = (await dialog.findByLabelText(/允许脚本/u)) as HTMLInputElement;
+
+    expect(allow.checked).toBe(true);
+    fireEvent.click(allow);
+
+    await waitFor(async () => expect((await api.settings()).scripts).toBe(false));
+  });
+
+  it("sets how many accounts the menu bar menu shows", async () => {
+    const api = show();
+    const dialog = await openSettings();
+    const count = await dialog.findByLabelText(/菜单栏菜单中的账号数/u);
+
+    expect((count as HTMLSelectElement).value).toBe("30");
+    fireEvent.change(count, { target: { value: "15" } });
+
+    await waitFor(async () => expect((await api.settings()).menuAccounts).toBe(15));
+  });
+
   it("shows the version and that it works offline", async () => {
     show();
     const dialog = await openSettings();
@@ -116,19 +138,5 @@ describe("typing codes", () => {
     expect(await dialog.findByText("可以使用")).toBeTruthy();
     expect(ask).toHaveBeenCalled();
     expect(dialog.queryByText("去授权")).toBeNull();
-  });
-});
-
-describe("menu bar panel opacity", () => {
-  it("is set with a slider and kept readable", async () => {
-    const api = show();
-    const dialog = await openSettings();
-    const slider = await dialog.findByLabelText("菜单栏面板透明度");
-
-    expect((slider as HTMLInputElement).value).toBe("90");
-    fireEvent.change(slider, { target: { value: "75" } });
-
-    await waitFor(async () => expect((await api.settings()).panelOpacity).toBe(75));
-    expect(dialog.getByText("75%")).toBeTruthy();
   });
 });

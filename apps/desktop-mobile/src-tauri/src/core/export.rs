@@ -110,22 +110,26 @@ impl Core {
         Ok(chosen)
     }
 
-    /// A file of the chosen entries. A backup needs `password`.
+    /// The chosen entries, copied out so a file can be made from them without holding the core: deriving a
+    /// backup's key takes a while (Argon2id at full strength), and the windows and sync keep working meanwhile.
     ///
     /// # Errors
     ///
-    /// Returns [`CoreError`], for example `BACKUP_PASSWORD_EMPTY` or `NOTHING_TO_EXPORT`.
-    pub fn export_file(
+    /// Returns [`CoreError`], for example `NOTHING_TO_EXPORT`.
+    pub fn export_job(
         &self,
         format: ExportFormat,
         ids: Option<&[String]>,
-        password: Option<&str>,
-    ) -> Result<ExportFile, CoreError> {
-        let params = keep_vault::master::new_kdf_params().map_err(|_| CoreError::Save)?;
-        self.export_file_with(format, ids, password, params)
+    ) -> Result<ExportJob, CoreError> {
+        Ok(ExportJob {
+            format,
+            entries: self.chosen(ids)?.into_iter().cloned().collect(),
+            date: date_of((self.clock)()),
+        })
     }
 
-    /// [`Core::export_file`] with given key derivation parameters (quick ones in tests).
+    /// A file of the chosen entries in one step, for tests.
+    #[cfg(test)]
     pub(crate) fn export_file_with(
         &self,
         format: ExportFormat,
@@ -133,56 +137,7 @@ impl Core {
         password: Option<&str>,
         params: KdfParams,
     ) -> Result<ExportFile, CoreError> {
-        let entries = self.chosen(ids)?;
-        let date = date_of((self.clock)());
-        let (bytes, file_name, extension, left_out) = match format {
-            ExportFormat::Backup => {
-                let password = password
-                    .filter(|p| !p.is_empty())
-                    .ok_or(CoreError::Invalid("BACKUP_PASSWORD_EMPTY"))?;
-                let bytes =
-                    write_backup(&entries, password, params).map_err(|_| CoreError::Save)?;
-                (
-                    Zeroizing::new(bytes),
-                    format!("otpkeep-backup-{date}.otpkeep"),
-                    "otpkeep",
-                    Vec::new(),
-                )
-            }
-            ExportFormat::Links => {
-                let text = links_sheet(&entries);
-                (
-                    Zeroizing::new(text.as_bytes().to_vec()),
-                    format!("otpkeep-links-{date}.txt"),
-                    "txt",
-                    Vec::new(),
-                )
-            }
-            ExportFormat::GoldenPassport => {
-                let file = goldenpassport_file(&entries);
-                let left_out = file
-                    .skipped
-                    .iter()
-                    .map(|(index, reason)| LeftOut {
-                        title: entries[*index].title.value.clone(),
-                        reason: gp_reason(*reason),
-                    })
-                    .collect();
-                (
-                    file.bytes,
-                    format!("goldenpassport-{date}.secrets"),
-                    "secrets",
-                    left_out,
-                )
-            }
-        };
-        Ok(ExportFile {
-            bytes,
-            file_name,
-            extension,
-            count: entries.len() - left_out.len(),
-            left_out,
-        })
+        self.export_job(format, ids)?.finish_with(password, params)
     }
 
     /// Transfer codes for Google Authenticator, to scan one after another.
@@ -232,6 +187,83 @@ impl Core {
         let entry = entries.first().ok_or(CoreError::NotFound)?;
         Ok(QrImage {
             svg: draw(&single_link(entry), QrEcc::Medium)?,
+        })
+    }
+}
+
+/// The entries of an export, taken from the core; see [`Core::export_job`].
+pub struct ExportJob {
+    format: ExportFormat,
+    entries: Vec<Entry>,
+    date: String,
+}
+
+impl ExportJob {
+    /// The file. A backup needs `password`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CoreError`], for example `BACKUP_PASSWORD_EMPTY`.
+    pub fn finish(&self, password: Option<&str>) -> Result<ExportFile, CoreError> {
+        let params = keep_vault::master::new_kdf_params().map_err(|_| CoreError::Save)?;
+        self.finish_with(password, params)
+    }
+
+    /// [`ExportJob::finish`] with given key derivation parameters (quick ones in tests).
+    pub(crate) fn finish_with(
+        &self,
+        password: Option<&str>,
+        params: KdfParams,
+    ) -> Result<ExportFile, CoreError> {
+        let entries: Vec<&Entry> = self.entries.iter().collect();
+        let date = &self.date;
+        let (bytes, file_name, extension, left_out) = match self.format {
+            ExportFormat::Backup => {
+                let password = password
+                    .filter(|p| !p.is_empty())
+                    .ok_or(CoreError::Invalid("BACKUP_PASSWORD_EMPTY"))?;
+                let bytes =
+                    write_backup(&entries, password, params).map_err(|_| CoreError::Save)?;
+                (
+                    Zeroizing::new(bytes),
+                    format!("otpkeep-backup-{date}.otpkeep"),
+                    "otpkeep",
+                    Vec::new(),
+                )
+            }
+            ExportFormat::Links => {
+                let text = links_sheet(&entries);
+                (
+                    Zeroizing::new(text.as_bytes().to_vec()),
+                    format!("otpkeep-links-{date}.txt"),
+                    "txt",
+                    Vec::new(),
+                )
+            }
+            ExportFormat::GoldenPassport => {
+                let file = goldenpassport_file(&entries);
+                let left_out = file
+                    .skipped
+                    .iter()
+                    .map(|(index, reason)| LeftOut {
+                        title: entries[*index].title.value.clone(),
+                        reason: gp_reason(*reason),
+                    })
+                    .collect();
+                (
+                    file.bytes,
+                    format!("goldenpassport-{date}.secrets"),
+                    "secrets",
+                    left_out,
+                )
+            }
+        };
+        Ok(ExportFile {
+            bytes,
+            file_name,
+            extension,
+            count: entries.len() - left_out.len(),
+            left_out,
         })
     }
 }

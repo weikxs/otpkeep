@@ -84,7 +84,20 @@ impl Staging {
         Some(self.items.remove(at).1)
     }
 
-    fn expire(&mut self, now_ms: u64) {
+    /// Drops every import, for when the window that staged them closes.
+    pub fn clear(&mut self) {
+        self.items.clear();
+    }
+
+    /// How many imports are waiting, for tests.
+    #[cfg(test)]
+    #[must_use]
+    pub const fn count(&self) -> usize {
+        self.items.len()
+    }
+
+    /// Drops the imports older than [`STAGED_TTL_MS`].
+    pub fn expire(&mut self, now_ms: u64) {
         self.items
             .retain(|(_, s)| now_ms.saturating_sub(s.at_ms) <= STAGED_TTL_MS);
     }
