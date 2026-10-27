@@ -147,7 +147,6 @@ fn builder() -> tauri::Builder<tauri::Wry> {
         .manage(commands::AppCore::new(core))
         .manage(hotkeys)
         .manage(gate::GateServer::default())
-        .manage(unlock::prompt_state())
         .invoke_handler(tauri::generate_handler![
             commands::panel_state,
             commands::main_state,
@@ -225,6 +224,9 @@ fn start_desktop(
         notify,
         std::sync::Arc::new(keep_vault::service::system_now_ms),
     ));
+    // The state of the system's password dialog, which only macOS uses.
+    #[cfg(target_os = "macos")]
+    app.manage(crate::native_unlock::Prompt::default());
     desktop::setup(app)?;
     #[cfg(unix)]
     if let Some(dir) = data_dir {

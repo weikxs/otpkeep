@@ -57,16 +57,6 @@ pub fn show_window(app: &AppHandle) {
     }
 }
 
-/// The state of the system's password dialog (macOS); nothing elsewhere.
-#[cfg(target_os = "macos")]
-pub fn prompt_state() -> crate::native_unlock::Prompt {
-    crate::native_unlock::Prompt::default()
-}
-
-/// The state of the system's password dialog (macOS); nothing elsewhere.
-#[cfg(not(target_os = "macos"))]
-pub const fn prompt_state() {}
-
 /// Closes the password window for good, when it is open.
 pub fn close(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(UNLOCK) {
