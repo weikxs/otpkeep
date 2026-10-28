@@ -19,7 +19,7 @@ pub(crate) fn fold(text: &str) -> Folded {
         origin: Vec::with_capacity(text.len()),
     };
     for (index, original) in text.chars().enumerate() {
-        if original.is_ascii() {
+        if original.is_ascii() || is_unified_ideograph(original) {
             push(&mut folded, original.to_ascii_lowercase(), index);
             continue;
         }
@@ -53,7 +53,17 @@ pub(crate) fn fold_char(original: char) -> Vec<char> {
     if original.is_ascii() {
         return vec![original.to_ascii_lowercase()];
     }
+    if is_unified_ideograph(original) {
+        return vec![original];
+    }
     normalized(original)
+}
+
+/// A Chinese character of the CJK Unified Ideographs block or its Extension A. These have no compatibility or
+/// canonical decomposition and no case, so they fold to themselves; names and notes are full of them, so
+/// skipping normalization for them keeps building the index fast.
+fn is_unified_ideograph(ch: char) -> bool {
+    matches!(ch, '\u{3400}'..='\u{4DBF}' | '\u{4E00}'..='\u{9FFF}')
 }
 
 /// [`fold_char`] the long way: compatibility normalization, marks removed, lower case.
@@ -73,12 +83,20 @@ pub(crate) fn fold_plain(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{fold_char, normalized};
+    use super::{fold, fold_char, normalized};
 
     #[test]
     fn the_ascii_shortcut_folds_like_the_long_way() {
         for ch in (0u8..128).map(char::from) {
             assert_eq!(fold_char(ch), normalized(ch), "{ch:?}");
+        }
+    }
+
+    #[test]
+    fn the_chinese_shortcut_folds_like_the_long_way() {
+        for ch in ('\u{3400}'..='\u{4DBF}').chain('\u{4E00}'..='\u{9FFF}') {
+            assert_eq!(fold_char(ch), normalized(ch), "{ch:?}");
+            assert_eq!(fold(&ch.to_string()).chars, normalized(ch), "{ch:?}");
         }
     }
 }

@@ -188,8 +188,9 @@ CI) and review.
 - **Install script:** checked on Ubuntu, Debian, Fedora and Alpine containers (deb, rpm, AppImage, a tampered
   package, musl) and, by the release workflow, on real macOS and Linux x86_64 and arm64 machines that install and
   start every package before it is published.
-- **Platforms:** every change passes `make check` and the browser tests; CI runs clippy and the tests on Linux for
-  every pull request, and before each release on macOS, Linux and Windows, where it also builds Android and iOS.
+- **Platforms:** every change passes `make check` and the browser tests; CI runs clippy, the tests and the
+  performance gates on Linux for every pull request, and before each release on macOS, Linux and Windows, where it
+  also builds Android and iOS.
 
 ## 10. Git workflow
 
