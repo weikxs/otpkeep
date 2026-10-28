@@ -1,8 +1,8 @@
 name: CI
 
 # One job per pull request, on Linux: privacy, format, dependency policy and
-# advisories, clippy, the tests with coverage, and the interface's type check,
-# component and browser tests, one after another. A change to documentation
+# advisories, clippy, the tests with coverage, the performance gates, and the
+# interface's type check, component and browser tests, one after another. A change to documentation
 # alone finishes in seconds without running them; a draft runs nothing.
 # Merging to main starts nothing, since the pull request was already tested.
 # macOS and Windows, the iOS and Android builds, the installer size and
@@ -58,6 +58,11 @@ jobs:
       - name: Tests with coverage (at least 80%)
         if: steps.diff.outputs.code == 'true'
         run: make cover
+      # On a release build, as the release workflow checks them, so a pull request finds a slow change
+      # before a tag does.
+      - name: Performance gates
+        if: steps.diff.outputs.code == 'true'
+        run: make perf
       - name: Interface type check and component tests
         if: steps.diff.outputs.code == 'true'
         working-directory: ${{ env.UI_DIR }}
