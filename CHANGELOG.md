@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-28
+
 ### Added
 
 - `otpkeep code` works while the app runs (macOS, Linux): the app answers through a private local socket in the
@@ -40,6 +42,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OTPKeep resting in the menu bar runs no web page: the search panel and the main window are made when asked
   for and closed for good 30 seconds after they are closed; OTPKeep keeps running in the menu bar with no
   window open.
+- OTPKeep costs almost nothing while its windows are hidden: countdowns run only in a window on screen, which
+  catches up when shown.
+- Saving an encrypted backup no longer holds up the panels, shortcuts and sync while its key is derived.
+- Entering the master password, saving, and importing pictures or backups no longer freeze the windows while
+  they work; searching and changing many accounts at once are faster with large vaults.
+- The main window saves an edited account in one write, and redraws only the rows whose countdown changed.
 
 ### Fixed
 
@@ -71,15 +79,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only by you even when the old file was readable by others.
 - A rename, edit or counter code made while a sync was running is no longer lost when the sync finishes, and an
   HOTP counter never goes back.
-
-### Changed
-
-- OTPKeep costs almost nothing while its windows are hidden: countdowns run only in a window on screen, which
-  catches up when shown.
-- Saving an encrypted backup no longer holds up the panels, shortcuts and sync while its key is derived.
-- Entering the master password, saving, and importing pictures or backups no longer freeze the windows while
-  they work; searching and changing many accounts at once are faster with large vaults.
-- The main window saves an edited account in one write, and redraws only the rows whose countdown changed.
 
 ### Removed
 
@@ -113,5 +112,6 @@ The first public release, for macOS and Linux.
 - Installers: a universal macOS disk image; `.deb`, `.rpm` and AppImage for Linux; an install script and a
   Homebrew cask.
 
-[Unreleased]: https://github.com/weikxs/otpkeep/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/weikxs/otpkeep/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/weikxs/otpkeep/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/weikxs/otpkeep/releases/tag/v0.1.0
