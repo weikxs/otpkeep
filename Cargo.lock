@@ -2421,7 +2421,7 @@ dependencies = [
 
 [[package]]
 name = "keep-ble"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "dispatch2",
  "keep-sync",
@@ -2436,11 +2436,11 @@ dependencies = [
 
 [[package]]
 name = "keep-ffi"
-version = "0.2.0"
+version = "0.2.1"
 
 [[package]]
 name = "keep-find"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "keep-passcode",
  "keep-vault",
@@ -2451,7 +2451,7 @@ dependencies = [
 
 [[package]]
 name = "keep-gate"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "axum",
  "getrandom 0.4.3",
@@ -2466,7 +2466,7 @@ dependencies = [
 
 [[package]]
 name = "keep-keyuri"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "keep-passcode",
  "percent-encoding",
@@ -2477,7 +2477,7 @@ dependencies = [
 
 [[package]]
 name = "keep-link"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "keep-ble",
  "keep-sync",
@@ -2489,7 +2489,7 @@ dependencies = [
 
 [[package]]
 name = "keep-passcode"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "hmac 0.13.0",
  "proptest",
@@ -2501,7 +2501,7 @@ dependencies = [
 
 [[package]]
 name = "keep-platform"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "apple-native-keyring-store",
  "dbus-secret-service-keyring-store",
@@ -2516,7 +2516,7 @@ dependencies = [
 
 [[package]]
 name = "keep-sync"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "blake3",
  "ciborium",
@@ -2540,7 +2540,7 @@ dependencies = [
 
 [[package]]
 name = "keep-transfer"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "base64 0.23.1",
  "getrandom 0.4.3",
@@ -2562,7 +2562,7 @@ dependencies = [
 
 [[package]]
 name = "keep-vault"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "argon2",
  "blake3",
@@ -3281,7 +3281,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "otpkeep-app"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "arboard",
  "enigo",
@@ -3311,7 +3311,7 @@ dependencies = [
 
 [[package]]
 name = "otpkeep-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "keep-ble",
  "keep-find",

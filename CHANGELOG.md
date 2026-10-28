@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-10-28
+## [0.2.1] - 2026-10-28
+
+The changes below were first tagged as 0.2.0, which was never published: its release checks found building
+the search index too slow on slower machines. 0.2.1 builds it in about half the time.
 
 ### Added
 
@@ -112,6 +115,6 @@ The first public release, for macOS and Linux.
 - Installers: a universal macOS disk image; `.deb`, `.rpm` and AppImage for Linux; an install script and a
   Homebrew cask.
 
-[Unreleased]: https://github.com/weikxs/otpkeep/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/weikxs/otpkeep/compare/v0.1.0...v0.2.0
+[Unreleased]: https://github.com/weikxs/otpkeep/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/weikxs/otpkeep/compare/v0.1.0...v0.2.1
 [0.1.0]: https://github.com/weikxs/otpkeep/releases/tag/v0.1.0
