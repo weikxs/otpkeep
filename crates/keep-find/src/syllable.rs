@@ -2,6 +2,7 @@
 //! readings; any other character is one unit per folded character, read as itself. Whitespace is skipped.
 
 use std::collections::HashMap;
+use std::hash::{BuildHasherDefault, Hasher};
 use std::sync::Arc;
 
 use pinyin::ToPinyinMulti;
@@ -20,8 +21,42 @@ pub(crate) struct Unit {
 /// repeat characters a lot, so building an index looks each one up once.
 #[derive(Debug, Default)]
 pub(crate) struct Readings {
-    han: HashMap<char, Option<Arc<[Vec<char>]>>>,
-    plain: HashMap<char, Arc<[Vec<char>]>>,
+    han: HashMap<char, Option<Arc<[Vec<char>]>>, CharHash>,
+    /// Indexed by ASCII code; most characters of names and accounts are ASCII.
+    ascii: Vec<Option<Arc<[Vec<char>]>>>,
+    plain: HashMap<char, Arc<[Vec<char>]>, CharHash>,
+}
+
+/// Hashes a `char` key with one multiplication. The keys are characters of the user's own entries, and the
+/// lookups are per character of every field, where the default hasher's cost showed in building the index.
+type CharHash = BuildHasherDefault<CharHasher>;
+
+#[derive(Debug, Default)]
+struct CharHasher(u64);
+
+impl CharHasher {
+    /// An odd constant with well-mixed bits (the one of rustc's `FxHasher`).
+    const SEED: u64 = 0x51_7c_c1_b7_27_22_0a_95;
+
+    fn mix(&mut self, value: u64) {
+        self.0 = (self.0.rotate_left(5) ^ value).wrapping_mul(Self::SEED);
+    }
+}
+
+impl Hasher for CharHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        for byte in bytes {
+            self.mix(u64::from(*byte));
+        }
+    }
+
+    fn write_u32(&mut self, value: u32) {
+        self.mix(u64::from(value));
+    }
 }
 
 impl Readings {
@@ -37,6 +72,15 @@ impl Readings {
 
     /// A character that is not Chinese reads as itself.
     fn plain(&mut self, folded: char) -> Arc<[Vec<char>]> {
+        if let Ok(code) = u8::try_from(folded)
+            && code.is_ascii()
+        {
+            if self.ascii.is_empty() {
+                self.ascii.resize(128, None);
+            }
+            let slot = &mut self.ascii[usize::from(code)];
+            return Arc::clone(slot.get_or_insert_with(|| Arc::from(vec![vec![folded]])));
+        }
         Arc::clone(
             self.plain
                 .entry(folded)
@@ -57,12 +101,17 @@ pub(crate) fn units(text: &str, readings: &mut Readings) -> Vec<Unit> {
             });
             continue;
         }
-        let folded = if ch.is_ascii() {
-            vec![ch.to_ascii_lowercase()]
-        } else {
-            fold_char(ch)
-        };
-        for folded in folded.into_iter().filter(|c| !c.is_whitespace()) {
+        if ch.is_ascii() {
+            if !ch.is_whitespace() {
+                units.push(Unit {
+                    origin,
+                    readings: readings.plain(ch.to_ascii_lowercase()),
+                    is_han: false,
+                });
+            }
+            continue;
+        }
+        for folded in fold_char(ch).into_iter().filter(|c| !c.is_whitespace()) {
             units.push(Unit {
                 origin,
                 readings: readings.plain(folded),
